@@ -2,11 +2,13 @@ import MarkdownIt from 'markdown-it';
 import Token from 'markdown-it/lib/token.mjs';
 import { Schema, Node as PMNode, NodeSpec } from 'prosemirror-model';
 import { schema as commonSchema, defaultMarkdownParser, defaultMarkdownSerializer, MarkdownParser, MarkdownSerializer } from 'prosemirror-markdown';
+import { withoutNumbering } from './table-numbering';
 import { tableNodes } from 'prosemirror-tables';
 
 let nodes = commonSchema.spec.nodes.append(tableNodes({ tableGroup: 'block', cellContent: 'paragraph', cellAttributes: {
   align: { default: null, getFromDOM: dom => dom.getAttribute('data-align'), setDOMAttr: (value, attrs) => { if (value) attrs['data-align'] = value; } },
 } }));
+nodes = nodes.update('table', { ...nodes.get('table'), attrs: { ...nodes.get('table')!.attrs, numberColumn: { default: null } } } as NodeSpec);
 // IDs live only in the editor model, never in the saved Markdown.
 nodes.forEach((name, spec) => {
   if (spec.group === 'block') nodes = nodes.update(name, { ...spec, attrs: { ...spec.attrs, sourceId: { default: null } } });
@@ -101,6 +103,7 @@ export function parseRichMarkdown(source: string): RichDocument {
 
 /** Preserve the exact source of untouched blocks and retain reference definitions in gaps. */
 export function serializeRichMarkdown(model: RichDocument, doc: PMNode): string {
+  doc = withoutNumbering(doc);
   if (doc.eq(model.doc)) return model.source;
   const used = new Set<string>(), usedGaps = new Set<number>([0]);
   const byId = new Map(model.blocks.map((b, i) => [b.id, { ...b, index: i }]));

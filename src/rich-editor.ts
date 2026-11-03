@@ -5,8 +5,10 @@ import { history, redo, undo } from 'prosemirror-history';
 import { keymap } from 'prosemirror-keymap';
 import { inputRules, textblockTypeInputRule, wrappingInputRule } from 'prosemirror-inputrules';
 import { wrapInList, liftListItem, sinkListItem, splitListItem } from 'prosemirror-schema-list';
-import { TableView, tableEditing, addRowAfter, addRowBefore, addColumnAfter, addColumnBefore, deleteRow, deleteColumn, deleteTable, goToNextCell } from 'prosemirror-tables';
-import { alignTableColumns } from './rich-table';
+import { tableEditing, deleteTable, goToNextCell } from 'prosemirror-tables';
+import { autoNumbering, numberingRules, restoreNumbering, type NumberingRule } from './table-numbering';
+import { QuickTableView, quickTableSelection } from './quick-table-view';
+import { alignTableColumns, quickTableCommand } from './rich-table';
 import { inlineReviewPlugin, inlineReviewKey, inlineChanges, reviewDecorations, InlineChange } from './inline-review';
 import type { Hunk } from './core';
 import { mediaNodeViews } from './rich-media';
@@ -30,7 +32,7 @@ export class RichEditor {
       wrappingInputRule(/^(\d+)\.\s$/, schema.nodes.ordered_list, m => ({ order: +m[1] })),
       wrappingInputRule(/^>\s$/, schema.nodes.blockquote),
     ] });
-    const plugins = [inlineReviewPlugin, history(), rules, keymap({
+    const plugins = [inlineReviewPlugin, quickTableSelection, autoNumbering, history(), rules, keymap({
       'Mod-z': undo, 'Mod-Shift-z': redo, 'Mod-y': redo,
       'Mod-b': toggleMark(schema.marks.strong), 'Mod-i': toggleMark(schema.marks.em),
       'Mod-`': toggleMark(schema.marks.code),
@@ -49,10 +51,11 @@ export class RichEditor {
       state: EditorState.create({ doc: this.model.doc, schema, plugins }),
       attributes: { 'aria-label': 'Markdownを直接編集', role: 'textbox', 'aria-multiline': 'true', spellcheck: 'false' },
       editable: () => this.enabled,
-      nodeViews: { table: node => new TableView(node, 120), ...mediaNodeViews(() => this.images, () => this.diagramBefore) },
+      nodeViews: { table: (node, view, getPos) => new QuickTableView(node, view, getPos), ...mediaNodeViews(() => this.images, () => this.diagramBefore) },
       dispatchTransaction: transaction => {
-        this.view.updateState(this.view.state.apply(transaction));
-        if (transaction.docChanged) { this.plan = []; this.expanded.clear(); this.onChange(); }
+        const result = this.view.state.applyTransaction(transaction);
+        this.view.updateState(result.state);
+        if (result.transactions.some(tr => tr.docChanged)) { this.plan = []; this.expanded.clear(); this.onChange(); }
         this.updateToolbar();
       },
       handleClickOn: (view, _pos, node, nodePos) => {
@@ -83,11 +86,12 @@ export class RichEditor {
     this.updateToolbar();
   }
   get text(): string { return serializeRichMarkdown(this.model, this.view.state.doc); }
+  get numbering(): NumberingRule[] { return numberingRules(this.view.state.doc); }
   get composing(): boolean { return this.view.composing; }
-  load(source: string): void {
+  load(source: string, rules = this.numbering): void {
     this.model = parseRichMarkdown(source);
     this.plan = []; this.expanded.clear();
-    this.view.updateState(EditorState.create({ doc: this.model.doc, plugins: this.view.state.plugins }));
+    this.view.updateState(EditorState.create({ doc: restoreNumbering(this.model.doc, rules), plugins: this.view.state.plugins }));
     this.updateToolbar();
   }
   review(source: string, hunks: Hunk[], html: string): void {
@@ -111,7 +115,7 @@ export class RichEditor {
     const decorations = reviewDecorations(this.view.state.doc, this.plan, this.filtered, this.expanded, pos => { this.expanded.add(pos); this.decorate(); });
     this.view.dispatch(this.view.state.tr.setMeta(inlineReviewKey, decorations).setMeta('addToHistory', false));
   }
-  enable(value: boolean): void { if (this.enabled !== value) { this.enabled = value; this.view.setProps({ editable: () => this.enabled }); } }
+  enable(value: boolean): void { if (this.enabled !== value) { this.enabled = value; this.view.setProps({ editable: () => this.enabled }); this.view.dom.dispatchEvent(new Event('table-tools-update')); } }
   command(name: string): void {
     if (!this.enabled || this.composing) return;
     const id = this.view.state.selection.$from.parent.attrs.sourceId;
@@ -125,8 +129,8 @@ export class RichEditor {
       h4: setBlockType(schema.nodes.heading, { level: 4, sourceId: id }), h5: setBlockType(schema.nodes.heading, { level: 5, sourceId: id }), h6: setBlockType(schema.nodes.heading, { level: 6, sourceId: id }),
       strike: toggleMark(schema.marks.strike), quote: chainCommands(wrapIn(schema.nodes.blockquote), lift),
       code: setBlockType(schema.nodes.code_block, { sourceId: id }),
-      addRow: addRowAfter, addRowBefore, addColumn: addColumnAfter, addColumnBefore,
-      alignLeft: alignTableColumns('left'), alignCenter: alignTableColumns('center'), alignRight: alignTableColumns('right'), deleteRow, deleteColumn, deleteTable,
+      addRow: quickTableCommand('addRow'), addRowBefore: quickTableCommand('addRowBefore'), addColumn: quickTableCommand('addColumn'), addColumnBefore: quickTableCommand('addColumnBefore'),
+      alignLeft: alignTableColumns('left'), alignCenter: alignTableColumns('center'), alignRight: alignTableColumns('right'), deleteRow: quickTableCommand('deleteRow'), deleteColumn: quickTableCommand('deleteColumn'), deleteTable,
       undo, redo,
     };
     if (name === 'table') {
@@ -189,6 +193,7 @@ export class RichEditor {
     this.view.dispatch(transaction); this.view.focus(); return true;
   }
   private updateToolbar(): void {
+    this.view.dom.dispatchEvent(new Event('table-tools-update'));
     const { state } = this.view;
     for (const [name, mark] of [['bold', 'strong'], ['italic', 'em'], ['inlineCode', 'code']]) {
       const active = state.selection.empty ? schema.marks[mark].isInSet(state.storedMarks || state.selection.$from.marks()) : state.doc.rangeHasMark(state.selection.from, state.selection.to, schema.marks[mark]);

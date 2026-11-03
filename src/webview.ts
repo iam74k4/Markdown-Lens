@@ -4,9 +4,10 @@ import { RichEditor } from './rich-editor';
 import 'prosemirror-view/style/prosemirror.css';
 import 'prosemirror-tables/style/tables.css';
 import 'prosemirror-gapcursor/style/gapcursor.css';
+import type { NumberingRule } from './table-numbering';
 import type { State } from './extension';
 
-declare function acquireVsCodeApi(): { postMessage(message: unknown): void; setState(state: unknown): void; getState(): { mode?: string; uri?: string; changesOnly?: boolean } | undefined };
+declare function acquireVsCodeApi(): { postMessage(message: unknown): void; setState(state: unknown): void; getState(): { mode?: string; uri?: string; changesOnly?: boolean; numbering?: NumberingRule[] } | undefined };
 const vscode = acquireVsCodeApi();
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T;
 let state: State | undefined;
@@ -89,7 +90,7 @@ function controls() {
   button('snapshots').disabled = pending || broken || localDraft;
   button('changes-only').setAttribute('aria-pressed', String(changesOnly));
   $('document').classList.toggle('changes-only', changesOnly);
-  syncSource(); vscode.setState({ uri: state?.uri, mode, changesOnly });
+  syncSource(); vscode.setState({ uri: state?.uri, mode, changesOnly, numbering: editor?.numbering });
 }
 function move(index: number, scroll = true) {
   const blocks = changes();
@@ -117,7 +118,11 @@ function changed() {
 }
 function loadEditor(text: string) {
   if (editor) editor.load(text);
-  else editor = new RichEditor($('editor'), text, changed);
+  else {
+    const saved = vscode.getState();
+    editor = new RichEditor($('editor'), text, changed);
+    if (saved && saved.uri === state?.uri && Array.isArray(saved.numbering)) editor.load(text, saved.numbering);
+  }
   editor.filter(changesOnly);
 }
 function setMode(next: 'edit' | 'diff') {

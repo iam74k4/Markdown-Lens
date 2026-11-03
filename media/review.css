@@ -233,3 +233,23 @@ body.vscode-high-contrast ins, body.vscode-high-contrast del, body.vscode-high-c
 body.vscode-high-contrast .inline-insert, body.vscode-high-contrast-light .inline-insert { outline: 1px solid currentColor; }
 footer { z-index: 10; }.toolbar { z-index: 12; }
 .ProseMirror li.task-item { list-style: none; position: relative; }.task-item > input { position: absolute; left: -23px; top: 7px; width: 15px; height: 15px; accent-color: var(--green); cursor: pointer; }.task-item[data-checked="true"] > div > p { color: var(--muted); text-decoration: line-through; }
+
+/* Table actions stay beside the selected table, outside the editable content. */
+.quick-table { margin: 22px 0; min-width: 0; }
+.quick-table-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 6px 0; font: 11px/1.5 var(--vscode-font-family, system-ui); color: var(--muted); white-space: normal; }
+.quick-table-position { margin-right: auto; min-width: 100px; }
+.quick-table-group { display: flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 6px; padding: 2px; }
+.quick-table-group > span { padding: 0 6px; }
+.quick-table-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 30px; height: 30px; padding: 4px 6px; font-size: 11px; }
+.quick-table-button .ui-icon { width: 15px; height: 15px; }
+.quick-table-active .quick-table-position { color: var(--vscode-textLink-foreground, var(--focus)); }
+.quick-table-active > .tableWrapper { border-color: var(--focus); }
+.ProseMirror .quick-table > .tableWrapper { margin: 0; }
+.quick-table-edges { display: flex; gap: 8px; margin-top: 6px; white-space: normal; }
+.quick-table-edges .quick-table-button { border: 1px dashed var(--line); color: var(--muted); flex: 1; }
+.quick-table-edges .quick-table-button:hover:not(:disabled) { color: var(--fg); border-color: var(--focus); }
+@media (max-width: 500px) { .quick-table-position { flex-basis: 100%; }.quick-table-tools { gap: 4px; }.quick-table-group { flex: 1; justify-content: space-between; } }
+
+.ProseMirror .quick-cell-target { box-shadow: inset 0 0 0 2px var(--focus); background: var(--vscode-list-hoverBackground, #8881); }
+.quick-table-delete { margin-left: 3px; border-left: 1px solid var(--line); border-radius: 0 4px 4px 0; }.quick-table-delete:hover:not(:disabled) { color: var(--red); background: var(--del-bg); }
+.quick-table-button[aria-pressed="true"] { background: var(--ins-bg); color: var(--ins-fg); border: 1px solid var(--green); }

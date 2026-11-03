@@ -2,7 +2,7 @@
   "name": "markdown-review",
   "displayName": "Markdown Review",
   "description": "差分が見えるMarkdownをそのまま編集。WYSIWYG・ソース・図・表を1画面で確認。",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "publisher": "local-markdown-review",
   "license": "UNLICENSED",
   "engines": {
@@ -90,7 +90,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "check": "tsc --noEmit",
-    "test": "tsx --test test/core.test.ts test/store.test.ts test/rich.test.ts test/features.test.ts test/inline-review.test.ts",
+    "test": "tsx --test test/core.test.ts test/store.test.ts test/rich.test.ts test/features.test.ts test/inline-review.test.ts test/quick-table.test.ts",
     "test:host": "node scripts/run-host-tests.mjs",
     "test:ui": "node scripts/run-ui-tests.mjs",
     "vscode:prepublish": "npm run check && npm run build && node scripts/notices.mjs",

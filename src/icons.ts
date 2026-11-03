@@ -1,5 +1,9 @@
 // Small, local SVGs: consistent strokes, no icon fonts or network dependencies.
 const paths = {
+  trash: '<path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  left: '<path d="m15 6-6 6 6 6"/>',
+  right: '<path d="m9 6 6 6-6 6"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 6-6 4 4 3-3 5 5"/>',
   diagram: '<rect x="8" y="2" width="8" height="6" rx="1"/><path d="M12 8v5M5 16v-3h14v3"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/>',
   quote: '<path d="M4 6h6v7H5c0 4 3 5 3 5M14 6h6v7h-5c0 4 3 5 3 5"/>',
