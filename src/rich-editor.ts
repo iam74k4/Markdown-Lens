@@ -16,6 +16,7 @@ import { mediaNodeViews } from './rich-media';
 import { gapCursor } from 'prosemirror-gapcursor';
 import { ColorPalette } from './color-toolbar';
 import { parseRichMarkdown, serializeRichMarkdown, richSchema as schema, makeTable, RichDocument } from './rich-markdown';
+import type { Node as PMNode } from 'prosemirror-model';
 
 export class RichEditor {
   readonly view: EditorView;
@@ -28,6 +29,12 @@ export class RichEditor {
   private images = new Map<string, string>();
   private diagramBefore = new Map<string, string>();
   private colors?: ColorPalette;
+  private compositionLock = false;
+  private compositionTimer?: ReturnType<typeof setTimeout>;
+  private decorationPending = false;
+  private textCache?: { doc: PMNode; text: string };
+  private sectionCache?: { doc: PMNode; sections: ReturnType<typeof headingSections> };
+  private numberingCache?: { doc: PMNode; rules: NumberingRule[] };
   constructor(element: HTMLElement, source: string, private onChange: () => void, private onFoldChange: () => void = () => {}) {
     this.model = parseRichMarkdown(source);
     const rules = inputRules({ rules: [
@@ -63,7 +70,7 @@ export class RichEditor {
         if (docChanged) { this.plan = []; this.expanded.clear(); }
         // Keyboard navigation into hidden content reveals it before continuing to edit.
         let revealed = false;
-        if (transaction.selectionSet) for (const section of headingSections(result.state.doc)) {
+        if (transaction.selectionSet) for (const section of this.sections) {
           if (this.collapsed.has(section.key) && insideSection(section, result.state.selection.head, result.state.doc.content.size)) {
             this.collapsed.delete(section.key); revealed = true;
           }
@@ -98,21 +105,48 @@ export class RichEditor {
     document.querySelector<HTMLSelectElement>('#table-action')!.addEventListener('change', e => {
       this.command((e.target as HTMLSelectElement).value); (e.target as HTMLSelectElement).value = '';
     });
-    this.colors = new ColorPalette(this.view, () => this.enabled);
+    this.colors = new ColorPalette(this.view, () => this.enabled && !this.composing);
+    this.view.dom.addEventListener('compositionstart', () => {
+      clearTimeout(this.compositionTimer); this.compositionLock = true; this.colors?.close(); this.colors?.update();
+    }, true);
+    this.view.dom.addEventListener('compositionend', () => {
+      clearTimeout(this.compositionTimer);
+      // ProseMirror flushes the final DOM mutation after compositionend. Keep
+      // widgets, source synchronization and host updates paused until it settles.
+      this.compositionTimer = setTimeout(() => {
+        this.compositionLock = false;
+        if (this.decorationPending) this.decorate();
+        this.updateToolbar();
+        this.view.dom.dispatchEvent(new Event('composition-settled', { bubbles: true }));
+      }, 30);
+    });
     this.decorate(); this.updateToolbar();
   }
-  get text(): string { return serializeRichMarkdown(this.model, this.view.state.doc); }
-  get numbering(): NumberingRule[] { return numberingRules(this.view.state.doc); }
+  get text(): string {
+    const doc = this.view.state.doc;
+    if (this.textCache?.doc !== doc) this.textCache = { doc, text: serializeRichMarkdown(this.model, doc) };
+    return this.textCache.text;
+  }
+  get numbering(): NumberingRule[] {
+    const doc = this.view.state.doc;
+    if (this.numberingCache?.doc !== doc) this.numberingCache = { doc, rules: numberingRules(doc) };
+    return this.numberingCache.rules;
+  }
+  private get sections() {
+    const doc = this.view.state.doc;
+    if (this.sectionCache?.doc !== doc) this.sectionCache = { doc, sections: headingSections(doc) };
+    return this.sectionCache.sections;
+  }
   get folds(): string[] { return [...this.collapsed]; }
-  get sectionCount(): number { return headingSections(this.view.state.doc).length; }
+  get sectionCount(): number { return this.sections.length; }
   fold(keys: string[]): void { this.collapsed = new Set(keys); this.parkSelection(); this.decorate(); }
   foldAll(collapse: boolean): void {
-    this.collapsed = new Set(collapse ? headingSections(this.view.state.doc).map(s => s.key) : []);
+    this.collapsed = new Set(collapse ? this.sections.map(s => s.key) : []);
     this.parkSelection(); this.decorate(); this.onFoldChange();
   }
   revealChange(id: string): void {
     const change = this.plan.find(p => p.hunk.id === id); if (!change) return;
-    for (const section of headingSections(this.view.state.doc)) if (insideSection(section, change.position, this.view.state.doc.content.size)) this.collapsed.delete(section.key);
+    for (const section of this.sections) if (insideSection(section, change.position, this.view.state.doc.content.size)) this.collapsed.delete(section.key);
     this.decorate(); this.onFoldChange();
   }
   private toggleFold(key: string): void {
@@ -120,17 +154,18 @@ export class RichEditor {
     if (this.collapsed.has(key)) this.collapsed.delete(key); else this.collapsed.add(key);
     this.parkSelection(); this.decorate(); this.onFoldChange();
     // The clicked widget is replaced; retain keyboard focus on its replacement.
-    const section = headingSections(this.view.state.doc).find(s => s.key === key);
+    const section = this.sections.find(s => s.key === key);
     if (section) (this.view.nodeDOM(section.from) as HTMLElement | null)?.querySelector<HTMLButtonElement>('.section-toggle')?.focus({ preventScroll: true });
   }
   private parkSelection(): void {
     const { doc, selection } = this.view.state;
-    const owner = headingSections(doc).find(s => this.collapsed.has(s.key) && (insideSection(s, selection.from, doc.content.size) || insideSection(s, selection.to, doc.content.size)));
+    const owner = this.sections.find(s => this.collapsed.has(s.key) && (insideSection(s, selection.from, doc.content.size) || insideSection(s, selection.to, doc.content.size)));
     if (owner) this.view.dispatch(this.view.state.tr.setSelection(TextSelection.create(doc, owner.body - 1)).setMeta('addToHistory', false));
   }
-  get composing(): boolean { return this.view.composing; }
+  get composing(): boolean { return this.compositionLock || this.view.composing; }
   load(source: string, rules = this.numbering): void {
     this.closeColors();
+    this.textCache = undefined;
     this.model = parseRichMarkdown(source);
     this.plan = []; this.expanded.clear();
     this.view.updateState(EditorState.create({ doc: restoreNumbering(this.model.doc, rules), plugins: this.view.state.plugins }));
@@ -154,7 +189,9 @@ export class RichEditor {
   }
   filter(value: boolean): void { this.filtered = value; this.expanded.clear(); this.decorate(); }
   private decorate(): void {
-    const doc = this.view.state.doc, sections = headingSections(doc);
+    if (this.composing) { this.decorationPending = true; return; }
+    this.decorationPending = false;
+    const doc = this.view.state.doc, sections = this.sections;
     const hidden = (pos: number) => sections.some(s => this.collapsed.has(s.key) && insideSection(s, pos, doc.content.size));
     const review = reviewDecorations(doc, this.plan, this.filtered, this.expanded, pos => { this.expanded.add(pos); this.decorate(); }, hidden, new Set(sections.map(s => s.from)));
     const decorations = DecorationSet.create(doc, [...review.find(), ...sectionDecorations(doc, sections, this.collapsed, this.plan, key => this.toggleFold(key))]);

@@ -9,7 +9,7 @@ import { icon } from './icons';
 import { colorToolbar } from './color-toolbar';
 import { PendingFiles } from './pending-files';
 
-type Action = { type: 'ready' | 'revert' | 'reviewHunk' | 'reviewed' | 'save' | 'edit' | 'draft' | 'discardDraft' | 'exportDraft' | 'undoReview' | 'snapshot' | 'chooseSnapshot'; revision?: string; id?: string; text?: string; baseText?: string; save?: boolean };
+type Action = { type: 'ready' | 'revert' | 'reviewHunk' | 'reviewed' | 'save' | 'edit' | 'draft' | 'discardDraft' | 'exportDraft' | 'undoReview' | 'snapshot' | 'chooseSnapshot'; revision?: string; id?: string; text?: string; baseText?: string; save?: boolean; composing?: boolean };
 interface EditResult { id: string; accepted: boolean }
 export interface State {
   uri: string; name: string; html: string; revision: string; count: number;
@@ -29,6 +29,7 @@ export class ReviewPanel implements vscode.Disposable {
   private latestDraft?: Action;
   private state?: State;
   private timer?: ReturnType<typeof setTimeout>;
+  private previewTimer?: ReturnType<typeof setTimeout>;
   private queue: Promise<unknown> = Promise.resolve();
   private disposed = false;
   private disposables: vscode.Disposable[] = [];
@@ -111,6 +112,22 @@ export class ReviewPanel implements vscode.Disposable {
     if (this.state) this.state = { ...this.state, error: errorText(error) };
     void this.panel.webview.postMessage({ type: 'error', message: errorText(error) });
   }
+  private scheduleDraftPreview(action: Action): void {
+    clearTimeout(this.previewTimer);
+    if (action.composing === true) return;
+    this.previewTimer = setTimeout(() => {
+      void this.serial(async () => {
+        if (this.disposed || !this.baseline || action !== this.latestDraft || !this.draft || this.draft.text !== action.text || this.draft.baseText !== action.baseText) return;
+        try {
+          const review = buildReview(this.snapshotBase?.text ?? this.baseline.text, this.draft.text, { imageUri: this.imageUri });
+          void this.panel.webview.postMessage({ type: 'draftPreview', text: this.draft.text, baseText: this.draft.baseText,
+            baselineMarkdown: this.snapshotBase?.text ?? this.baseline.text, hunks: review.hunks, html: review.html });
+        } catch (error) {
+          void this.panel.webview.postMessage({ type: 'draftPreview', text: action.text, error: errorText(error) });
+        }
+      }).catch(error => this.sendError(error));
+    }, 100);
+  }
   // The UI and integration tests use exactly the same validated action path.
   async receive(message: unknown): Promise<void> {
     if (!message || typeof message !== 'object') return;
@@ -129,15 +146,7 @@ export class ReviewPanel implements vscode.Disposable {
         validateSize(action.text); validateSize(action.baseText);
         this.draft = { text: action.text, baseText: action.baseText };
         await this.store.saveDraft(this.uri.toString(), this.draft);
-        if (!this.disposed && this.baseline && action === this.latestDraft) {
-          try {
-            const review = buildReview(this.snapshotBase?.text ?? this.baseline.text, action.text, { imageUri: this.imageUri });
-            void this.panel.webview.postMessage({ type: 'draftPreview', text: action.text, baseText: action.baseText,
-              baselineMarkdown: this.snapshotBase?.text ?? this.baseline.text, hunks: review.hunks, html: review.html });
-          } catch (error) {
-            void this.panel.webview.postMessage({ type: 'draftPreview', text: action.text, error: errorText(error) });
-          }
-        }
+        if (!this.disposed && action === this.latestDraft) this.scheduleDraftPreview(action);
         return;
       }
       if (this.disposed) return;
@@ -254,10 +263,12 @@ export class ReviewPanel implements vscode.Disposable {
     });
   }
   inspect(): State | undefined { return this.state ? { ...this.state } : undefined; }
+  settled(): Promise<void> { return this.queue.then(() => {}); }
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
     clearTimeout(this.timer);
+    clearTimeout(this.previewTimer);
     this.disposables.splice(0).forEach(d => d.dispose());
     this.onClose();
   }
@@ -294,6 +305,7 @@ function shell(webview: vscode.Webview, extensionUri: vscode.Uri): string {
 export function activate(context: vscode.ExtensionContext) {
   const controllers = new Map<string, ReviewPanel>();
   const opening = new Map<string, Promise<ReviewPanel>>();
+  const closing = new Map<string, Promise<void>>();
   const store = new BaselineStore(join((context.storageUri ?? context.globalStorageUri).fsPath, 'baselines'));
   const pendingFiles = new PendingFiles(store);
   const pendingView = vscode.window.createTreeView('markdownReview.pending', { treeDataProvider: pendingFiles });
@@ -306,8 +318,15 @@ export function activate(context: vscode.ExtensionContext) {
     const found = controllers.get(key);
     if (found) { found.panel.reveal(undefined, true); return found; }
     const operation = (async () => {
+      // A just-closed tab may still be writing its last received draft. Never
+      // restore the next tab from an older on-disk version of that draft.
+      await closing.get(key);
       const panel = existing ?? vscode.window.createWebviewPanel('markdownReview.preview', `${basename(uri.path)} · 変更`, { viewColumn: vscode.ViewColumn.Active, preserveFocus: false }, { enableScripts: true, retainContextWhenHidden: true });
-      const controller = new ReviewPanel(uri, panel, store, context.extensionUri, () => controllers.delete(key));
+      const controller = new ReviewPanel(uri, panel, store, context.extensionUri, () => {
+        controllers.delete(key);
+        const pending = controller.settled(); closing.set(key, pending);
+        void pending.finally(() => { if (closing.get(key) === pending) closing.delete(key); });
+      });
       controllers.set(key, controller);
       try { await controller.initialize(); }
       catch (error) { panel.dispose(); throw error; }

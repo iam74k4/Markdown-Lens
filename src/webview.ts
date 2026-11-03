@@ -23,6 +23,13 @@ let baseText = '', baseRevision = '', localDraft = false, conflict = false;
 let editInvalid = false, previewReady = false, sourceOpen = false;
 let sourceDraft: string | undefined;
 let sourceComposing = false;
+let sourcePending = false;
+let sourceRenderTimer: ReturnType<typeof setTimeout> | undefined;
+let sourceCompositionTimer: ReturnType<typeof setTimeout> | undefined;
+type HostMessage = { type: 'update'; state: State } | { type: 'error'; message: string } |
+  { type: 'draftPreview'; text: string; baseText?: string; baselineMarkdown?: string; hunks: State['hunks']; html: string; error?: string };
+let deferredHostMessage: Extract<HostMessage, { type: 'update' | 'error' }> | undefined;
+const composing = () => sourceComposing || !!editor?.composing;
 let draftPreview: { text: string; hunks: State['hunks']; html: string } | undefined;
 let queuedAction: { type: string; id?: string } | undefined;
 const currentText = () => sourceDraft ?? editor?.text ?? state?.markdown ?? '';
@@ -34,11 +41,11 @@ function syncSource() {
   const version = $<HTMLSelectElement>('source-version').value;
   sourceField().readOnly = version !== 'current' || pending || broken;
   const text = version === 'confirmed' ? state?.confirmedMarkdown ?? '' : version === 'comparison' ? state?.baselineMarkdown ?? '' : currentText();
-  if (sourceField().value !== text) sourceField().value = text;
+  if (!sourceComposing && sourceField().value !== text) sourceField().value = text;
   $('source-hint').textContent = version === 'current' ? '本文と同じ下書きを編集します。保存は ⌘ / Ctrl + S' : '読み取り専用です。確認済みの内容と比較元は、確認やスナップショット選択で変わります。';
 }
 function renderCurrent() {
-  if (!state) return;
+  if (!state || composing() || sourcePending) return;
   const preview = localDraft ? (draftPreview?.text === currentText() ? draftPreview : undefined) : state;
   if (mode === 'edit' && editor && preview && !editInvalid) {
     editor.review(currentText(), preview.hunks, preview.html);
@@ -76,9 +83,9 @@ function controls() {
   $('save-state').textContent = conflict ? '● 競合・下書きを保持' : localDraft ? '● 編集中' : state?.dirty ? '● 未保存' : '保存済み';
   $('save-state').classList.toggle('dirty', localDraft || !!state?.dirty);
   document.querySelectorAll<HTMLButtonElement>('[data-revert], [data-review]').forEach(b => { b.disabled = pending || broken || conflict || editInvalid || (localDraft && !previewReady) || (!!b.dataset.review && !!state?.comparison); });
-  document.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('#formatting button:not([data-color-control]), #formatting select').forEach(b => { b.disabled = pending || broken; });
+  document.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('#formatting button:not([data-color-control]), #formatting select').forEach(b => { b.disabled = pending || broken || sourcePending; });
   document.querySelectorAll<HTMLInputElement>('input[data-task]').forEach(input => { input.disabled = pending || broken; });
-  editor?.enable(!pending && !broken && !(editInvalid && sourceDraft !== undefined));
+  editor?.enable(!pending && !broken && !sourcePending && !(editInvalid && sourceDraft !== undefined));
   $('conflict').hidden = !conflict;
   $('document').hidden = mode !== 'diff';
   $('editor').hidden = $('formatting').hidden = mode !== 'edit';
@@ -110,6 +117,9 @@ function move(index: number, scroll = true) {
 }
 function changed() {
   if (!editor || !state) return;
+  // A late composition flush from the rich view must not overwrite newer
+  // source input entered immediately after moving focus to the source pane.
+  if (sourcePending && sourceDraft !== undefined) return;
   try {
     sourceDraft = undefined;
     const text = editor.text;
@@ -118,12 +128,13 @@ function changed() {
     editInvalid = new TextEncoder().encode(text).length > 512 * 1024;
     if (editInvalid) { feedback('512KBを超えるため下書きを保存できません。元に戻すか、内容を短くしてください。', true); controls(); return; }
     // Persist each editing transaction outside the webview, including IME drafts.
-    vscode.postMessage({ type: 'draft', text, baseText });
+    vscode.postMessage({ type: 'draft', text, baseText, composing: composing() });
     if (!localDraft && !conflict) { vscode.postMessage({ type: 'discardDraft' }); renderCurrent(); }
     controls();
   } catch (error) { editInvalid = true; localDraft = true; feedback(String(error), true); controls(); }
 }
 function loadEditor(text: string) {
+  clearTimeout(sourceRenderTimer); sourcePending = false;
   if (editor) editor.load(text);
   else {
     const saved = vscode.getState();
@@ -137,8 +148,9 @@ function loadEditor(text: string) {
 }
 function setMode(next: 'edit' | 'diff') {
   if (!state || pending) return;
+  if (sourcePending && !flushSourceDraft()) return;
   if (editInvalid) { feedback('編集内容を修正してから切り替えてください。', true); return; }
-  if (editor?.composing) { feedback('入力を確定してから切り替えてください。'); return; }
+  if (composing()) { feedback('入力を確定してから切り替えてください。'); return; }
   if (next === 'diff' && localDraft) {
     if (conflict) { feedback('外部の変更と競合しています。下書きを退避するか、最新の内容を読み込んでください。', true); return; }
     applyDraft(false, next); return;
@@ -150,13 +162,15 @@ function setMode(next: 'edit' | 'diff') {
 }
 function applyDraft(save: boolean, target: 'edit' | 'diff' = mode) {
   if (!state || !editor || pending || conflict || broken || editInvalid) return;
-  if (editor.composing || sourceComposing) { feedback('入力を確定してから保存してください。'); return; }
+  if (composing()) { feedback('入力を確定してから保存してください。'); return; }
+  if (sourcePending && !flushSourceDraft()) return;
   commit = { id: crypto.randomUUID(), text: currentText(), target };
   pending = true; controls();
   vscode.postMessage({ type: 'edit', id: commit.id, text: commit.text, revision: baseRevision, save });
 }
 function action(type: string, id?: string) {
   if (!state || pending || broken || conflict || editInvalid) return;
+  if (composing()) { feedback('入力を確定してから操作してください。'); return; }
   if (localDraft && ['reviewHunk', 'reviewed', 'revert'].includes(type)) {
     if (!previewReady || editor?.composing || sourceComposing) return;
     queuedAction = { type, id }; applyDraft(false); return;
@@ -164,14 +178,14 @@ function action(type: string, id?: string) {
   pending = true; controls(); vscode.postMessage({ type, id, revision: state.revision });
 }
 
-window.addEventListener('message', event => {
-  const msg = event.data;
+function receiveHostMessage(msg: HostMessage) {
+  if (composing() && (msg.type === 'update' || msg.type === 'error')) { deferredHostMessage = msg; return; }
   if (msg.type === 'draftPreview') {
     if (!state || msg.text !== currentText()) return;
     if (msg.error) { editInvalid = true; previewReady = false; feedback(msg.error, true); controls(); return; }
     if (msg.baseText !== baseText || msg.baselineMarkdown !== state.baselineMarkdown) return;
     draftPreview = { text: msg.text, hunks: msg.hunks, html: msg.html }; previewReady = true;
-    if (!editor?.composing && !sourceComposing) { renderCurrent(); controls(); }
+    if (!composing()) { renderCurrent(); controls(); }
     return;
   }
   if (msg.type === 'error') {
@@ -239,7 +253,17 @@ window.addEventListener('message', event => {
     target.scrollIntoView({ block: 'nearest', behavior: 'instant' });
     resumeAction = undefined;
   }
-});
+}
+window.addEventListener('message', event => receiveHostMessage(event.data));
+function compositionSettled() {
+  if (composing()) return;
+  // The final input event has now reached the editor model. Reconcile the
+  // latest host update against that draft, including a cancelled composition.
+  const deferred = deferredHostMessage; deferredHostMessage = undefined;
+  if (deferred) receiveHostMessage(deferred);
+  if (localDraft) vscode.postMessage({ type: 'draft', text: currentText(), baseText });
+  renderCurrent(); controls();
+}
 
 button('undo-review').addEventListener('click', () => action('undoReview', state?.undoId));
 button('snapshot').addEventListener('click', () => action('snapshot'));
@@ -291,14 +315,27 @@ new MutationObserver(() => refreshDiagramThemes($('workspace'))).observe(documen
 button('toggle-source').addEventListener('click', () => { sourceOpen = !sourceOpen; syncSource(); });
 button('close-source').addEventListener('click', () => { sourceOpen = false; syncSource(); button('toggle-source').focus(); });
 $<HTMLSelectElement>('source-version').addEventListener('change', syncSource);
-function sourceChanged() {
+function flushSourceDraft(): boolean {
+  clearTimeout(sourceRenderTimer);
+  if (sourceComposing) return false;
+  try {
+    if (sourcePending && sourceDraft !== undefined) loadEditor(sourceDraft);
+    return true;
+  } catch (error) {
+    sourcePending = false; editInvalid = true; feedback(String(error), true); controls(); return false;
+  }
+}
+function sourceChanged(settled = false) {
   if (!state || sourceField().readOnly) return;
+  if (!settled && sourceDraft === sourceField().value) return;
   sourceDraft = sourceField().value; localDraft = sourceDraft !== baseText; previewReady = false;
   try {
     editInvalid = new TextEncoder().encode(sourceDraft).length > 512 * 1024;
     if (editInvalid) throw new Error('512KBを超えるため下書きを保存できません。');
-    vscode.postMessage({ type: 'draft', text: sourceDraft, baseText });
-    if (!sourceComposing) loadEditor(sourceDraft);
+    vscode.postMessage({ type: 'draft', text: sourceDraft, baseText, composing: sourceComposing });
+    clearTimeout(sourceRenderTimer);
+    sourcePending = true;
+    if (!sourceComposing) sourceRenderTimer = setTimeout(() => { if (flushSourceDraft()) { renderCurrent(); controls(); } }, 75);
     controls();
   } catch (error) { editInvalid = true; feedback(String(error), true); controls(); }
 }
@@ -306,9 +343,12 @@ sourceField().addEventListener('input', () => {
   // Capture immediately so a click on Save never races the visual refresh.
   sourceChanged();
 });
-sourceField().addEventListener('compositionstart', () => { sourceComposing = true; });
-sourceField().addEventListener('compositionend', () => { sourceComposing = false; sourceChanged(); });
-$('editor').addEventListener('compositionend', () => setTimeout(() => { if (draftPreview?.text === currentText()) renderCurrent(); controls(); }, 0));
+sourceField().addEventListener('compositionstart', () => { clearTimeout(sourceCompositionTimer); sourceComposing = true; });
+sourceField().addEventListener('compositionend', () => {
+  clearTimeout(sourceCompositionTimer);
+  sourceCompositionTimer = setTimeout(() => { sourceComposing = false; sourceChanged(true); compositionSettled(); }, 30);
+});
+$('editor').addEventListener('composition-settled', () => { if (sourceDraft === undefined) changed(); compositionSettled(); });
 $('image-form').addEventListener('submit', event => {
   event.preventDefault();
   if (editor?.image($<HTMLInputElement>('image-src').value.trim(), $<HTMLInputElement>('image-alt').value)) $('image-form').hidden = true;

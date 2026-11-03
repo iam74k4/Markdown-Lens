@@ -8,7 +8,7 @@
 
 **緑のマーカーで変更を見つける → 必要ならその場で編集 → ↶ 戻す / ✓ 確認済み。**
 
-> このREADMEは **0.9.0** の機能を紹介しています。画像はサンプル文書を使って **VS Codeの実際の拡張画面** を撮影したものです。エディター内の表示名・コマンド名は現在 **Markdown Review** です。
+> このREADMEは **0.9.1** の機能を紹介しています。画像は0.9.0のサンプル文書を使って **VS Codeの実際の拡張画面** を撮影したものです。エディター内の表示名・コマンド名は現在 **Markdown Review** です。
 
 ## できること
 
@@ -28,9 +28,9 @@
 
 ### インストール
 
-VS Code / Cursorのコマンドパレットで **Extensions: Install from VSIX...** を実行し、`markdown-review-0.9.0.vsix` を選びます。更新後、古い画面が残る場合はウィンドウを再読み込みしてください。
+VS Code / Cursorのコマンドパレットで **Extensions: Install from VSIX...** を実行し、`markdown-review-0.9.1.vsix` を選びます。更新後、古い画面が残る場合はウィンドウを再読み込みしてください。
 
-現在はVSIX形式でインストールします。Marketplace / Open VSXには未公開です。0.9.0のVSIXが手元にない場合は、以下の手順でこのリポジトリから作成できます。
+現在はVSIX形式でインストールします。Marketplace / Open VSXには未公開です。0.9.1のVSIXが手元にない場合は、以下の手順でこのリポジトリから作成できます。
 
 <details>
 <summary>VSIXの作り方（Node.js 22.12以降）</summary>
@@ -39,7 +39,7 @@ VS Code / Cursorのコマンドパレットで **Extensions: Install from VSIX..
 
 ```sh
 npm ci
-npm run package -- --out markdown-review-0.9.0.vsix
+npm run package -- --out markdown-review-0.9.1.vsix
 ```
 
 拡張を使う側にはNode.jsは不要です。
@@ -148,6 +148,6 @@ macOSにVS Codeがある環境では、次のコマンドで実Webviewの検証�
 MARKDOWN_REVIEW_SCREENSHOTS=docs/images npm run test:ui
 ```
 
-VS Code / Cursorの拡張ホスト検証は `npm run test:host`。Cursorの実画面全操作や日本語IMEなど、未検証の範囲は[レビュー記録](MAIN_REVIEW.md)を参照してください。
+VS Code / Cursorの拡張ホスト検証は `npm run test:host`。日本語変換はChromiumの入力イベントでも検証しています。macOSの日本語変換候補UIやCursorの全UI操作など、未検証の範囲は[最新版の検証記録](VALIDATION.md)を参照してください。
 
 </details>

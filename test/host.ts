@@ -229,6 +229,33 @@ export async function run(): Promise<void> {
   assert.equal(rich.inspect()?.draft, undefined);
   rich.panel.dispose();
 
+  // Delay durable storage to reproduce closing/reopening before the last write finishes.
+  const slowUri = vscode.Uri.file(join(root, '閉じ直し.md'));
+  await writeFile(slowUri.fsPath, original);
+  let slow = await api.open(slowUri);
+  const draftStore = (slow as unknown as { store: { saveDraft(uri: string, draft: {text: string; baseText: string}): Promise<void> } }).store;
+  const saveDraft = draftStore.saveDraft.bind(draftStore);
+  let releaseWrite!: () => void, enteredWrite!: () => void;
+  const gate = new Promise<void>(resolve => { releaseWrite = resolve; });
+  const entered = new Promise<void>(resolve => { enteredWrite = resolve; });
+  draftStore.saveDraft = async (uri, value) => { enteredWrite(); await gate; await saveDraft(uri, value); };
+  const lastDraft = draft + '閉じる直前の日本語\n';
+  const writing = slow.receive({ type: 'draft', text: lastDraft, baseText: original, composing: true });
+  await entered;
+  slow.panel.dispose();
+  let reopened = false;
+  const reopening = api.open(slowUri).then(panel => { reopened = true; return panel; });
+  await new Promise(resolve => setTimeout(resolve, 40));
+  const openedBeforeWrite = reopened;
+  releaseWrite(); await writing; slow = await reopening;
+  draftStore.saveDraft = saveDraft;
+  assert.equal(openedBeforeWrite, false, 'reopening waits for queued draft persistence');
+  assert.equal(slow.inspect()?.draft?.text, lastDraft);
+  assert.equal(await readFile(slowUri.fsPath, 'utf8'), original);
+  evidence.push('immediate tab reopen waits for an in-flight Japanese composition draft write');
+  slow.panel.dispose();
+
+
   const trackedUri = vscode.Uri.file(join(root, '一覧.md'));
   await writeFile(trackedUri.fsPath, '# 一覧\n\n旧文\n');
   const tracked = await api.open(trackedUri);

@@ -1,0 +1,19 @@
+{
+  "version": "0.9.1",
+  "installed": {
+    "vscode": {
+      "version": "0.9.1",
+      "runtimeHashesMatch": true
+    },
+    "cursor": {
+      "version": "0.9.1",
+      "runtimeHashesMatch": true
+    }
+  },
+  "sha256": {
+    "dist/extension.js": "fd6a5a76913d78c84413004c76725c081dce65133f2826bcb128cc4c89d2ecec",
+    "media/review.css": "a7ed6e776b0dc988a347e375f45dabda09e48d3c7e5de4cfea3b400961f7ddb3",
+    "media/webview.css": "8039b8e7d44a16a52299dd6db55d7451d51fac1ff5589b30286091762d57bff3",
+    "media/webview.js": "f85be1e3cb2d3f488daae730191f32d00676ca2f91e6f94c9926f7547473a92e"
+  }
+}

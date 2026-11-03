@@ -15,6 +15,7 @@ export async function run() {
   }
   const api = await vscode.extensions.getExtension('local-markdown-review.markdown-review')!.activate() as { open(uri: vscode.Uri): Promise<ReviewPanel> };
   const panel = await api.open(uri);
+  let currentPanel = panel;
   await writeFile(uri.fsPath, after);
   const start = Date.now();
   while (panel.inspect()?.count !== 3) {
@@ -27,6 +28,7 @@ export async function run() {
   let visualFixture = false;
   let tableFixture = false;
   let lastNotificationClear = 0;
+  let reopenRequest = '';
   while (Date.now() - start < 240000) {
     if (Date.now() - lastNotificationClear > 1000) {
       await vscode.commands.executeCommand('notifications.clearAll');
@@ -41,7 +43,7 @@ export async function run() {
         const fixture = '# リクエスト処理\n\n認証後、データを取得する。\n\n```mermaid\nflowchart LR\nA[認証] --> D[(DB)]\n```\n\n| 設定 | 値 |\n| --- | --- |\n| 保持期間 | 30秒 |\n| 再試行 | 3回 |\n\n![構成図](./local.svg)\n';
         await writeFile(join(root, 'local.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="280" height="64"><rect width="280" height="64" rx="8" fill="#c9f4a3"/><text x="20" y="39" font-size="18" fill="#173b12">Local image preview</text></svg>');
         await writeFile(visualUri.fsPath, fixture);
-        await api.open(visualUri);
+        currentPanel = await api.open(visualUri);
         await writeFile(visualUri.fsPath, fixture.replace('認証後、', '認証後、キャッシュを経由して').replace('A[認証] --> D[(DB)]', 'A[認証] --> C[キャッシュ]\nC --> D[(DB)]').replace('30秒', '60秒'));
         await writeFile(join(root, 'visual-ready'), 'ready');
       }
@@ -54,7 +56,7 @@ export async function run() {
       const descriptions = ['最終操作から期限を過ぎた場合は、利用者に再ログインを要求する。', '連続した認証失敗が上限に達した場合、アカウントを一時的にロックし、登録済みのメールアドレスに通知する。', 'ロック中はログインを受け付けず、解除までの時間を案内する。', '認証結果を一時保存し、同じリクエストによるデータベースへのアクセスを減らす。', '上限を超えた場合は、終了するセッションを選択してもらう。', 'ログイン・ログアウト・認証失敗の履歴を記録する。'];
       const fixture = '# 認証設定\n\n| 項目 | 分類 | 設定値 | 説明 |\n| --- | --- | --- | --- |\n' + Array.from({ length: 18 }, (_, i) => `| ${names[i % 6]}${i >= 6 ? '（環境' + Math.floor(i / 6) + '）' : ''} | ${i % 6 === 5 ? '監査' : '認証'} | ${values[i % 6]} | ${descriptions[i % 6]} |`).join('\n') + '\n';
       await writeFile(tableUri.fsPath, fixture);
-      await api.open(tableUri);
+      currentPanel = await api.open(tableUri);
       await writeFile(tableUri.fsPath, fixture.replace('| 30分 |', '| 24時間 |').replace('| 30秒 |', '| 60秒 |'));
       await writeFile(join(root, 'table-ready'), 'ready');
     }
@@ -62,6 +64,13 @@ export async function run() {
     if (theme && theme !== lastTheme) {
       lastTheme = theme;
       await vscode.workspace.getConfiguration('workbench').update('colorTheme', theme, vscode.ConfigurationTarget.Global);
+    }
+    const reopen = await readFile(join(root, 'reopen-request'), 'utf8').catch(() => '');
+    if (reopen && reopen !== reopenRequest) {
+      reopenRequest = reopen;
+      const currentUri = currentPanel.uri;
+      currentPanel.panel.dispose(); currentPanel = await api.open(currentUri);
+      await writeFile(join(root, 'reopen-ready'), reopen);
     }
     await new Promise(resolve => setTimeout(resolve, 100));
   }

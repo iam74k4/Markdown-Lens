@@ -10,7 +10,7 @@
 
 ## インストール
 
-VS CodeまたはCursorでコマンドパレットを開き、`Extensions: Install from VSIX...`（VSIXからのインストール）を選んで `markdown-review-0.9.0.vsix` を指定します。VSIXで配布します。マーケットプレイスには公開していません。
+VS CodeまたはCursorでコマンドパレットを開き、`Extensions: Install from VSIX...`（VSIXからのインストール）を選んで `markdown-review-0.9.1.vsix` を指定します。VSIXで配布します。マーケットプレイスには公開していません。
 
 ## 使い方
 
@@ -28,6 +28,12 @@ VS CodeまたはCursorでコマンドパレットを開き、`Extensions: Instal
 「確認済み」は選んだ変更だけを比較元に取り込み、「すべて確認」は現在の全文を比較元にします。ファイル保存やGitコミットは行いません。未保存の内容も確認でき、保存状態は画面下部に表示します。
 
 個別の確認状態はタブを閉じても保持します。確認済みの箇所をAIや人が再編集すると、最後に確認した内容との差分が再び未確認として表示されます。確認は段落・リスト・表などの変更ブロック単位です。改行コードが変わる場合はファイル全体を1件として確認します。
+
+## 日本語入力と下書き（0.9.1）
+
+日本語の変換中は差分マーカーの更新を待ち、確定後に更新します。保存・確認・戻すは入力確定後に操作してください。外部で同じ文書が変更された場合も、確定した下書きを保持して競合を表示します。
+
+受信した下書きの保存が終わるまで、閉じたタブの開き直しを待つようにしました。長いMarkdownをソース欄へ貼り付けた場合は、少し間を置いて本文表示を更新します。保存や表示切り替えでは最新の入力を同期します。Markdownファイルへの書き込みは引き続き明示的な保存で行います。
 
 ## 視覚的なレビュー（0.4.0）
 
@@ -171,7 +177,7 @@ macOSに両アプリがインストールされていれば `npm run test:host` 
 
 `npm run test:ui` はVS Codeの実際のWebviewでボタン操作・ダーク/ライトテーマ・狭い幅の表示を検証します。`MARKDOWN_REVIEW_TARGET=cursor npm run test:ui` も用意していますが、Cursorの新規プロファイルではログイン画面に遮られる場合があります。既存のログイン済みウィンドウでの手動確認と組み合わせてください。
 
-配布用VSIXは `npx vsce package --no-dependencies --allow-missing-repository --out markdown-review-0.9.0.vsix` で生成できます。公開時にはpublisherを登録し、VS Code Marketplace / Open VSX向けの配布情報を設定してください。
+配布用VSIXは `npx vsce package --no-dependencies --allow-missing-repository --out markdown-review-0.9.1.vsix` で生成できます。公開時にはpublisherを登録し、VS Code Marketplace / Open VSX向けの配布情報を設定してください。
 
 設計上はVS Codeの安定版APIのみを使い、最低APIバージョンは1.96です。各エディタ・各OSでの互換性は、実際にテストした範囲に限られます。
 

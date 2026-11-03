@@ -171,6 +171,45 @@ try {
  await expect(page.locator('#color-palette')).toBeHidden();
  await expect(page.locator('.ProseMirror mark')).toHaveCount(0);
  await page.setViewportSize({width:1100,height:900});
+ // Real Chromium composition events retain the active DOM while preedit text changes.
+ const imeSource='# 日本語\n\n新しい本文\n';
+ await page.evaluate(source=>{
+  window.loadEditor(source); const e=window.richEditor;
+  e.review(source,[{id:'ime',start:7,end:source.length,oldStart:7,oldEnd:source.length,before:'元の本文\n',after:'新しい本文\n'}],'');
+  window.imeCard=document.querySelector('.inline-review');
+  e.view.dispatch(e.view.state.tr.setSelection(e.view.state.selection.constructor.atEnd(e.view.state.doc)));e.view.focus();
+ },imeSource);
+ const cdp=await page.context().newCDPSession(page);
+ await cdp.send('Input.imeSetComposition',{text:'にほんご',selectionStart:4,selectionEnd:4});
+ await expect.poll(()=>page.evaluate(()=>window.richEditor.text)).toContain('にほんご');
+ expect(await page.evaluate(()=>window.richEditor.composing && window.imeCard.isConnected)).toBe(true);
+ await page.evaluate(()=>window.richEditor.command('bold'));
+ expect(await page.evaluate(()=>window.richEditor.text)).not.toContain('**');
+ await cdp.send('Input.imeSetComposition',{text:'日本語',selectionStart:3,selectionEnd:3});
+ await cdp.send('Input.insertText',{text:'日本語'});
+ await expect.poll(()=>page.evaluate(()=>window.richEditor.composing)).toBe(false);
+ expect(await page.evaluate(()=>window.richEditor.text)).toBe('# 日本語\n\n新しい本文日本語\n');
+ await page.evaluate(()=>window.richEditor.command('undo'));
+ expect(await page.evaluate(()=>window.richEditor.text)).toBe(imeSource);
+ await page.evaluate(()=>window.richEditor.command('redo'));
+ expect(await page.evaluate(()=>window.richEditor.text)).toBe('# 日本語\n\n新しい本文日本語\n');
+ await page.evaluate(()=>{const e=window.richEditor;e.view.dispatch(e.view.state.tr.setSelection(e.view.state.selection.constructor.atEnd(e.view.state.doc)));e.view.focus();});
+ await cdp.send('Input.imeSetComposition',{text:'とりけし',selectionStart:4,selectionEnd:4});
+ await expect.poll(()=>page.evaluate(()=>window.richEditor.text)).toContain('とりけし');
+ await cdp.send('Input.imeSetComposition',{text:'',selectionStart:0,selectionEnd:0});
+ await expect.poll(()=>page.evaluate(()=>window.richEditor.composing)).toBe(false);
+ expect(await page.evaluate(()=>window.richEditor.text)).toBe('# 日本語\n\n新しい本文日本語\n');
+ // Reading derived editor state repeatedly must not mutate Markdown, selection or history.
+ const largeSource=Array.from({length:500},(_,i)=>'## 節 '+i+'\n\n'+('日本語で書かれた設計書の内容を確認します。'.repeat(5))+'\n\n').join('');
+ await page.evaluate(source=>window.loadEditor(source),largeSource);
+ const performanceResult=await page.evaluate(()=>{
+  const e=window.richEditor, start=performance.now();
+  for(let i=0;i<100;i++){void e.text;void e.sectionCount;void e.numbering;}
+  return {bytes:new TextEncoder().encode(e.text).length,paragraphs:e.view.state.doc.childCount,reads100ms:performance.now()-start};
+ });
+ expect(await page.evaluate(()=>window.richEditor.text)).toBe(largeSource);
+ await writeFile(join(folder,'performance.json'),JSON.stringify(performanceResult,null,2));
+ await cdp.detach();
  // Nested sections, review widgets, source preservation and keyboard editing after folding.
  const foldSource = '# 設計書\n\n概要\n\n## 認証\n\n期限は24時間\n\n### 設定\n\n| 項目 | 値 |\n| --- | --- |\n| 期限 | 24時間 |\n\n```mermaid\nflowchart LR\nA --> B\n```\n\n## API\n\n公開API\n';
  await page.evaluate(s=>window.loadEditor(s),foldSource);
@@ -214,6 +253,6 @@ try {
  await page.getByRole('button',{name:'「認証」を折りたたむ',exact:true}).click();
  await page.screenshot({path:join(folder,'heading-folding.png')});
  expect(errors).toEqual([]);
- await writeFile(join(folder,'result.json'),JSON.stringify({passed:true,checks:['Text color and marker palettes preserve selection and combine styles', 'Color save/reload, custom hex, independent removal and Undo/Redo', 'Color palette keyboard dismissal, narrow layout and stale selection guards', 'Mermaid editing and live preview','Task editing and Undo','Selected row and column quick moves','Header and data stay together','Column alignment follows column','Insert and immediately type into new row/cell','Disabled editor prevents table actions','One-action Undo','Edge controls target the correct table','1100px and 360px without document overflow','Opt-in numbering after row deletion and reorder preserves IDs','Row deletion and renumbering Undo together','Column deletion removes header and body cells','Nested heading folds cover tables and Mermaid', 'Folding preserves exact Markdown and does not enter Undo history', 'Keyboard entry reveals hidden content', 'Detailed comparison folds across review wrappers and navigation reveals changes', 'All heading levels, paragraph, emphasis, lists and quotes with Undo/Redo', 'Link insertion and removal; unsafe links rejected and navigation inert', 'Image insertion rejects executable schemes and unresolved paths stay inert', 'Rule, table, Mermaid and task insertion with Undo', 'No renderer exceptions']},null,2));
+ await writeFile(join(folder,'result.json'),JSON.stringify({passed:true,checks:['Chromium IME preedit preserves review DOM, commits Japanese, cancels cleanly and supports Undo/Redo', '164 KB document retains exact source across cached derived-state reads', 'Text color and marker palettes preserve selection and combine styles', 'Color save/reload, custom hex, independent removal and Undo/Redo', 'Color palette keyboard dismissal, narrow layout and stale selection guards', 'Mermaid editing and live preview','Task editing and Undo','Selected row and column quick moves','Header and data stay together','Column alignment follows column','Insert and immediately type into new row/cell','Disabled editor prevents table actions','One-action Undo','Edge controls target the correct table','1100px and 360px without document overflow','Opt-in numbering after row deletion and reorder preserves IDs','Row deletion and renumbering Undo together','Column deletion removes header and body cells','Nested heading folds cover tables and Mermaid', 'Folding preserves exact Markdown and does not enter Undo history', 'Keyboard entry reveals hidden content', 'Detailed comparison folds across review wrappers and navigation reveals changes', 'All heading levels, paragraph, emphasis, lists and quotes with Undo/Redo', 'Link insertion and removal; unsafe links rejected and navigation inert', 'Image insertion rejects executable schemes and unresolved paths stay inert', 'Rule, table, Mermaid and task insertion with Undo', 'No renderer exceptions']},null,2));
  console.log('RICH_EDITOR_BROWSER passed');
 } finally { await browser.close(); }
