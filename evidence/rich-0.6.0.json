@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "runner": "npm run test:rich",
+  "checks": [
+    "Mermaid preview renders",
+    "Replacing the editable code content updates Markdown and diagram",
+    "Task checkbox updates Markdown",
+    "Undo restores task checkbox",
+    "No renderer exceptions"
+  ]
+}

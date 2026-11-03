@@ -24,4 +24,8 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:tables
+      - run: npm run test:diagrams
+      - run: npm run test:rich
       - run: npm run package -- --out markdown-review.vsix

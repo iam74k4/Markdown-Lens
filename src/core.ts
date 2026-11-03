@@ -13,10 +13,25 @@ export const escapeHtml = (s: string) => md.utils.escapeHtml(s);
 // Document content never creates navigable URLs or makes remote image requests.
 md.renderer.rules.link_open = (tokens, i) => `<span class="md-link" title="${escapeHtml(tokens[i].attrGet('href') ?? '')}">`;
 md.renderer.rules.link_close = () => '</span>';
-md.renderer.rules.image = (tokens, i) => `<span class="image-placeholder">画像: ${escapeHtml(tokens[i].content)} <small>${escapeHtml(tokens[i].attrGet('src') ?? '')}</small></span>`;
+md.renderer.rules.image = (tokens, i, _options, env) => {
+  const src = tokens[i].attrGet('src') ?? '';
+  const resolved = (env as RenderOptions).imageUri?.(src);
+  return resolved ? `<img class="markdown-image" data-source="${escapeHtml(src)}" src="${escapeHtml(resolved)}" alt="${escapeHtml(tokens[i].content)}" loading="lazy"><span class="image-fallback" hidden>画像を読み込めません: ${escapeHtml(tokens[i].content)}</span>` : `<span class="image-placeholder">画像: ${escapeHtml(tokens[i].content)} <small>${escapeHtml(src)}</small><small>ワークスペース内のローカル画像をプレビューできます</small></span>`;
+};
+export interface RenderOptions { imageUri?: (src: string) => string | undefined }
+const defaultFence = md.renderer.rules.fence!;
+md.renderer.rules.fence = (tokens, i, options, env, self) => tokens[i].info.trim() === 'mermaid'
+  ? diagramMarkup('', tokens[i].content) : defaultFence(tokens, i, options, env, self);
+function diagramMarkup(before: string, after: string) {
+  return `<div class="diagram-review" data-before="${escapeHtml(before)}" data-after="${escapeHtml(after)}"><div class="diagram-tools"><span>Mermaid</span>${before && after && before !== after ? '<div class="diagram-modes"><button data-diagram-mode="before">変更前</button><button data-diagram-mode="diff" aria-pressed="true">差分</button><button data-diagram-mode="after">変更後</button></div>' : ''}</div><div class="diagram-canvas" role="img" aria-label="Mermaidの図"></div><details class="diagram-source"><summary>${before && after && before !== after ? 'Mermaidソースの差分' : 'Mermaidソース'}</summary><pre><code>${before && after && before !== after ? textDifference(before, after) : escapeHtml(after || before)}</code></pre></details></div>`;
+}
+function mermaidSource(source: string): string | undefined {
+  const tokens = md.parse(source, {});
+  return tokens.length === 1 && tokens[0].type === 'fence' && tokens[0].info.trim() === 'mermaid' ? tokens[0].content : undefined;
+}
 
 export interface Block { raw: string; start: number; end: number; kind: string }
-export interface Hunk { id: string; start: number; end: number; oldStart: number; oldEnd: number; before: string; after: string; eol?: 'LF' | 'CRLF' }
+export interface Hunk { id: string; start: number; end: number; oldStart: number; oldEnd: number; before: string; after: string; eol?: 'LF' | 'CRLF'; moveParts?: Hunk[] }
 export interface Review { revision: string; html: string; hunks: Hunk[] }
 export const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 
@@ -66,6 +81,7 @@ function mergedRender(before: string, after: string, oldEnv: object, newEnv: obj
   for (let i = 0; i < a.length; i++) {
     if (shape(a[i]) !== shape(b[i])) return;
     if (b[i].type === 'inline') {
+      if (a[i].content !== b[i].content && ['td_open', 'th_open'].includes(b[i - 1]?.type)) b[i - 1].attrJoin('class', 'changed-cell');
       const ac = a[i].children ?? [], bc = b[i].children ?? [];
       if (ac.length !== bc.length || ac.some((t, j) => shape(t) !== shape(bc[j]))) return;
       for (let j = 0; j < ac.length; j++) {
@@ -93,6 +109,8 @@ function mergedRender(before: string, after: string, oldEnv: object, newEnv: obj
 export function renderMarkdown(source: string, env: object = {}): string { return md.render(source, env); }
 
 function changedRender(before: string, after: string, oldEnv: object, newEnv: object): string {
+  const oldDiagram = mermaidSource(before), newDiagram = mermaidSource(after);
+  if (oldDiagram !== undefined && newDiagram !== undefined && oldDiagram !== newDiagram) return diagramMarkup(oldDiagram, newDiagram);
   if (!before.trim() && after.trim()) return `<div class="added-block"><span class="change-label">追加</span>${renderMarkdown(after, newEnv)}</div>`;
   if (!after.trim() && before.trim()) return `<div class="removed-block"><span class="change-label">削除</span>${renderMarkdown(before, oldEnv)}</div>`;
   const merged = mergedRender(before, after, oldEnv, newEnv);
@@ -107,9 +125,9 @@ function changeActions(id: string, index: number): string {
   return `<div class="change-actions"><button class="revert has-tooltip" data-revert="${id}" data-tooltip="この変更を戻す" aria-label="変更 ${index} を戻す">${icon('undo')}</button><button class="confirm-change has-tooltip" data-review="${id}" data-tooltip="この変更を確認済みにする" aria-label="変更 ${index} を確認済みにする">${icon('check')}</button></div>`;
 }
 
-export function buildReview(before: string, after: string): Review {
+export function buildReview(before: string, after: string, options: RenderOptions = {}): Review {
   const oldBlocks = splitBlocks(before), newBlocks = splitBlocks(after);
-  const oldEnv = {}, newEnv = {};
+  const oldEnv = { ...options }, newEnv = { ...options };
   md.parse(before, oldEnv); md.parse(after, newEnv);
   const parts = diffArrays(oldBlocks, newBlocks, { comparator: (a, b) => a.raw === b.raw, timeout: 250 });
   const revision = hash(JSON.stringify([before, after]));
@@ -136,7 +154,7 @@ export function buildReview(before: string, after: string): Review {
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
     if (!part.added && !part.removed) {
-      chunks.push(renderMarkdown(part.value.map(b => b.raw).join(''), newEnv));
+      chunks.push(`<details class="unchanged" open><summary>変更のない ${part.value.length} ブロック</summary><div>${renderMarkdown(part.value.map(b => b.raw).join(''), newEnv)}</div></details>`);
       currentOffset += part.value.reduce((n, b) => n + b.raw.length, 0);
       oldOffset += part.value.reduce((n, b) => n + b.raw.length, 0);
       continue;
@@ -154,18 +172,50 @@ export function buildReview(before: string, after: string): Review {
     else if (!news.length) olds.forEach(b => add(b.raw, ''));
     else add(olds.map(b => b.raw).join(''), news.map(b => b.raw).join(''));
   }
-  return { revision, html: chunks.join(''), hunks };
+  // Only unique, byte-identical whole blocks are moves. Ambiguous duplicates stay explicit.
+  const removed = hunks.filter(h => h.before.trim() && !h.after);
+  const hidden = new Set<string>();
+  for (const added of hunks.filter(h => !h.before && h.after.trim())) {
+    const matches = removed.filter(h => h.before === added.after);
+    if (matches.length !== 1 || oldBlocks.filter(b => b.raw === added.after).length !== 1 || newBlocks.filter(b => b.raw === added.after).length !== 1) continue;
+    const removal = matches[0];
+    added.moveParts = [{ ...removal }, { ...added }];
+    hidden.add(removal.id);
+  }
+  const visible = hunks.filter(h => !hidden.has(h.id));
+  const html = chunks.map(chunk => {
+    const id = /data-hunk="([^"]+)"/.exec(chunk)?.[1];
+    if (!id) return chunk;
+    if (hidden.has(id)) return '<div class="move-origin">↕ この段落は移動しました</div>';
+    const hunk = visible.find(h => h.id === id)!;
+    const index = visible.indexOf(hunk) + 1;
+    if (!hunk.moveParts) return chunk.replace(/aria-label="変更 \d+/g, `aria-label="変更 ${index}`);
+    const fromLine = before.slice(0, hunk.moveParts[0].oldStart).split('\n').length;
+    const toLine = after.slice(0, hunk.start).split('\n').length;
+    return `<section class="change moved-block" data-hunk="${id}" tabindex="-1" aria-label="変更 ${index}"><span class="move-label">↕ 移動 · 元の ${fromLine} 行 → 現在の ${toLine} 行</span><div class="change-content">${renderMarkdown(hunk.after, newEnv)}</div>${changeActions(id, index)}</section>`;
+  }).join('');
+  return { revision, html, hunks: visible };
 }
 
 export function revertHunk(current: string, hunk: Hunk): string {
+  if (hunk.moveParts) return applyParts(current, hunk.moveParts, false);
   if (current.slice(hunk.start, hunk.end) !== hunk.after) throw new Error('ファイルが更新されました。最新の差分でもう一度お試しください。');
   return current.slice(0, hunk.start) + hunk.before + current.slice(hunk.end);
 }
 
 /** Adopt only this displayed change into the confirmed baseline; never edit the document. */
 export function confirmHunk(baseline: string, hunk: Hunk): string {
+  if (hunk.moveParts) return applyParts(baseline, hunk.moveParts, true);
   if (baseline.slice(hunk.oldStart, hunk.oldEnd) !== hunk.before) throw new Error('比較元が更新されました。最新の差分でもう一度お試しください。');
   const next = baseline.slice(0, hunk.oldStart) + hunk.after + baseline.slice(hunk.oldEnd);
   validateSize(next);
   return next;
+}
+
+function applyParts(text: string, parts: Hunk[], confirming: boolean): string {
+  const edits = parts.map(h => ({ start: confirming ? h.oldStart : h.start, end: confirming ? h.oldEnd : h.end, expected: confirming ? h.before : h.after, replacement: confirming ? h.after : h.before }));
+  for (const e of edits) if (text.slice(e.start, e.end) !== e.expected) throw new Error('ファイルまたは比較元が更新されました。');
+  for (const e of edits.sort((a, b) => b.start - a.start || b.end - a.end)) text = text.slice(0, e.start) + e.replacement + text.slice(e.end);
+  validateSize(text);
+  return text;
 }

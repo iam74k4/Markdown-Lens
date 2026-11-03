@@ -16,6 +16,7 @@ for (const [name, executable] of targets) {
   const userData = resolve(root, '..', name + '-' + Date.now().toString(36));
   await mkdir(join(userData, 'User'), { recursive: true });
   await writeFile(join(userData, 'User', 'settings.json'), JSON.stringify({
+    'chat.disableAIFeatures': true, 'workbench.secondarySideBar.defaultVisibility': 'hidden',
     'workbench.startupEditor': 'none', 'window.restoreWindows': 'none',
     'security.workspace.trust.enabled': false, 'telemetry.telemetryLevel': 'off',
     'update.mode': 'none', 'extensions.autoUpdate': false,

@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "checks": [
+    "flowchart rendering",
+    "unique cached SVG identifiers",
+    "sequence diagram before/after fallback",
+    "invalid Mermaid source fallback",
+    "directive rejection",
+    "inert links and HTML",
+    "large diagram rejection",
+    "no remote requests",
+    "no browser exceptions"
+  ]
+}

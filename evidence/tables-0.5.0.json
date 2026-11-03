@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "checks": [
+    "current values and cell comparison",
+    "long cell full text",
+    "row selection",
+    "keyboard cell navigation",
+    "changed-row filter",
+    "explicit grouping with source order restoration",
+    "column resizing and reset",
+    "sticky header and first column",
+    "expanded table and Escape focus restoration",
+    "external refresh disposes open modal",
+    "light/dark/high-contrast and 360px layout",
+    "no browser exceptions",
+    "large table fallback retains all rows",
+    "header-only changes remain visible",
+    "removed tables retain deletion status"
+  ]
+}

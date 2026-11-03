@@ -1,0 +1,15 @@
+{
+  "version": "0.5.0",
+  "vsixSHA256": "8c13f921608ed71728494819f2ad249631c96b5f6107abd64984c94b9fab8ebc",
+  "verified": [
+    "VSIX matches build",
+    "VS Code installed assets match VSIX",
+    "Cursor installed assets match VSIX"
+  ],
+  "assets": [
+    "dist/extension.js",
+    "media/webview.js",
+    "media/webview.css",
+    "media/review.css"
+  ]
+}

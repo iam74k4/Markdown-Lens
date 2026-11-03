@@ -1,0 +1,26 @@
+{
+  "version": "0.8.0",
+  "vsixSha256": "e8d990f3a257dc49358da6f44fb76247ba5592add9249e2ec255c7a3bf5fdbdb",
+  "hosts": {
+    "vscode": {
+      "version": "0.8.0",
+      "files": {
+        "dist/extension.js": "d0cd195adc1ca782659e518102d420d7e7ac235ec2032dc519db26bcfddcf290",
+        "media/webview.js": "039e00704bc3a558a23046a3e4a3bffba9f69bfa4b1d4a7b2e3a2e91bf6447cb",
+        "media/webview.css": "8039b8e7d44a16a52299dd6db55d7451d51fac1ff5589b30286091762d57bff3",
+        "media/review.css": "b1f6f79627ac574eef52bc3eccd80be8c3a90c5d66c7be1bf849562015c3dee7"
+      },
+      "matches": true
+    },
+    "cursor": {
+      "version": "0.8.0",
+      "files": {
+        "dist/extension.js": "d0cd195adc1ca782659e518102d420d7e7ac235ec2032dc519db26bcfddcf290",
+        "media/webview.js": "039e00704bc3a558a23046a3e4a3bffba9f69bfa4b1d4a7b2e3a2e91bf6447cb",
+        "media/webview.css": "8039b8e7d44a16a52299dd6db55d7451d51fac1ff5589b30286091762d57bff3",
+        "media/review.css": "b1f6f79627ac574eef52bc3eccd80be8c3a90c5d66c7be1bf849562015c3dee7"
+      },
+      "matches": true
+    }
+  }
+}

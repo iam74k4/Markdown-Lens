@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "checks": [
+    "Mermaid editing and live preview",
+    "Task editing and Undo",
+    "Selected row and column quick moves",
+    "Header and data stay together",
+    "Column alignment follows column",
+    "Insert and immediately type into new row/cell",
+    "Disabled editor prevents table actions",
+    "One-action Undo",
+    "Edge controls target the correct table",
+    "1100px and 360px without document overflow",
+    "Opt-in numbering after row deletion and reorder preserves IDs",
+    "Row deletion and renumbering Undo together",
+    "Column deletion removes header and body cells",
+    "No renderer exceptions"
+  ]
+}

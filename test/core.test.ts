@@ -50,7 +50,7 @@ test('separate changed paragraphs can be individually reverted', () => {
 test('table cells use inline changes when the structure is stable', () => {
   const result = buildReview(examples[6][0], examples[6][1]);
   assert.equal((result.html.match(/<table>/g) ?? []).length, 1);
-  assert.match(result.html, /<td><del>30分<\/del><ins>24時間<\/ins><\/td>/);
+  assert.match(result.html, /<td class="changed-cell"><del>30分<\/del><ins>24時間<\/ins><\/td>/);
 });
 test('URL-only changes are not hidden behind identical link labels', () => {
   const result = buildReview('[資料](https://old.example)\n', '[資料](https://new.example)\n');
