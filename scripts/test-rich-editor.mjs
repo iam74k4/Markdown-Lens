@@ -83,6 +83,42 @@ try {
  await expect(page.locator('.ProseMirror th')).toHaveCount(2);
  await expect(page.locator('.ProseMirror th').first()).toHaveText('No');
  await page.screenshot({path:join(folder,'numbering-and-delete.png')});
+ // Exercise every formatting family on the same editor used by both hosts.
+ for (const [command, selector, marker] of [
+  ['bold','strong','**word**'], ['italic','em','*word*'], ['strike','s','~~word~~'], ['inlineCode','code','`word`'],
+  ['bullet','ul','word'], ['number','ol','word'], ['quote','blockquote','> word'],
+  ...Array.from({length:6},(_,i)=>['h'+(i+1),'h'+(i+1),'#'.repeat(i+1)+' word']),
+ ]) {
+  await page.evaluate(()=>{ window.loadEditor('word\n'); const e=window.richEditor; e.view.dispatch(e.view.state.tr.setSelection(e.view.state.selection.constructor.create(e.view.state.doc,1,5))); });
+  await page.evaluate(c=>window.richEditor.command(c),command);
+  await expect(page.locator('.ProseMirror '+selector).first()).toContainText('word');
+  expect(await page.evaluate(()=>window.richEditor.text)).toContain(marker);
+  await page.evaluate(()=>window.richEditor.command('undo'));
+  expect(await page.evaluate(()=>window.richEditor.text)).toBe('word\n');
+  await page.evaluate(()=>window.richEditor.command('redo'));
+  expect(await page.evaluate(()=>window.richEditor.text)).toContain(marker);
+ }
+ await page.evaluate(()=>window.richEditor.command('paragraph'));
+ await expect(page.locator('.ProseMirror > p')).toHaveText('word');
+ await page.evaluate(()=>{window.loadEditor('word\n');const e=window.richEditor;e.view.dispatch(e.view.state.tr.setSelection(e.view.state.selection.constructor.create(e.view.state.doc,1,5)));});
+ expect(await page.evaluate(()=>window.richEditor.link('https://example.com/a'))).toBe(true);
+ await expect(page.locator('.ProseMirror a')).toHaveAttribute('data-href','https://example.com/a');
+ expect(await page.locator('.ProseMirror a').getAttribute('href')).toBeNull();
+ expect(await page.evaluate(()=>window.richEditor.link('javascript:alert(1)'))).toBe(false);
+ expect(await page.evaluate(()=>window.richEditor.link(''))).toBe(true);
+ await expect(page.locator('.ProseMirror a')).toHaveCount(0);
+ expect(await page.evaluate(()=>window.richEditor.image('javascript:alert(1)','bad'))).toBe(false);
+ expect(await page.evaluate(()=>window.richEditor.image('./diagram.png','構成図'))).toBe(true);
+ expect(await page.evaluate(()=>window.richEditor.text)).toContain('![構成図](./diagram.png)');
+ await expect(page.locator('.rich-image')).toContainText('構成図');
+ await expect(page.locator('.rich-image img')).toHaveCount(0); // unresolved paths never load directly
+ for (const [command,selector] of [['rule','hr'],['table','table'],['mermaid','.diagram-canvas svg'],['task','input[data-task]']]) {
+  await page.evaluate(()=>window.loadEditor('word\n'));
+  await page.evaluate(c=>window.richEditor.command(c),command);
+  await expect(page.locator('.ProseMirror '+selector)).toHaveCount(1,{timeout:20000});
+  await page.evaluate(()=>window.richEditor.command('undo'));
+  expect(await page.evaluate(()=>window.richEditor.text)).toBe('word\n');
+ }
  // Nested sections, review widgets, source preservation and keyboard editing after folding.
  const foldSource = '# 設計書\n\n概要\n\n## 認証\n\n期限は24時間\n\n### 設定\n\n| 項目 | 値 |\n| --- | --- |\n| 期限 | 24時間 |\n\n```mermaid\nflowchart LR\nA --> B\n```\n\n## API\n\n公開API\n';
  await page.evaluate(s=>window.loadEditor(s),foldSource);
@@ -126,6 +162,6 @@ try {
  await page.getByRole('button',{name:'「認証」を折りたたむ',exact:true}).click();
  await page.screenshot({path:join(folder,'heading-folding.png')});
  expect(errors).toEqual([]);
- await writeFile(join(folder,'result.json'),JSON.stringify({passed:true,checks:['Mermaid editing and live preview','Task editing and Undo','Selected row and column quick moves','Header and data stay together','Column alignment follows column','Insert and immediately type into new row/cell','Disabled editor prevents table actions','One-action Undo','Edge controls target the correct table','1100px and 360px without document overflow','Opt-in numbering after row deletion and reorder preserves IDs','Row deletion and renumbering Undo together','Column deletion removes header and body cells','Nested heading folds cover tables and Mermaid', 'Folding preserves exact Markdown and does not enter Undo history', 'Keyboard entry reveals hidden content', 'Detailed comparison folds across review wrappers and navigation reveals changes', 'No renderer exceptions']},null,2));
+ await writeFile(join(folder,'result.json'),JSON.stringify({passed:true,checks:['Mermaid editing and live preview','Task editing and Undo','Selected row and column quick moves','Header and data stay together','Column alignment follows column','Insert and immediately type into new row/cell','Disabled editor prevents table actions','One-action Undo','Edge controls target the correct table','1100px and 360px without document overflow','Opt-in numbering after row deletion and reorder preserves IDs','Row deletion and renumbering Undo together','Column deletion removes header and body cells','Nested heading folds cover tables and Mermaid', 'Folding preserves exact Markdown and does not enter Undo history', 'Keyboard entry reveals hidden content', 'Detailed comparison folds across review wrappers and navigation reveals changes', 'All heading levels, paragraph, emphasis, lists and quotes with Undo/Redo', 'Link insertion and removal; unsafe links rejected and navigation inert', 'Image insertion rejects executable schemes and unresolved paths stay inert', 'Rule, table, Mermaid and task insertion with Undo', 'No renderer exceptions']},null,2));
  console.log('RICH_EDITOR_BROWSER passed');
 } finally { await browser.close(); }

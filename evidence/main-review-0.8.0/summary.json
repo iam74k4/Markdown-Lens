@@ -1,0 +1,61 @@
+{
+  "date": "2026-11-04",
+  "branch": "main",
+  "mergedCommit": "2e0699639b8261ac18aa7f9afc02428c43117f0d",
+  "pr": "https://github.com/iam74k4/Markdown-Lens/pull/2",
+  "unitTests": {
+    "passed": 97,
+    "failed": 0
+  },
+  "runtimeAuditVulnerabilities": 0,
+  "suites": {
+    "host-vscode.json": {
+      "passed": 24,
+      "checks": 24,
+      "skipped": []
+    },
+    "host-cursor.json": {
+      "passed": 24,
+      "checks": 24,
+      "skipped": []
+    },
+    "ui-vscode.json": {
+      "passed": true,
+      "checks": 57,
+      "skipped": []
+    },
+    "rich-browser.json": {
+      "passed": true,
+      "checks": 22,
+      "skipped": []
+    },
+    "tables-browser.json": {
+      "passed": true,
+      "checks": 15,
+      "skipped": []
+    },
+    "diagrams-browser.json": {
+      "passed": true,
+      "checks": 9,
+      "skipped": []
+    }
+  },
+  "codeReview": {
+    "blockingFindings": 0,
+    "areas": [
+      "source preservation and minimal edits",
+      "baseline and review Undo isolation",
+      "draft persistence and stale update guards",
+      "snapshot limits and comparison separation",
+      "workspace watcher and pending files",
+      "safe local image paths and Webview CSP",
+      "Mermaid fallbacks and SVG sanitization",
+      "table actions and numbering identity",
+      "heading folds and review navigation",
+      "keyboard focus and narrow-screen layouts"
+    ]
+  },
+  "limitations": [
+    "Full native Cursor UI suite, Japanese IME, screen-reader narration, Windows/Linux and remote workspaces were not verified in this review."
+  ]
+}
