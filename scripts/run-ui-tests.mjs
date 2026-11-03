@@ -52,6 +52,15 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('#reviewed')).toBeEnabled();
     await expect(frame.locator('[data-review]')).toHaveCount(3);
     for (const control of await frame.locator('.change-actions button').all()) await expect(control).toBeVisible();
+    await expect(frame.locator('[data-review]').first()).toHaveAccessibleName('変更 1 を確認済みにする');
+    await expect(frame.locator('[data-review]').first()).toHaveText('');
+    await expect(frame.locator('[data-review]').first().locator('svg')).toHaveAttribute('aria-hidden', 'true');
+    await expect(frame.locator('#reviewed')).toHaveAccessibleName('すべて確認済みにする');
+    await frame.locator('[data-review]').first().focus();
+    await expect.poll(() => frame.locator('[data-review]').first().evaluate(el => getComputedStyle(el, '::after').visibility)).toBe('visible');
+    await frame.locator('#mode-diff').focus();
+    await page.getByText('All installed extensions are temporarily disabled.', { exact: true }).waitFor({ state: 'hidden' });
+    await frame.locator('#filename').hover();
     await frame.locator('body').screenshot({ path: join(output, `markdown-review-${name}.png`) });
 
     // Both colour schemes and a narrow editor must keep the actions visible.
@@ -149,7 +158,7 @@ for (const [name, executable, port] of targets) {
     await frame.locator('#reviewed').click();
     await expect(frame.locator('#counter')).toHaveText('✓ 確認完了');
     expect(errors).toEqual([]);
-    await writeFile(join(base, 'ui-result.json'), JSON.stringify({ host: name, passed: true, checks: ['real webview rendering', 'dark and light themes', '600px and 360px layout without horizontal overflow', 'always visible per-change actions', 'individual approval without saving or changing the file', 're-edits become unreviewed', 'keyboard focus after individual approval and completion', 'next and previous change', 'revert button', 'save button', 'review all button', 'WYSIWYG typing and bold', 'edit/diff switching', 'Markdown file save', 'table editing and row insertion', 'concurrent edits preserve drafts', 'explicit draft discard loads latest', 'no renderer errors'] }, null, 2));
+    await writeFile(join(base, 'ui-result.json'), JSON.stringify({ host: name, passed: true, checks: ['real webview rendering', 'dark and light themes', '600px and 360px layout without horizontal overflow', 'always visible per-change actions', 'icon buttons retain accessible names and keyboard tooltips', 'individual approval without saving or changing the file', 're-edits become unreviewed', 'keyboard focus after individual approval and completion', 'next and previous change', 'revert button', 'save button', 'review all button', 'WYSIWYG typing and bold', 'edit/diff switching', 'Markdown file save', 'table editing and row insertion', 'concurrent edits preserve drafts', 'explicit draft discard loads latest', 'no renderer errors'] }, null, 2));
     console.log('MARKDOWN_REVIEW_UI_RESULT ' + name + ' passed');
   } finally {
     if (browser) await browser.close();

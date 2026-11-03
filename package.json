@@ -2,7 +2,7 @@
   "name": "markdown-review",
   "displayName": "Markdown Review",
   "description": "Markdownを直接編集し、差分へ切り替えて変更を確認。戻す・確認済みにする機能付き。",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "local-markdown-review",
   "license": "UNLICENSED",
   "engines": {

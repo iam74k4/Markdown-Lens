@@ -8,7 +8,7 @@ Markdownを直接編集し、AIや手動編集による差分を確認するた�
 
 ## インストール
 
-VS CodeまたはCursorでコマンドパレットを開き、`Extensions: Install from VSIX...`（VSIXからのインストール）を選んで `markdown-review-0.3.0.vsix` を指定します。初版はローカル配布用で、マーケットプレイスには公開していません。
+VS CodeまたはCursorでコマンドパレットを開き、`Extensions: Install from VSIX...`（VSIXからのインストール）を選んで `markdown-review-0.3.1.vsix` を指定します。初版はローカル配布用で、マーケットプレイスには公開していません。
 
 ## 使い方
 
@@ -16,8 +16,10 @@ VS CodeまたはCursorでコマンドパレットを開き、`Extensions: Instal
 2. エディタ右上の差分アイコン、またはコマンドパレットの **Markdown Review: 変更プレビューを開く** を実行します。初回は、この時点の内容を比較元として保存します。
 3. Claude Code / Codex / Cursor / 手動で、同じファイルを編集します。プレビューが自動更新されます。
 4. 上部の **未確認 ○件** を見ながら、`↑` / `↓` で変更箇所へ移動します。
-5. 変更の下の **戻す** で元の内容に戻すか、**✓ 確認済み** でその変更だけを確定します。確認済みにした箇所は通常の本文に戻り、残りの差分はそのまま表示されます。
-6. まとめて確認するときは、上部の **すべて確認** を押します。全件の確認が終わると **✓ 確認完了** になります。
+5. 変更の下の **↶（戻す）** で元の内容に戻すか、**✓（確認済み）** でその変更だけを確定します。確認済みにした箇所は通常の本文に戻り、残りの差分はそのまま表示されます。
+6. まとめて確認するときは、上部の **ダブルチェック（すべて確認）** を押します。全件の確認が終わると **✓ 確認完了** になります。
+
+操作ボタンにマウスを重ねるか、Tabでフォーカスすると説明を表示します。「編集／差分」は短い文字ラベルを残し、書式バーはリンク・リスト・コードなどのアイコンで操作できます。
 
 **戻すと未保存の編集になります。** プレビュー下部の「保存」またはエディタの通常の保存操作で反映できます。エディタにフォーカスして通常のUndo（Mac: `⌘Z`、Windows/Linux: `Ctrl+Z`）を使うと、戻す操作自体も取り消せます。
 
@@ -86,7 +88,7 @@ macOSに両アプリがインストールされていれば `npm run test:host` 
 
 `npm run test:ui` はVS Codeの実際のWebviewでボタン操作・ダーク/ライトテーマ・狭い幅の表示を検証します。`MARKDOWN_REVIEW_TARGET=cursor npm run test:ui` も用意していますが、Cursorの新規プロファイルではログイン画面に遮られる場合があります。既存のログイン済みウィンドウでの手動確認と組み合わせてください。
 
-配布用VSIXは `npx vsce package --no-dependencies --allow-missing-repository --out markdown-review-0.3.0.vsix` で生成できます。公開時にはpublisherを登録し、VS Code Marketplace / Open VSX向けの配布情報を設定してください。
+配布用VSIXは `npx vsce package --no-dependencies --allow-missing-repository --out markdown-review-0.3.1.vsix` で生成できます。公開時にはpublisherを登録し、VS Code Marketplace / Open VSX向けの配布情報を設定してください。
 
 設計上はVS Codeの安定版APIのみを使い、最低APIバージョンは1.96です。各エディタ・各OSでの互換性は、実際にテストした範囲に限られます。
 

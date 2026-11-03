@@ -2,6 +2,7 @@ import MarkdownIt from 'markdown-it';
 import Token from 'markdown-it/lib/token.mjs';
 import { diffArrays } from 'diff';
 import { createHash } from 'node:crypto';
+import { icon } from './icons';
 
 // Bound synchronous diff work so a generated document cannot hang the extension host.
 export const MAX_BYTES = 512 * 1024;
@@ -103,7 +104,7 @@ function changedRender(before: string, after: string, oldEnv: object, newEnv: ob
 }
 
 function changeActions(id: string, index: number): string {
-  return `<div class="change-actions"><button class="revert" data-revert="${id}" title="この変更を戻す" aria-label="変更 ${index} を戻す"><span aria-hidden="true">↶</span> 戻す</button><button class="confirm-change" data-review="${id}" title="この変更だけを確認済みにする" aria-label="変更 ${index} を確認済みにする"><span aria-hidden="true">✓</span> 確認済み</button></div>`;
+  return `<div class="change-actions"><button class="revert has-tooltip" data-revert="${id}" data-tooltip="この変更を戻す" aria-label="変更 ${index} を戻す">${icon('undo')}</button><button class="confirm-change has-tooltip" data-review="${id}" data-tooltip="この変更を確認済みにする" aria-label="変更 ${index} を確認済みにする">${icon('check')}</button></div>`;
 }
 
 export function buildReview(before: string, after: string): Review {
