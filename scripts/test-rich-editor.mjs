@@ -4,9 +4,9 @@ import { mkdir, writeFile, copyFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 const folder = resolve('test-results/rich-browser'); await mkdir(folder, { recursive: true });
-await build({ stdin: { contents: `import {RichEditor} from './src/rich-editor'; import {detailFolding} from './src/detail-folding'; window.detailFolding=detailFolding; import 'prosemirror-view/style/prosemirror.css'; window.loadEditor=(text)=>{if(window.richEditor) {window.richEditor.load(text);return;} window.richEditor=new RichEditor(document.getElementById('editor'),text,()=>{window.changed=(window.changed??0)+1});};`, resolveDir: resolve('.') }, bundle: true, platform: 'browser', outfile: join(folder, 'rich.js') });
+await build({ stdin: { contents: `import {RichEditor} from './src/rich-editor'; import {colorToolbar} from './src/color-toolbar'; document.getElementById('formatting').insertAdjacentHTML('beforeend',colorToolbar()); import {detailFolding} from './src/detail-folding'; window.detailFolding=detailFolding; import 'prosemirror-view/style/prosemirror.css'; window.loadEditor=(text)=>{if(window.richEditor) {window.richEditor.load(text);return;} window.richEditor=new RichEditor(document.getElementById('editor'),text,()=>{window.changed=(window.changed??0)+1});};`, resolveDir: resolve('.') }, bundle: true, platform: 'browser', outfile: join(folder, 'rich.js') });
 await copyFile('media/review.css', join(folder, 'review.css'));
-await writeFile(join(folder, 'index.html'), '<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="review.css"><link rel="stylesheet" href="rich.css"><body class="vscode-light"><select id="block-type"></select><select id="table-action"></select><main id="editor" class="document"></main><script src="rich.js"></script>');
+await writeFile(join(folder, 'index.html'), '<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="review.css"><link rel="stylesheet" href="rich.css"><body class="vscode-light"><div id="formatting" class="formatting"><select id="block-type"></select><select id="table-action"></select></div><main id="editor" class="document"></main><script src="rich.js"></script>');
 const browser = await chromium.launch(process.env.CI ? { headless: true } : { headless: true, channel: 'chrome' });
 try {
  const page = await browser.newPage(); const errors = []; page.on('pageerror', e=>errors.push(e.message));
@@ -119,6 +119,58 @@ try {
   await page.evaluate(()=>window.richEditor.command('undo'));
   expect(await page.evaluate(()=>window.richEditor.text)).toBe('word\n');
  }
+ // Use the actual palette, preserving the selected range while its controls take focus.
+ const selectWords = async () => page.evaluate(() => {
+  const e=window.richEditor; let pos=0; e.view.state.doc.descendants((n,p)=>{if(n.isText && n.text.includes('重要な仕様')) pos=p+n.text.indexOf('重要な仕様');});
+  e.view.dispatch(e.view.state.tr.setSelection(e.view.state.selection.constructor.create(e.view.state.doc,pos,pos+5))); e.view.focus();
+ });
+ await page.evaluate(()=>window.loadEditor('# 色付きの設計書\n\nこれは重要な仕様です。\n'));
+ await expect(page.getByRole('button',{name:'文字色',exact:true})).toBeDisabled();
+ await selectWords();
+ await page.getByRole('button',{name:'文字色',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'文字色',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'文字色：青',exact:true}).click();
+ await expect(page.locator('.ProseMirror [data-md-color]')).toHaveText('重要な仕様');
+ await expect(page.locator('.ProseMirror [data-md-color]')).toHaveCSS('color','rgb(57, 132, 213)');
+ await page.getByRole('button',{name:'マーカー',exact:true}).click();
+ await page.getByRole('button',{name:'マーカー：黄',exact:true}).click();
+ await expect(page.locator('.ProseMirror mark')).toHaveText('重要な仕様');
+ await expect(page.locator('.ProseMirror mark span')).toHaveCSS('color','rgb(57, 132, 213)');
+ const colored=await page.evaluate(()=>window.richEditor.text);
+ expect(colored).toContain('<mark style="background-color:#fff2a8"><span style="color:#3984d5">重要な仕様</span></mark>');
+ await page.evaluate(()=>window.richEditor.command('undo'));
+ await expect(page.locator('.ProseMirror mark')).toHaveCount(0);
+ await expect(page.locator('.ProseMirror [data-md-color]')).toHaveCount(1);
+ await page.evaluate(()=>window.richEditor.command('redo'));
+ await expect(page.locator('.ProseMirror mark')).toHaveCount(1);
+ await page.evaluate(s=>window.loadEditor(s),colored); await selectWords();
+ await page.getByRole('button',{name:'文字色',exact:true}).click();
+ await page.getByRole('textbox',{name:'カラーコード',exact:true}).fill('#7f248b');
+ await page.getByRole('button',{name:'適用',exact:true}).click();
+ await expect(page.locator('.ProseMirror [data-md-color]')).toHaveCSS('color','rgb(127, 36, 139)');
+ await page.getByRole('button',{name:'文字色',exact:true}).click();
+ await page.getByRole('button',{name:'文字色を解除',exact:true}).click();
+ await expect(page.locator('.ProseMirror [data-md-color]')).toHaveCount(0);
+ await expect(page.locator('.ProseMirror mark')).toHaveCount(1);
+ for(const width of [1100,360]) {
+  await page.setViewportSize({width,height:800});
+  await selectWords(); await page.getByRole('button',{name:'マーカー',exact:true}).click();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)).toBe(false);
+  const bounds=await page.locator('#color-palette').boundingBox(); expect(bounds.x).toBeGreaterThanOrEqual(0); expect(bounds.x+bounds.width).toBeLessThanOrEqual(width);
+  await page.screenshot({path:join(folder,`text-colors-${width}.png`)});
+  await page.keyboard.press('Escape'); await expect(page.locator('#color-palette')).toBeHidden();
+  await expect(page.getByRole('button',{name:'マーカー',exact:true})).toBeFocused();
+ }
+ await page.getByRole('button',{name:'マーカー',exact:true}).click();
+ await page.evaluate(()=>window.richEditor.enable(false));
+ await expect(page.locator('#color-palette')).toBeHidden();
+ await expect(page.getByRole('button',{name:'マーカー',exact:true})).toBeDisabled();
+ await page.evaluate(()=>window.richEditor.enable(true));
+ await page.getByRole('button',{name:'マーカー',exact:true}).click();
+ await page.evaluate(()=>window.loadEditor('external update\n'));
+ await expect(page.locator('#color-palette')).toBeHidden();
+ await expect(page.locator('.ProseMirror mark')).toHaveCount(0);
+ await page.setViewportSize({width:1100,height:900});
  // Nested sections, review widgets, source preservation and keyboard editing after folding.
  const foldSource = '# 設計書\n\n概要\n\n## 認証\n\n期限は24時間\n\n### 設定\n\n| 項目 | 値 |\n| --- | --- |\n| 期限 | 24時間 |\n\n```mermaid\nflowchart LR\nA --> B\n```\n\n## API\n\n公開API\n';
  await page.evaluate(s=>window.loadEditor(s),foldSource);
@@ -162,6 +214,6 @@ try {
  await page.getByRole('button',{name:'「認証」を折りたたむ',exact:true}).click();
  await page.screenshot({path:join(folder,'heading-folding.png')});
  expect(errors).toEqual([]);
- await writeFile(join(folder,'result.json'),JSON.stringify({passed:true,checks:['Mermaid editing and live preview','Task editing and Undo','Selected row and column quick moves','Header and data stay together','Column alignment follows column','Insert and immediately type into new row/cell','Disabled editor prevents table actions','One-action Undo','Edge controls target the correct table','1100px and 360px without document overflow','Opt-in numbering after row deletion and reorder preserves IDs','Row deletion and renumbering Undo together','Column deletion removes header and body cells','Nested heading folds cover tables and Mermaid', 'Folding preserves exact Markdown and does not enter Undo history', 'Keyboard entry reveals hidden content', 'Detailed comparison folds across review wrappers and navigation reveals changes', 'All heading levels, paragraph, emphasis, lists and quotes with Undo/Redo', 'Link insertion and removal; unsafe links rejected and navigation inert', 'Image insertion rejects executable schemes and unresolved paths stay inert', 'Rule, table, Mermaid and task insertion with Undo', 'No renderer exceptions']},null,2));
+ await writeFile(join(folder,'result.json'),JSON.stringify({passed:true,checks:['Text color and marker palettes preserve selection and combine styles', 'Color save/reload, custom hex, independent removal and Undo/Redo', 'Color palette keyboard dismissal, narrow layout and stale selection guards', 'Mermaid editing and live preview','Task editing and Undo','Selected row and column quick moves','Header and data stay together','Column alignment follows column','Insert and immediately type into new row/cell','Disabled editor prevents table actions','One-action Undo','Edge controls target the correct table','1100px and 360px without document overflow','Opt-in numbering after row deletion and reorder preserves IDs','Row deletion and renumbering Undo together','Column deletion removes header and body cells','Nested heading folds cover tables and Mermaid', 'Folding preserves exact Markdown and does not enter Undo history', 'Keyboard entry reveals hidden content', 'Detailed comparison folds across review wrappers and navigation reveals changes', 'All heading levels, paragraph, emphasis, lists and quotes with Undo/Redo', 'Link insertion and removal; unsafe links rejected and navigation inert', 'Image insertion rejects executable schemes and unresolved paths stay inert', 'Rule, table, Mermaid and task insertion with Undo', 'No renderer exceptions']},null,2));
  console.log('RICH_EDITOR_BROWSER passed');
 } finally { await browser.close(); }

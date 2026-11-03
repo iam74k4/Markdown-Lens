@@ -3,11 +3,13 @@ import Token from 'markdown-it/lib/token.mjs';
 import { diffArrays } from 'diff';
 import { createHash } from 'node:crypto';
 import { icon } from './icons';
+import { colorMarkdown } from './text-colors';
 
 // Bound synchronous diff work so a generated document cannot hang the extension host.
 export const MAX_BYTES = 512 * 1024;
 const MAX_BLOCKS = 4000;
 const md = new MarkdownIt({ html: false, linkify: false, typographer: false, breaks: false });
+md.use(colorMarkdown);
 export const escapeHtml = (s: string) => md.utils.escapeHtml(s);
 
 // Document content never creates navigable URLs or makes remote image requests.

@@ -4,6 +4,7 @@ import { Schema, Node as PMNode, NodeSpec } from 'prosemirror-model';
 import { schema as commonSchema, defaultMarkdownParser, defaultMarkdownSerializer, MarkdownParser, MarkdownSerializer } from 'prosemirror-markdown';
 import { withoutNumbering } from './table-numbering';
 import { tableNodes } from 'prosemirror-tables';
+import { colorMarkdown, flattenColorTokens, colorMarks, colorOpen, colorClose } from './text-colors';
 
 let nodes = commonSchema.spec.nodes.append(tableNodes({ tableGroup: 'block', cellContent: 'paragraph', cellAttributes: {
   align: { default: null, getFromDOM: dom => dom.getAttribute('data-align'), setDOMAttr: (value, attrs) => { if (value) attrs['data-align'] = value; } },
@@ -18,13 +19,14 @@ nodes = nodes.update('list_item', { ...nodes.get('list_item'), attrs: { checked:
     ['input', { type: 'checkbox', 'data-task': 'true', 'aria-label': 'タスクの完了', contenteditable: 'false', ...(node.attrs.checked ? { checked: '' } : {}) }], ['div', 0]],
 } as NodeSpec);
 nodes = nodes.update('image', { ...nodes.get('image'), toDOM: node => ['span', { class: 'image-placeholder', contenteditable: 'false' }, `画像: ${node.attrs.alt || ''} (${node.attrs.src})`] } as NodeSpec);
-export const richSchema = new Schema({ nodes, marks: commonSchema.spec.marks.update('link', {
+export const richSchema = new Schema({ nodes, marks: commonSchema.spec.marks.remove('code').update('link', {
   ...commonSchema.spec.marks.get('link'),
   // Inert links: editing must never navigate, execute commands, or load remote resources.
   toDOM: mark => ['a', { 'data-href': mark.attrs.href, title: mark.attrs.href }, 0],
-}).append({ strike: { parseDOM: [{ tag: 's' }, { tag: 'del' }], toDOM: () => ['s', 0] } }) });
+}).append({ strike: { parseDOM: [{ tag: 's' }, { tag: 'del' }], toDOM: () => ['s', 0] }, ...colorMarks, code: commonSchema.spec.marks.get('code')! }) });
 
 const tokenizer = new MarkdownIt('commonmark', { html: false }).enable(['table', 'strikethrough']);
+tokenizer.use(colorMarkdown).use(flattenColorTokens);
 tokenizer.core.ruler.before('inline', 'task_items', state => {
   for (let i = 0; i < state.tokens.length; i++) {
     const item = state.tokens[i], inline = state.tokens[i + 2];
@@ -44,6 +46,8 @@ tokenizer.core.ruler.after('inline', 'table_paragraphs', state => {
 });
 const parser = new MarkdownParser(richSchema, tokenizer, {
   ...defaultMarkdownParser.tokens, list_item: { block: 'list_item', getAttrs: token => ({ checked: token.attrGet('checked') === null ? null : token.attrGet('checked') === 'true' }) }, s: { mark: 'strike' },
+  textColor: { mark: 'textColor', getAttrs: token => ({ color: token.attrGet('color') }) },
+  highlight: { mark: 'highlight', getAttrs: token => ({ color: token.attrGet('color') }) },
   table: { block: 'table' }, thead: { ignore: true }, tbody: { ignore: true }, tr: { block: 'table_row' },
   th: { block: 'table_header', getAttrs: t => ({ align: t.attrGet('style')?.replace('text-align:', '') ?? null }) },
   td: { block: 'table_cell', getAttrs: t => ({ align: t.attrGet('style')?.replace('text-align:', '') ?? null }) },
@@ -68,7 +72,10 @@ const serializer: MarkdownSerializer = new MarkdownSerializer({
     });
     state.closeBlock(node);
   },
-}, { ...defaultMarkdownSerializer.marks, strike: { open: '~~', close: '~~', mixable: true, expelEnclosingWhitespace: true } });
+}, { ...defaultMarkdownSerializer.marks, strike: { open: '~~', close: '~~', mixable: true, expelEnclosingWhitespace: true },
+  textColor: { open: (_state, mark) => colorOpen('textColor', mark.attrs.color), close: colorClose('textColor'), mixable: true, expelEnclosingWhitespace: true },
+  highlight: { open: (_state, mark) => colorOpen('highlight', mark.attrs.color), close: colorClose('highlight'), mixable: true, expelEnclosingWhitespace: true },
+}, { escapeExtraCharacters: /</g });
 
 interface SourceBlock { id: string; start: number; end: number; raw: string; original: PMNode }
 export interface RichDocument { source: string; doc: PMNode; blocks: SourceBlock[]; gaps: string[]; eol: string }

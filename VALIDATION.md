@@ -1,3 +1,18 @@
+# 検証記録 — 0.9.0 文字色・マーカー
+
+実施日: 2026-11-04（日本時間）。選択文字への色・マーカー設定とMarkdownへの保存を追加。
+
+- 型チェック・ビルド・ユニット105件に成功。色の保存／再読み込み、部分解除、重ね付け、Undo／Redo、色だけの差分の確認・復元、既存の書式・表・コード・タグ文字列の保持を検証。
+- VS Codeの実Webview 61項目に成功。実際の文字選択→パレット→下書き→保存→ソース／詳細比較→復元を操作。ファイルが明示保存まで変更されないことも確認。
+- RichEditorブラウザー25項目に成功。パレットの選択保持、任意色、独立した解除、Undo／Redo、再読み込み、Escとフォーカス復帰、1100px／360px幅、編集中断・外部更新時の閉鎖を確認。
+- VS Code 1.135.0／Cursor 1.128.0の拡張ホスト各24項目に成功、スキップなし。表15項目・Mermaid9項目のブラウザーテストにも成功。
+- 実画面はREADMEの `docs/images/text-colors.png` に掲載。再現コマンド: `MARKDOWN_REVIEW_SCREENSHOTS=docs/images npm run test:ui`。
+- 検証結果JSONは [evidence/text-colors-0.9.0](evidence/text-colors-0.9.0) に保存。
+
+色は限定したHTMLタグで保存します。他のMarkdown表示環境での同一表示は保証しません。今回の実UI操作はVS Codeで実施し、Cursorは拡張ホストで検証しました。Cursorでの全UI操作、日本語IME、Windows／Linux／リモート環境は今回の検証範囲に含みません。Marketplace／Open VSXへの公開は行っていません。
+
+---
+
 # mainへの統合後の全機能レビュー
 
 2026-11-04: 0.4.0〜0.8.0の5コミットをPR #2でmainへ取り込み、[MAIN_REVIEW.md](MAIN_REVIEW.md) に全機能レビューの結果を記録。ユニット97件、VS Code/Cursorのホスト各24項目、VS Code実Webview 57項目、編集22・表15・図9項目に成功。

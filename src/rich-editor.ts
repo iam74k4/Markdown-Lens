@@ -14,6 +14,7 @@ import { headingSections, insideSection, sectionDecorations } from './section-fo
 import type { Hunk } from './core';
 import { mediaNodeViews } from './rich-media';
 import { gapCursor } from 'prosemirror-gapcursor';
+import { ColorPalette } from './color-toolbar';
 import { parseRichMarkdown, serializeRichMarkdown, richSchema as schema, makeTable, RichDocument } from './rich-markdown';
 
 export class RichEditor {
@@ -26,6 +27,7 @@ export class RichEditor {
   private collapsed = new Set<string>();
   private images = new Map<string, string>();
   private diagramBefore = new Map<string, string>();
+  private colors?: ColorPalette;
   constructor(element: HTMLElement, source: string, private onChange: () => void, private onFoldChange: () => void = () => {}) {
     this.model = parseRichMarkdown(source);
     const rules = inputRules({ rules: [
@@ -96,6 +98,7 @@ export class RichEditor {
     document.querySelector<HTMLSelectElement>('#table-action')!.addEventListener('change', e => {
       this.command((e.target as HTMLSelectElement).value); (e.target as HTMLSelectElement).value = '';
     });
+    this.colors = new ColorPalette(this.view, () => this.enabled);
     this.decorate(); this.updateToolbar();
   }
   get text(): string { return serializeRichMarkdown(this.model, this.view.state.doc); }
@@ -127,6 +130,7 @@ export class RichEditor {
   }
   get composing(): boolean { return this.view.composing; }
   load(source: string, rules = this.numbering): void {
+    this.closeColors();
     this.model = parseRichMarkdown(source);
     this.plan = []; this.expanded.clear();
     this.view.updateState(EditorState.create({ doc: restoreNumbering(this.model.doc, rules), plugins: this.view.state.plugins }));
@@ -156,7 +160,8 @@ export class RichEditor {
     const decorations = DecorationSet.create(doc, [...review.find(), ...sectionDecorations(doc, sections, this.collapsed, this.plan, key => this.toggleFold(key))]);
     this.view.dispatch(this.view.state.tr.setMeta(inlineReviewKey, decorations).setMeta('addToHistory', false));
   }
-  enable(value: boolean): void { if (this.enabled !== value) { this.enabled = value; this.view.setProps({ editable: () => this.enabled }); this.view.dom.dispatchEvent(new Event('table-tools-update')); } }
+  closeColors(): void { this.colors?.close(); }
+  enable(value: boolean): void { if (this.enabled !== value) { this.enabled = value; this.view.setProps({ editable: () => this.enabled }); this.view.dom.dispatchEvent(new Event('table-tools-update')); } this.colors?.update(); }
   command(name: string): void {
     if (!this.enabled || this.composing) return;
     const id = this.view.state.selection.$from.parent.attrs.sourceId;
@@ -234,6 +239,7 @@ export class RichEditor {
     this.view.dispatch(transaction); this.view.focus(); return true;
   }
   private updateToolbar(): void {
+    this.colors?.update();
     this.view.dom.dispatchEvent(new Event('table-tools-update'));
     const { state } = this.view;
     for (const [name, mark] of [['bold', 'strong'], ['italic', 'em'], ['inlineCode', 'code']]) {

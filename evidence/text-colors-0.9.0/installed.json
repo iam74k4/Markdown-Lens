@@ -1,0 +1,20 @@
+{
+  ".vscode": {
+    "version": "0.9.0",
+    "sha256": {
+      "dist/extension.js": "44743e26bb3699c3e56c1350db662e9a7cfacef829ee823556e21c00a0479676",
+      "media/review.css": "a7ed6e776b0dc988a347e375f45dabda09e48d3c7e5de4cfea3b400961f7ddb3",
+      "media/webview.css": "8039b8e7d44a16a52299dd6db55d7451d51fac1ff5589b30286091762d57bff3",
+      "media/webview.js": "0e91bbedf7107a8adc33a63eb870a71a01c2a6007390ba026e1192390afc4f86"
+    }
+  },
+  ".cursor": {
+    "version": "0.9.0",
+    "sha256": {
+      "dist/extension.js": "44743e26bb3699c3e56c1350db662e9a7cfacef829ee823556e21c00a0479676",
+      "media/review.css": "a7ed6e776b0dc988a347e375f45dabda09e48d3c7e5de4cfea3b400961f7ddb3",
+      "media/webview.css": "8039b8e7d44a16a52299dd6db55d7451d51fac1ff5589b30286091762d57bff3",
+      "media/webview.js": "0e91bbedf7107a8adc33a63eb870a71a01c2a6007390ba026e1192390afc4f86"
+    }
+  }
+}

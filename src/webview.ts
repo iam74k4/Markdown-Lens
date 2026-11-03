@@ -76,14 +76,14 @@ function controls() {
   $('save-state').textContent = conflict ? '● 競合・下書きを保持' : localDraft ? '● 編集中' : state?.dirty ? '● 未保存' : '保存済み';
   $('save-state').classList.toggle('dirty', localDraft || !!state?.dirty);
   document.querySelectorAll<HTMLButtonElement>('[data-revert], [data-review]').forEach(b => { b.disabled = pending || broken || conflict || editInvalid || (localDraft && !previewReady) || (!!b.dataset.review && !!state?.comparison); });
-  document.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('#formatting button, #formatting select').forEach(b => { b.disabled = pending || broken; });
+  document.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('#formatting button:not([data-color-control]), #formatting select').forEach(b => { b.disabled = pending || broken; });
   document.querySelectorAll<HTMLInputElement>('input[data-task]').forEach(input => { input.disabled = pending || broken; });
   editor?.enable(!pending && !broken && !(editInvalid && sourceDraft !== undefined));
   $('conflict').hidden = !conflict;
   $('document').hidden = mode !== 'diff';
   $('editor').hidden = $('formatting').hidden = mode !== 'edit';
   $('review-actions').hidden = $('legend').hidden = false;
-  if (mode === 'diff') $('link-form').hidden = true;
+  if (mode === 'diff') { $('link-form').hidden = true; editor?.closeColors(); }
   $('empty').hidden = !!count || localDraft;
   $('empty').querySelector('strong')!.textContent = state?.comparison ? 'スナップショットとの差分はありません' : '未確認の変更はありません';
   button('mode-edit').setAttribute('aria-selected', String(mode === 'edit'));

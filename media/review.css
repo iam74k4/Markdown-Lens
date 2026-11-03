@@ -46,6 +46,26 @@ button:disabled { opacity: .4; cursor: default; }
 .formatting button[aria-pressed="true"] { color: var(--vscode-button-foreground, #fff); background: var(--vscode-button-background, #267d85); }
 select, input { font: inherit; color: var(--vscode-input-foreground, var(--fg)); background: var(--vscode-input-background, var(--bg)); border: 1px solid var(--vscode-input-border, var(--line)); border-radius: 4px; padding: 5px 7px; }
 .formatting select { max-width: 145px; font-size: 12px; }
+.color-controls { display: flex; gap: 2px; }
+.text-color-icon { font-weight: 600; line-height: 19px; border-bottom: 3px solid var(--selected-color, currentColor); }
+#text-highlight .ui-icon { border-bottom: 3px solid var(--selected-color, currentColor); height: 22px; }
+.color-palette { position: fixed; z-index: 25; top: 114px; left: 50%; transform: translateX(-50%); width: min(292px, calc(100vw - 24px)); padding: 12px; background: var(--vscode-editorWidget-background, var(--bg)); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 28px #0004; color: var(--fg); }
+.color-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+.color-swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; }
+.formatting .color-swatch { width: 100%; height: auto; aspect-ratio: 1; padding: 3px; border: 1px solid #8888; background: var(--swatch); border-radius: 50%; }
+.formatting .color-swatch:hover, .formatting .color-swatch[aria-pressed="true"] { background: var(--swatch); outline: 2px solid var(--focus); outline-offset: 2px; }
+.color-swatch .ui-icon { opacity: 0; color: #111; filter: drop-shadow(0 1px 1px white); }
+.color-swatch[aria-pressed="true"] .ui-icon { opacity: 1; }
+.color-custom { display: flex; align-items: center; gap: 6px; margin: 14px 0 8px; }
+.color-custom input[type="color"] { flex: 0 0 32px; width: 32px; height: 32px; padding: 2px; cursor: pointer; }
+#color-hex { width: 95px; min-width: 0; flex: 1; font: 12px var(--vscode-editor-font-family, monospace); }
+.formatting .color-custom button, .formatting .color-clear { width: auto; font-size: 12px; padding: 4px 8px; border-color: var(--line); }
+.formatting .color-clear { width: 100%; }
+.color-sample { border: 1px solid var(--line); border-radius: 4px; padding: 6px 9px; margin-bottom: 9px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.color-help, #color-error { margin: 8px 0 0; color: var(--muted); font-size: 10px; }#color-error { color: var(--red); margin-bottom: 8px; }
+.document mark { color: #202124; border-radius: 2px; padding: 0; }
+/* Text colors remain visible inside a marker; review evidence also has block labels and actions. */
+.document .md-text-color { text-decoration-color: currentColor; }
 .link-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 24px; border-bottom: 1px solid var(--line); }
 .link-form input { min-width: 150px; flex: 1; }
 .conflict { max-width: 780px; margin: 16px auto; padding: 16px; background: var(--vscode-textCodeBlock-background, #8881); border: 1px solid var(--vscode-editorWarning-foreground, #cfab68); border-radius: 6px; font-size: 12px; }
@@ -212,6 +232,7 @@ body.vscode-high-contrast ins, body.vscode-high-contrast del, body.vscode-high-c
 
 /* The document is the editor; review is a non-editable overlay in the same flow. */
 .inline-insert { background: var(--ins-bg); color: var(--ins-fg); border-bottom: 1px solid var(--green); border-radius: 2px; box-decoration-break: clone; }
+.document :is(mark, .md-text-color, span[style^="color:"]) :is(.inline-insert, ins) { background: transparent; color: inherit; border-bottom: 2px solid var(--green); }
 .inline-changed-block { border-left: 2px solid var(--green); padding-left: 12px; }
 .inline-review.change { margin: 20px 0 3px; padding: 3px 10px; border-left-color: var(--line); background: var(--vscode-textCodeBlock-background, #8881); font: 11px/1.6 var(--vscode-font-family, system-ui); white-space: normal; user-select: text; }
 .inline-review.active { border-left-color: var(--focus); }
