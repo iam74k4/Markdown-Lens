@@ -148,6 +148,6 @@ macOSにVS Codeがある環境では、次のコマンドで実Webviewの検証�
 MARKDOWN_REVIEW_SCREENSHOTS=docs/images npm run test:ui
 ```
 
-VS Code / Cursorの拡張ホスト検証は `npm run test:host`。日本語変換はChromiumの入力イベントでも検証しています。macOSの日本語変換候補UIやCursorの全UI操作など、未検証の範囲は[最新版の検証記録](VALIDATION.md)を参照してください。
+VS Code / Cursorの拡張ホスト検証は `npm run test:host`。日本語変換はChromiumの入力イベントとCursor上のmacOS実キー入力で検証しています。Cursor実画面では下書き復元・保存・Undo／Redo・折りたたみも追試しました。候補一覧UIや全UI操作など、未検証の範囲は[最新版の検証記録](VALIDATION.md)を参照してください。
 
 </details>

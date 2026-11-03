@@ -1,0 +1,25 @@
+{
+  "date": "2026-11-04",
+  "host": "Cursor",
+  "hostVersion": "1.128.0",
+  "extensionVersion": "0.9.1",
+  "testedCommit": "c04bb76f563803a4e03c8923fe61543b20c032fa",
+  "method": "Native macOS key events through Computer Use in a signed-in Cursor development window; no pasted Japanese for composition checks",
+  "checks": [
+    "Romaji key input converts to Japanese in a heading; Space and Shift+Space cycle candidates, Return commits",
+    "Paragraph input converts tuika to 追加; commit produces a marker and explicit save writes the file",
+    "Table cell converts kakuninn to 確認; file remains unchanged while draft is unsaved",
+    "Closing and reopening the preview restores the unsaved table cell and its unreviewed change",
+    "Colored text converts hozonn to 保存; Undo removes and Redo restores the committed Japanese",
+    "Explicit save preserves both color HTML tags and all Japanese content exactly",
+    "Source textarea converts nihonngo to 日本語; two Esc presses cancel and restore original source and saved state",
+    "Fold all hides the body and table while showing four changes; unfold all restores content without changing the file"
+  ],
+  "passed": 8,
+  "limitations": [
+    "Focused native regression pass, not the entire 68-check VS Code UI suite",
+    "Candidate changes were observed in preedit text; separate OS candidate-window layout was not captured",
+    "Other input methods, Windows, Linux and remote hosts were not tested"
+  ],
+  "savedMarkdownSha256": "5169a8b9a85fc47fb7a9311a9d74775cf0e8fa8cb2835f0f25f1380d0ce2028e"
+}

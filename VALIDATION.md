@@ -10,7 +10,9 @@
 - VSIX 0.9.1をVS Code／Cursorへインストール。配布物・ビルド・両アプリのJS/CSS全4ファイルのSHA-256一致を確認。既存ウィンドウの再読み込みは行っていません。
 - 検証結果JSONは [evidence/editing-reliability-0.9.1](evidence/editing-reliability-0.9.1) に保存。
 
-**検証の境界:** IMEテストはChromiumのcomposition APIによるものです。macOS標準の日本語入力・変換候補ウィンドウを含むネイティブ操作は未完了です。Cursorの隔離プロファイルはログイン画面で全UIテストが停止し、通常プロファイルの実画面確認はMacのロック解除待ちです。Cursorのホストテスト成功と、全UI操作の成功は区別します。Windows／Linux／リモート環境、Marketplace／Open VSXへの公開は今回の範囲に含みません。
+**Cursorの実画面追試:** ロック解除後、ログイン済みプロファイルの拡張開発ウィンドウで8項目に成功。macOSのキー入力で本文・見出し・表セル・色付き文字の日本語変換、Space／Shift+Spaceでの候補変更とReturn確定、Undo／Redo、未保存の表編集のタブ復元、明示保存を確認。ソース欄の変換キャンセル、一括折りたたみ／展開も確認しました。保存ファイルは期待するMarkdownと完全一致し、文字色・マーカーのHTMLも保持。結果は [cursor-native.json](evidence/editing-reliability-0.9.1/cursor-native.json)、[実画面](evidence/editing-reliability-0.9.1/cursor-native-review.png)、[保存したソースの画面](evidence/editing-reliability-0.9.1/cursor-native-source.png) に記録しました。
+
+**検証の境界:** 自動IMEテストはChromiumのcomposition API、上記の追試はmacOSの実キー入力です。候補変更は本文の変換文字で確認し、OS別ウィンドウの候補一覧レイアウトは撮影していません。Cursorの隔離プロファイルはログイン画面で全UIテストが停止するため、68項目の全UI自動検証はVS Codeのみです。今回のCursor追試8項目を全UI操作の成功とは扱いません。ほかの入力方式、Windows／Linux／リモート環境、Marketplace／Open VSXへの公開は今回の範囲に含みません。
 
 ---
 
