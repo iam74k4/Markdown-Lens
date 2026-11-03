@@ -11,14 +11,26 @@ let nodes = commonSchema.spec.nodes.append(tableNodes({ tableGroup: 'block', cel
 nodes.forEach((name, spec) => {
   if (spec.group === 'block') nodes = nodes.update(name, { ...spec, attrs: { ...spec.attrs, sourceId: { default: null } } });
 });
+nodes = nodes.update('list_item', { ...nodes.get('list_item'), attrs: { checked: { default: null } },
+  toDOM: node => node.attrs.checked === null ? ['li', 0] : ['li', { class: 'task-item', 'data-checked': String(node.attrs.checked) },
+    ['input', { type: 'checkbox', 'data-task': 'true', 'aria-label': 'タスクの完了', contenteditable: 'false', ...(node.attrs.checked ? { checked: '' } : {}) }], ['div', 0]],
+} as NodeSpec);
 nodes = nodes.update('image', { ...nodes.get('image'), toDOM: node => ['span', { class: 'image-placeholder', contenteditable: 'false' }, `画像: ${node.attrs.alt || ''} (${node.attrs.src})`] } as NodeSpec);
 export const richSchema = new Schema({ nodes, marks: commonSchema.spec.marks.update('link', {
   ...commonSchema.spec.marks.get('link'),
   // Inert links: editing must never navigate, execute commands, or load remote resources.
   toDOM: mark => ['a', { 'data-href': mark.attrs.href, title: mark.attrs.href }, 0],
-}) });
+}).append({ strike: { parseDOM: [{ tag: 's' }, { tag: 'del' }], toDOM: () => ['s', 0] } }) });
 
-const tokenizer = new MarkdownIt('commonmark', { html: false }).enable('table');
+const tokenizer = new MarkdownIt('commonmark', { html: false }).enable(['table', 'strikethrough']);
+tokenizer.core.ruler.before('inline', 'task_items', state => {
+  for (let i = 0; i < state.tokens.length; i++) {
+    const item = state.tokens[i], inline = state.tokens[i + 2];
+    if (item.type !== 'list_item_open' || state.tokens[i + 1]?.type !== 'paragraph_open' || inline?.type !== 'inline') continue;
+    const match = /^\[([ xX])\] (.*)/s.exec(inline.content);
+    if (match) { item.attrSet('checked', String(match[1] !== ' ')); inline.content = match[2]; }
+  }
+});
 tokenizer.core.ruler.after('inline', 'table_paragraphs', state => {
   const expanded: Token[] = [];
   for (const token of state.tokens) {
@@ -29,7 +41,7 @@ tokenizer.core.ruler.after('inline', 'table_paragraphs', state => {
   state.tokens = expanded;
 });
 const parser = new MarkdownParser(richSchema, tokenizer, {
-  ...defaultMarkdownParser.tokens,
+  ...defaultMarkdownParser.tokens, list_item: { block: 'list_item', getAttrs: token => ({ checked: token.attrGet('checked') === null ? null : token.attrGet('checked') === 'true' }) }, s: { mark: 'strike' },
   table: { block: 'table' }, thead: { ignore: true }, tbody: { ignore: true }, tr: { block: 'table_row' },
   th: { block: 'table_header', getAttrs: t => ({ align: t.attrGet('style')?.replace('text-align:', '') ?? null }) },
   td: { block: 'table_cell', getAttrs: t => ({ align: t.attrGet('style')?.replace('text-align:', '') ?? null }) },
@@ -37,6 +49,7 @@ const parser = new MarkdownParser(richSchema, tokenizer, {
 
 const serializer: MarkdownSerializer = new MarkdownSerializer({
   ...defaultMarkdownSerializer.nodes,
+  list_item(state, node) { if (node.attrs.checked !== null) state.write(node.attrs.checked ? '[x] ' : '[ ] '); state.renderContent(node); },
   table(state, node) {
     node.forEach((row, _offset, rowIndex) => {
       const cells: string[] = [];
@@ -53,9 +66,9 @@ const serializer: MarkdownSerializer = new MarkdownSerializer({
     });
     state.closeBlock(node);
   },
-}, defaultMarkdownSerializer.marks);
+}, { ...defaultMarkdownSerializer.marks, strike: { open: '~~', close: '~~', mixable: true, expelEnclosingWhitespace: true } });
 
-interface SourceBlock { id: string; raw: string; original: PMNode }
+interface SourceBlock { id: string; start: number; end: number; raw: string; original: PMNode }
 export interface RichDocument { source: string; doc: PMNode; blocks: SourceBlock[]; gaps: string[]; eol: string }
 
 export function parseRichMarkdown(source: string): RichDocument {
@@ -79,7 +92,7 @@ export function parseRichMarkdown(source: string): RichDocument {
     const id = String(i);
     const annotated = node.type.create({ ...node.attrs, sourceId: id }, node.content, node.marks);
     children.push(annotated);
-    blocks.push({ id, raw: source.slice(start, end), original: annotated });
+    blocks.push({ id, start, end, raw: source.slice(start, end), original: annotated });
     cursor = end;
   });
   gaps.push(source.slice(cursor));

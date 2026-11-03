@@ -1,0 +1,18 @@
+{
+  "host": "Cursor",
+  "date": "2026-11-04",
+  "version": "0.6.0",
+  "method": "Native accessibility tree in a new normal-profile demo window",
+  "passed": [
+    "Unified body is default and editable",
+    "Formatting controls, editable table, Mermaid preview, task checkbox present",
+    "External file edits show three inline review cards",
+    "Current Markdown source panel opens and shows current draft"
+  ],
+  "limits": [
+    "Full interactive suite runs in VS Code, not Cursor",
+    "Native screenshot failed with ScreenCaptureKit -3811; accessibility remained available",
+    "Native typing verification was not counted; stopped when the user changed the app",
+    "Existing demo and user windows were not reloaded or saved"
+  ]
+}

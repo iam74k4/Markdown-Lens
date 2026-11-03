@@ -1,5 +1,10 @@
 // Small, local SVGs: consistent strokes, no icon fonts or network dependencies.
 const paths = {
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 6-6 4 4 3-3 5 5"/>',
+  diagram: '<rect x="8" y="2" width="8" height="6" rx="1"/><path d="M12 8v5M5 16v-3h14v3"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/>',
+  quote: '<path d="M4 6h6v7H5c0 4 3 5 3 5M14 6h6v7h-5c0 4 3 5 3 5"/>',
+  rule: '<path d="M3 12h18"/>',
+  checklist: '<rect x="3" y="4" width="6" height="6" rx="1"/><path d="m4 7 1.5 1.5L8 5M13 7h8M13 17h8"/><rect x="3" y="14" width="6" height="6" rx="1"/>',
   expand: '<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
   grip: '<path d="M10 5v14M14 5v14"/>',

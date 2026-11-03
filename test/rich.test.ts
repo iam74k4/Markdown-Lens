@@ -76,3 +76,34 @@ test('CRLF and emoji survive minimal source replacements', () => {
     assert.ok(!/^[\uDC00-\uDFFF]$/.test(before[edit.start] ?? ''));
   }
 });
+
+test('strikethrough is rendered and preserved when surrounding text changes', () => {
+  const model = parseRichMarkdown('~~old~~ and new\n');
+  assert.equal(model.doc.firstChild!.firstChild!.marks[0].type.name, 'strike');
+  const next = EditorState.create({ doc: model.doc }).tr.insertText('!', model.doc.content.size - 1).doc;
+  assert.equal(serializeRichMarkdown(model, next), '~~old~~ and new!\n');
+});
+
+test('table alignment from a body cell updates the header separator and all rows', async () => {
+  const { alignTableColumns } = await import('../src/rich-table');
+  const source = '| Name | Value |\n| --- | --- |\n| first | 42 |\n| second | 100 |\n';
+  const model = parseRichMarkdown(source);
+  let position = 0; model.doc.descendants((node, pos) => { if (node.text === '42') position = pos; });
+  let state = EditorState.create({ doc: model.doc, selection: TextSelection.create(model.doc, position) });
+  assert.ok(alignTableColumns('right')(state, tr => { state = state.apply(tr); }));
+  const result = serializeRichMarkdown(model, state.doc);
+  assert.match(result, /\| --- \| ---: \|/);
+  parseRichMarkdown(result).doc.firstChild!.forEach(row => assert.equal(row.child(1).attrs.align, 'right'));
+});
+
+test('nested task items preserve original bytes and serialize checkbox edits', () => {
+  const source = '- [ ] pending\n  - [X] done\n\nordinary\n';
+  const model = parseRichMarkdown(source);
+  assert.equal(serializeRichMarkdown(model, model.doc), source);
+  assert.equal(model.doc.firstChild!.firstChild!.attrs.checked, false);
+  let pos = -1; model.doc.descendants((node, offset) => { if (node.type === richSchema.nodes.list_item && node.attrs.checked === false) pos = offset; });
+  const state = EditorState.create({ doc: model.doc });
+  const next = state.tr.setNodeMarkup(pos, undefined, { checked: true }).doc;
+  const result = serializeRichMarkdown(model, next);
+  assert.match(result, /\[x\] pending/); assert.match(result, /\[x\] done/); assert.match(result, /ordinary/);
+});

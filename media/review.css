@@ -209,3 +209,27 @@ body.vscode-high-contrast ins, body.vscode-high-contrast del, body.vscode-high-c
 .review-table td[style*="text-align:right"] .table-cell { text-align: right; }
 .review-table td[style*="text-align:left"] .table-cell { text-align: left; }
 .review-table .table-removed-cell { box-shadow: inset 3px 0 var(--red); background: color-mix(in srgb, var(--del-bg) 22%, var(--bg)); }
+
+/* The document is the editor; review is a non-editable overlay in the same flow. */
+.inline-insert { background: var(--ins-bg); color: var(--ins-fg); border-bottom: 1px solid var(--green); border-radius: 2px; box-decoration-break: clone; }
+.inline-changed-block { border-left: 2px solid var(--green); padding-left: 12px; }
+.inline-review.change { margin: 20px 0 3px; padding: 3px 10px; border-left-color: var(--line); background: var(--vscode-textCodeBlock-background, #8881); font: 11px/1.6 var(--vscode-font-family, system-ui); white-space: normal; user-select: text; }
+.inline-review.active { border-left-color: var(--focus); }
+.inline-review-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); }
+.inline-review .change-actions { padding: 0; }.inline-review .change-actions button { width: 30px; height: 28px; }
+.inline-before { color: var(--muted); margin: 2px 0 5px; }.inline-before summary { cursor: pointer; }
+.inline-before pre { margin: 8px 0; max-height: 260px; white-space: pre-wrap; color: var(--del-fg); border-color: var(--del-bg); background: var(--del-bg); font-size: 12px; }
+.inline-folded { display: none !important; }.inline-expand { display: block; width: 100%; text-align: left; font-size: 12px; color: var(--muted); border-block: 1px dashed var(--line); margin: 12px 0; padding: 7px; }
+.review-workspace { min-width: 0; }.reading-pane { min-width: 0; }
+.review-workspace.with-source { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .85fr); gap: 0; }
+#source-pane { position: sticky; top: 70px; align-self: start; height: calc(100vh - 125px); border-left: 1px solid var(--line); padding: 14px; background: var(--vscode-sideBar-background, var(--bg)); min-width: 0; }
+.source-heading { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }.source-heading select { min-width: 0; flex: 1; font-size: 12px; }.source-heading button { width: 30px; padding: 4px; }
+#source-text { width: 100%; height: calc(100% - 85px); resize: none; border: 1px solid var(--line); border-radius: 5px; padding: 14px; background: var(--bg); color: var(--fg); font: 12px/1.9 var(--vscode-editor-font-family, ui-monospace, monospace); tab-size: 2; white-space: pre; overflow: auto; }
+#source-text:focus { outline: 1px solid var(--focus); }#source-text[readonly] { color: var(--muted); }#source-hint { font-size: 11px; color: var(--muted); margin: 8px 0; }
+.rich-code { margin: 20px 0; min-width: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }.code-tools { display: flex; padding: 6px 12px; color: var(--muted); font: 11px/1.6 var(--vscode-font-family, system-ui); background: var(--vscode-textCodeBlock-background, #8881); }.code-tools input { font-size: 11px; width: 140px; border-color: transparent; padding: 2px 6px; }
+.rich-code-source { padding: 0 12px; }.rich-code-source > summary { font-size: 12px; color: var(--muted); cursor: pointer; padding: 6px 0; }.rich-code pre { margin: 0; border: 0; border-radius: 0; padding: 10px 0 14px; background: transparent; white-space: pre; }.rich-code .diagram-review { border: 0; margin: 0; }.rich-image { display: inline-block; max-width: 100%; }.rich-image .markdown-image { margin-bottom: 3px; }.image-caption { font-size: 11px; color: var(--muted); }
+.ProseMirror .tableWrapper { max-height: 65vh; border: 1px solid var(--line); border-radius: 5px; margin: 18px 0; }.ProseMirror table { border-collapse: separate; border-spacing: 0; margin: 0; min-width: 440px; }.ProseMirror th { position: sticky; top: 0; z-index: 2; background: var(--vscode-sideBar-background, var(--bg)); color: var(--fg); }.ProseMirror td, .ProseMirror th { vertical-align: top; padding: 9px 12px; border-width: 0 1px 1px 0; }.ProseMirror :is(th,td):focus-within { background: var(--vscode-list-hoverBackground, #8881); }
+@media (max-width: 800px) { .review-workspace.with-source { grid-template-columns: minmax(0, 1fr); }.with-source .reading-pane { display: none; }#source-pane { border-left: 0; position: static; height: calc(100vh - 220px); min-height: 300px; }.toolbar { flex-wrap: wrap; gap: 8px; }.mode-switch { margin-left: auto; } }
+body.vscode-high-contrast .inline-insert, body.vscode-high-contrast-light .inline-insert { outline: 1px solid currentColor; }
+footer { z-index: 10; }.toolbar { z-index: 12; }
+.ProseMirror li.task-item { list-style: none; position: relative; }.task-item > input { position: absolute; left: -23px; top: 7px; width: 15px; height: 15px; accent-color: var(--green); cursor: pointer; }.task-item[data-checked="true"] > div > p { color: var(--muted); text-decoration: line-through; }

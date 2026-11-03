@@ -1,0 +1,16 @@
+{
+  "version": "0.6.0",
+  "sha256": "9f9a94268274f1874a99a620ad42f4023a9b4a61551991c1e10eb6eddc814d99",
+  "installedIn": [
+    "VS Code",
+    "Cursor"
+  ],
+  "assetHashMatches": {
+    "dist/extension.js": "9581b28dcdd88dd6e254aeebc26c089d95b7084635cf7b1229a8b10ad8d2820a",
+    "media/webview.js": "0fcd27bac93b485e53e79ab2759d675b562d2c903cc44d9e2fe6404d0bbc0803",
+    "media/webview.css": "8039b8e7d44a16a52299dd6db55d7451d51fac1ff5589b30286091762d57bff3",
+    "media/review.css": "d15f56efc24e0be89c5c14e64808abc9824c10ae933efb8c40c5ca3802f00aa7"
+  },
+  "published": false,
+  "mainMerged": false
+}

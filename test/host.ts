@@ -180,6 +180,15 @@ export async function run(): Promise<void> {
   await writeFile(richUri.fsPath, original);
   let rich = await api.open(richUri);
   const draft = '# 設計\n\n**編集した本文**\n';
+  assert.equal(rich.inspect()?.baselineMarkdown, original);
+  assert.equal(rich.inspect()?.confirmedMarkdown, original);
+  await Promise.all(Array.from({ length: 8 }, (_, i) => rich.receive({ type: 'draft', text: original + i, baseText: original })));
+  await rich.receive({ type: 'ready' });
+  assert.equal(rich.inspect()?.draft?.text, original + '7');
+  assert.equal(rich.inspect()?.markdown, original);
+  assert.equal(await readFile(richUri.fsPath, 'utf8'), original);
+  evidence.push('rapid draft updates keep the newest draft without mutating current or confirmed source');
+
   await rich.receive({ type: 'draft', text: draft, baseText: original });
   rich.panel.dispose(); rich = await api.open(richUri);
   assert.deepEqual(rich.inspect()?.draft, { text: draft, baseText: original });
@@ -190,7 +199,11 @@ export async function run(): Promise<void> {
   assert.equal(rich.inspect()?.editResult?.accepted, true);
   assert.equal(rich.inspect()?.draft, undefined);
   assert.equal(await readFile(richUri.fsPath, 'utf8'), original);
+  assert.equal(rich.inspect()?.hunks.length, rich.inspect()?.count);
+  assert.equal(rich.inspect()?.baselineMarkdown, original);
+  assert.equal(rich.inspect()?.confirmedMarkdown, original);
   evidence.push('WYSIWYG edit updates document and diff without silently saving');
+  evidence.push('inline hunk projection and read-only source versions track the same confirmed baseline');
   await rich.receive({ type: 'edit', id: 'save-1', revision: rich.inspect()!.revision, text: draft + '\n追記\n', save: true });
   assert.equal(await readFile(richUri.fsPath, 'utf8'), draft + '\n追記\n');
   evidence.push('WYSIWYG save writes Markdown to the same file');

@@ -16,7 +16,7 @@ md.renderer.rules.link_close = () => '</span>';
 md.renderer.rules.image = (tokens, i, _options, env) => {
   const src = tokens[i].attrGet('src') ?? '';
   const resolved = (env as RenderOptions).imageUri?.(src);
-  return resolved ? `<img class="markdown-image" src="${escapeHtml(resolved)}" alt="${escapeHtml(tokens[i].content)}" loading="lazy"><span class="image-fallback" hidden>画像を読み込めません: ${escapeHtml(tokens[i].content)}</span>` : `<span class="image-placeholder">画像: ${escapeHtml(tokens[i].content)} <small>${escapeHtml(src)}</small><small>ワークスペース内のローカル画像をプレビューできます</small></span>`;
+  return resolved ? `<img class="markdown-image" data-source="${escapeHtml(src)}" src="${escapeHtml(resolved)}" alt="${escapeHtml(tokens[i].content)}" loading="lazy"><span class="image-fallback" hidden>画像を読み込めません: ${escapeHtml(tokens[i].content)}</span>` : `<span class="image-placeholder">画像: ${escapeHtml(tokens[i].content)} <small>${escapeHtml(src)}</small><small>ワークスペース内のローカル画像をプレビューできます</small></span>`;
 };
 export interface RenderOptions { imageUri?: (src: string) => string | undefined }
 const defaultFence = md.renderer.rules.fence!;

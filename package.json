@@ -1,8 +1,8 @@
 {
   "name": "markdown-review",
   "displayName": "Markdown Review",
-  "description": "Markdownを直接編集し、差分へ切り替えて変更を確認。戻す・確認済みにする機能付き。",
-  "version": "0.5.0",
+  "description": "差分が見えるMarkdownをそのまま編集。WYSIWYG・ソース・図・表を1画面で確認。",
+  "version": "0.6.0",
   "publisher": "local-markdown-review",
   "license": "UNLICENSED",
   "engines": {
@@ -90,13 +90,14 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "check": "tsc --noEmit",
-    "test": "tsx --test test/core.test.ts test/store.test.ts test/rich.test.ts test/features.test.ts",
+    "test": "tsx --test test/core.test.ts test/store.test.ts test/rich.test.ts test/features.test.ts test/inline-review.test.ts",
     "test:host": "node scripts/run-host-tests.mjs",
     "test:ui": "node scripts/run-ui-tests.mjs",
     "vscode:prepublish": "npm run check && npm run build && node scripts/notices.mjs",
     "package": "vsce package --no-dependencies --allow-missing-repository",
     "test:diagrams": "node scripts/test-diagrams.mjs",
-    "test:tables": "node scripts/test-tables.mjs"
+    "test:tables": "node scripts/test-tables.mjs",
+    "test:rich": "node scripts/test-rich-editor.mjs"
   },
   "dependencies": {
     "diff": "9.0.0",
