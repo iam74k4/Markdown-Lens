@@ -1,0 +1,105 @@
+{
+  "name": "markdown-review",
+  "displayName": "Markdown Review",
+  "description": "Markdownを直接編集し、差分へ切り替えて変更を確認。戻す・確認済みにする機能付き。",
+  "version": "0.2.1",
+  "publisher": "local-markdown-review",
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "markdown",
+    "diff",
+    "review",
+    "cursor",
+    "ai"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onWebviewPanel:markdownReview.preview"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": {
+      "supported": false
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "markdownReview.open",
+        "title": "変更プレビューを開く",
+        "category": "Markdown Review",
+        "icon": "$(diff)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "markdownReview.open",
+          "when": "editorLangId == markdown && resourceScheme != untitled",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "markdownReview.open",
+          "when": "resourceExtname =~ /\\.(md|markdown|mdown)$/i",
+          "group": "navigation@20"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "tsc --noEmit",
+    "test": "tsx --test test/core.test.ts test/store.test.ts test/rich.test.ts",
+    "test:host": "node scripts/run-host-tests.mjs",
+    "test:ui": "node scripts/run-ui-tests.mjs",
+    "vscode:prepublish": "npm run check && npm run build && node scripts/notices.mjs",
+    "package": "vsce package --no-dependencies --allow-missing-repository"
+  },
+  "dependencies": {
+    "diff": "9.0.0",
+    "markdown-it": "14.3.3",
+    "prosemirror-commands": "^1.7.2",
+    "prosemirror-gapcursor": "^1.4.1",
+    "prosemirror-history": "^1.5.1",
+    "prosemirror-inputrules": "^1.5.1",
+    "prosemirror-keymap": "^1.2.3",
+    "prosemirror-markdown": "^1.13.9",
+    "prosemirror-model": "^1.25.12",
+    "prosemirror-schema-list": "^1.6.0",
+    "prosemirror-state": "^1.4.4",
+    "prosemirror-tables": "^1.8.5",
+    "prosemirror-view": "^1.42.9"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "1.96.0",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "4.1.0",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iam74k4/Markdown-Lens.git"
+  },
+  "bugs": {
+    "url": "https://github.com/iam74k4/Markdown-Lens/issues"
+  },
+  "homepage": "https://github.com/iam74k4/Markdown-Lens#readme"
+}

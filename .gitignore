@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.vscode-test/
+*.vsix
+test-results/
+media/webview.js
+media/webview.css
+
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log

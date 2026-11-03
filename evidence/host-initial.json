@@ -1,0 +1,44 @@
+[
+  {
+    "host": "Visual Studio Code",
+    "version": "1.135.0",
+    "checks": [
+      "first open captures baseline",
+      "external filesystem edits automatically update rendered diff",
+      "revert changes only the selected block and preserves unsaved edit semantics",
+      "native editor Undo restores reverted content",
+      "stale UI action is rejected after a concurrent document edit",
+      "explicit save writes the edited document",
+      "reviewed baseline persists across closing and reopening preview",
+      "deleted files disable stale review actions",
+      "baselines remain isolated per file",
+      "line ending conversion is restored as a single whole-file edit",
+      "WYSIWYG draft survives closing and reopening the tab",
+      "WYSIWYG edit updates document and diff without silently saving",
+      "WYSIWYG save writes Markdown to the same file",
+      "concurrent external edits reject WYSIWYG overwrite and preserve the draft"
+    ],
+    "passed": 14
+  },
+  {
+    "host": "Cursor",
+    "version": "1.128.0",
+    "checks": [
+      "first open captures baseline",
+      "external filesystem edits automatically update rendered diff",
+      "revert changes only the selected block and preserves unsaved edit semantics",
+      "native editor Undo restores reverted content",
+      "stale UI action is rejected after a concurrent document edit",
+      "explicit save writes the edited document",
+      "reviewed baseline persists across closing and reopening preview",
+      "deleted files disable stale review actions",
+      "baselines remain isolated per file",
+      "line ending conversion is restored as a single whole-file edit",
+      "WYSIWYG draft survives closing and reopening the tab",
+      "WYSIWYG edit updates document and diff without silently saving",
+      "WYSIWYG save writes Markdown to the same file",
+      "concurrent external edits reject WYSIWYG overwrite and preserve the draft"
+    ],
+    "passed": 14
+  }
+]
