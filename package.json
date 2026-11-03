@@ -2,7 +2,7 @@
   "name": "markdown-review",
   "displayName": "Markdown Review",
   "description": "Markdownを直接編集し、差分へ切り替えて変更を確認。戻す・確認済みにする機能付き。",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "publisher": "local-markdown-review",
   "license": "UNLICENSED",
   "engines": {
@@ -20,7 +20,8 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "onWebviewPanel:markdownReview.preview"
+    "onWebviewPanel:markdownReview.preview",
+    "onStartupFinished"
   ],
   "extensionKind": [
     "workspace"
@@ -40,6 +41,12 @@
         "title": "変更プレビューを開く",
         "category": "Markdown Review",
         "icon": "$(diff)"
+      },
+      {
+        "command": "markdownReview.refresh",
+        "title": "未確認ファイルを更新",
+        "category": "Markdown Review",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -56,21 +63,44 @@
           "when": "resourceExtname =~ /\\.(md|markdown|mdown)$/i",
           "group": "navigation@20"
         }
+      ],
+      "view/title": [
+        {
+          "command": "markdownReview.refresh",
+          "when": "view == markdownReview.pending",
+          "group": "navigation"
+        }
       ]
-    }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "markdownReview.pending",
+          "name": "Markdown Lens · 未確認"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "markdownReview.pending",
+        "contents": "未確認の変更はありません。\n初回読み込みで比較元を保存し、以降の変更を表示します。"
+      }
+    ]
   },
   "scripts": {
     "build": "node scripts/build.mjs",
     "check": "tsc --noEmit",
-    "test": "tsx --test test/core.test.ts test/store.test.ts test/rich.test.ts",
+    "test": "tsx --test test/core.test.ts test/store.test.ts test/rich.test.ts test/features.test.ts",
     "test:host": "node scripts/run-host-tests.mjs",
     "test:ui": "node scripts/run-ui-tests.mjs",
     "vscode:prepublish": "npm run check && npm run build && node scripts/notices.mjs",
-    "package": "vsce package --no-dependencies --allow-missing-repository"
+    "package": "vsce package --no-dependencies --allow-missing-repository",
+    "test:diagrams": "node scripts/test-diagrams.mjs"
   },
   "dependencies": {
     "diff": "9.0.0",
     "markdown-it": "14.3.3",
+    "mermaid": "11.17.2",
     "prosemirror-commands": "^1.7.2",
     "prosemirror-gapcursor": "^1.4.1",
     "prosemirror-history": "^1.5.1",
@@ -101,5 +131,8 @@
   "bugs": {
     "url": "https://github.com/iam74k4/Markdown-Lens/issues"
   },
-  "homepage": "https://github.com/iam74k4/Markdown-Lens#readme"
+  "homepage": "https://github.com/iam74k4/Markdown-Lens#readme",
+  "overrides": {
+    "katex": "0.18.2"
+  }
 }

@@ -1,13 +1,15 @@
+import { renderDiagrams, refreshDiagramThemes } from './diagrams';
 import { RichEditor } from './rich-editor';
 import 'prosemirror-view/style/prosemirror.css';
 import 'prosemirror-tables/style/tables.css';
 import 'prosemirror-gapcursor/style/gapcursor.css';
 import type { State } from './extension';
 
-declare function acquireVsCodeApi(): { postMessage(message: unknown): void; setState(state: unknown): void; getState(): { mode?: string; uri?: string } | undefined };
+declare function acquireVsCodeApi(): { postMessage(message: unknown): void; setState(state: unknown): void; getState(): { mode?: string; uri?: string; changesOnly?: boolean } | undefined };
 const vscode = acquireVsCodeApi();
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T;
 let state: State | undefined;
+let changesOnly = vscode.getState()?.changesOnly ?? false;
 let active = -1, pending = false, broken = false, selection = '';
 let resumeAction: 'review' | 'revert' | undefined;
 let mode: 'edit' | 'diff' = vscode.getState()?.mode === 'edit' ? 'edit' : 'diff';
@@ -19,23 +21,24 @@ const changes = () => [...document.querySelectorAll<HTMLElement>('[data-hunk]')]
 const button = (id: string) => $<HTMLButtonElement>(id);
 
 function feedback(text?: string, error = false) {
-  $('feedback').textContent = text || ''; $('feedback').hidden = !text;
+  $('feedback-text').textContent = text || (state?.undoId ? '直前の確認を取り消せます。' : ''); $('feedback').hidden = !text && !state?.undoId;
+  button('undo-review').hidden = !state?.undoId || !!state?.comparison || error;
   $('feedback').classList.toggle('error', error);
 }
 function controls() {
   const count = state?.count ?? 0;
-  $('counter').textContent = count ? `未確認 ${count}件` : '✓ 確認完了';
+  $('counter').textContent = state?.comparison ? `比較差分 ${count}件` : count ? `未確認 ${count}件` : '✓ 確認完了';
   $('counter').classList.toggle('complete', count === 0);
   $('position').textContent = count ? `${Math.max(1, active + 1)} / ${count}` : '';
   $('change-navigation').hidden = !count;
   button('previous').disabled = button('next').disabled = !count || pending || broken;
-  button('reviewed').disabled = !count || pending || broken || localDraft;
+  button('reviewed').disabled = !count || pending || broken || localDraft || !!state?.comparison;
   button('save').disabled = pending || broken || conflict || editInvalid;
   button('mode-edit').disabled = button('mode-diff').disabled = pending || !state;
   $('save').hidden = !localDraft && !state?.dirty;
   $('save-state').textContent = conflict ? '● 競合・下書きを保持' : localDraft ? '● 編集中' : state?.dirty ? '● 未保存' : '保存済み';
   $('save-state').classList.toggle('dirty', localDraft || !!state?.dirty);
-  document.querySelectorAll<HTMLButtonElement>('[data-revert], [data-review]').forEach(b => { b.disabled = pending || broken || localDraft; });
+  document.querySelectorAll<HTMLButtonElement>('[data-revert], [data-review]').forEach(b => { b.disabled = pending || broken || localDraft || (!!b.dataset.review && !!state?.comparison); });
   document.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('#formatting button, #formatting select').forEach(b => { b.disabled = pending || broken; });
   editor?.enable(!pending && !broken);
   $('conflict').hidden = !conflict;
@@ -44,9 +47,15 @@ function controls() {
   $('review-actions').hidden = $('legend').hidden = mode !== 'diff';
   if (mode === 'diff') $('link-form').hidden = true;
   $('empty').hidden = mode !== 'diff' || !!count;
+  $('empty').querySelector('strong')!.textContent = state?.comparison ? 'スナップショットとの差分はありません' : '未確認の変更はありません';
   button('mode-edit').setAttribute('aria-selected', String(mode === 'edit'));
   button('mode-diff').setAttribute('aria-selected', String(mode === 'diff'));
-  vscode.setState({ uri: state?.uri, mode });
+  button('undo-review').disabled = pending || broken || localDraft;
+  button('snapshot').disabled = pending || broken || localDraft;
+  button('snapshots').disabled = pending || broken || localDraft;
+  button('changes-only').setAttribute('aria-pressed', String(changesOnly));
+  $('document').classList.toggle('changes-only', changesOnly);
+  vscode.setState({ uri: state?.uri, mode, changesOnly });
 }
 function move(index: number, scroll = true) {
   const blocks = changes();
@@ -140,12 +149,15 @@ window.addEventListener('message', event => {
   } catch (error) { feedback(String(error), true); mode = 'diff'; }
   $('filename').textContent = state.name;
   const time = new Date(state.updatedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  $('baseline').textContent = '確認済みの内容 → 現在';
+  $('baseline').textContent = state.comparison ? `スナップショット ${new Date(state.comparison).toLocaleString('ja-JP')} → 現在` : '確認済みの内容 → 現在';
   $('baseline').title = `最終確認: ${time}`;
   $('document').classList.remove('stale');
   if (contentChanged) {
     const y = window.scrollY;
     $('document').innerHTML = state.html || '<p class="blank-document">空のMarkdownファイルです。</p>';
+    $('document').querySelectorAll<HTMLDetailsElement>('.unchanged').forEach(d => { d.open = !changesOnly; });
+    renderDiagrams($('document'));
+    $('document').querySelectorAll<HTMLImageElement>('.markdown-image').forEach(img => img.addEventListener('error', () => { img.hidden = true; (img.nextElementSibling as HTMLElement).hidden = false; }));
     const index = changes().findIndex(b => b.dataset.hunk === selection);
     move(index >= 0 ? index : Math.min(Math.max(active, 0), changes().length - 1), false);
     window.scrollTo(0, y);
@@ -162,6 +174,14 @@ window.addEventListener('message', event => {
   }
 });
 
+button('undo-review').addEventListener('click', () => action('undoReview', state?.undoId));
+button('snapshot').addEventListener('click', () => action('snapshot'));
+button('snapshots').addEventListener('click', () => action('chooseSnapshot'));
+button('changes-only').addEventListener('click', () => {
+  changesOnly = !changesOnly;
+  $('document').querySelectorAll<HTMLDetailsElement>('.unchanged').forEach(d => { d.open = !changesOnly; });
+  controls();
+});
 button('mode-edit').addEventListener('click', () => setMode('edit'));
 button('mode-diff').addEventListener('click', () => setMode('diff'));
 button('previous').addEventListener('click', () => move(active - 1));
@@ -195,4 +215,5 @@ window.addEventListener('keydown', event => {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (localDraft) applyDraft(true); else action('save'); }
   if (mode === 'diff' && event.altKey && (event.key === 'ArrowDown' || event.key === 'ArrowUp') && !broken && !pending) { event.preventDefault(); move(active + (event.key === 'ArrowDown' ? 1 : -1)); }
 });
+new MutationObserver(() => refreshDiagramThemes($('document'))).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 vscode.postMessage({ type: 'ready' });

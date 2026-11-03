@@ -10,4 +10,4 @@ for (const dir of [...new Set(dirs)].filter(d => d !== resolve('.'))) {
     if (file.isFile() && /^(license|copying)/i.test(file.name)) result += await readFile(join(dir, file.name), 'utf8') + '\n';
   }
 }
-await writeFile('THIRD-PARTY-NOTICES.txt', result.trimEnd() + '\n');
+await writeFile('THIRD-PARTY-NOTICES.txt', result.replace(/[ \t]+$/gm, '').trimEnd() + '\n');

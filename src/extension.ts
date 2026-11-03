@@ -1,22 +1,26 @@
 import * as vscode from 'vscode';
-import { basename, join } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { realpathSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { BaselineStore, Baseline, Draft } from './store';
-import { buildReview, confirmHunk, Review, validateSize } from './core';
+import { BaselineStore, Baseline, Draft, Snapshot } from './store';
+import { buildReview, confirmHunk, revertHunk, Review, validateSize } from './core';
 import { minimalEdit } from './text-edit';
 import { icon } from './icons';
+import { PendingFiles } from './pending-files';
 
-type Action = { type: 'ready' | 'revert' | 'reviewHunk' | 'reviewed' | 'save' | 'edit' | 'draft' | 'discardDraft' | 'exportDraft'; revision?: string; id?: string; text?: string; baseText?: string; save?: boolean };
+type Action = { type: 'ready' | 'revert' | 'reviewHunk' | 'reviewed' | 'save' | 'edit' | 'draft' | 'discardDraft' | 'exportDraft' | 'undoReview' | 'snapshot' | 'chooseSnapshot'; revision?: string; id?: string; text?: string; baseText?: string; save?: boolean };
 interface EditResult { id: string; accepted: boolean }
 export interface State {
   uri: string; name: string; html: string; revision: string; count: number;
-  updatedAt: string; dirty: boolean; markdown: string; draft?: Draft; editResult?: EditResult; error?: string; notice?: string;
+  updatedAt: string; dirty: boolean; markdown: string; draft?: Draft; undoId?: string; comparison?: string; editResult?: EditResult; error?: string; notice?: string;
 }
 
 function errorText(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
 export class ReviewPanel implements vscode.Disposable {
   private baseline!: Baseline;
+  private undo?: { id: string; text: string };
+  private snapshotBase?: Snapshot;
   private review?: Review;
   private current = '';
   private draft?: Draft;
@@ -28,7 +32,7 @@ export class ReviewPanel implements vscode.Disposable {
 
   constructor(readonly uri: vscode.Uri, readonly panel: vscode.WebviewPanel,
     private readonly store: BaselineStore, extensionUri: vscode.Uri, private readonly onClose: () => void) {
-    panel.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')] };
+    panel.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media'), ...(vscode.workspace.workspaceFolders?.map(f => f.uri) ?? [vscode.Uri.file(dirname(uri.fsPath))])] };
     panel.webview.html = shell(panel.webview, extensionUri);
     this.disposables.push(panel.onDidDispose(() => this.dispose()));
     this.disposables.push(panel.webview.onDidReceiveMessage((message: unknown) => {
@@ -54,7 +58,7 @@ export class ReviewPanel implements vscode.Disposable {
     return this.serial(async () => {
       const doc = await this.document();
       validateSize(doc.getText());
-      this.baseline = await this.store.load(this.uri.toString()) ?? await this.store.save(this.uri.toString(), doc.getText());
+      this.baseline = await this.store.ensure(this.uri.toString(), doc.getText());
       this.draft = await this.store.loadDraft(this.uri.toString());
       await this.refresh();
     });
@@ -70,18 +74,28 @@ export class ReviewPanel implements vscode.Disposable {
       void this.serial(() => this.refresh()).catch(error => this.sendError(error));
     }, 180);
   }
+  private imageUri = (src: string): string | undefined => {
+    if (this.uri.scheme !== 'file' || /^[a-z][a-z0-9+.-]*:|^[/\\]/i.test(src)) return;
+    try {
+      const target = realpathSync(join(dirname(this.uri.fsPath), decodeURIComponent(src)));
+      if (!/\.(png|jpe?g|gif|webp|avif|svg)$/i.test(target)) return;
+      const roots = vscode.workspace.workspaceFolders?.map(f => f.uri.fsPath) ?? [dirname(this.uri.fsPath)];
+      if (!roots.some(root => { const rel = relative(realpathSync(root), target); return rel !== '..' && !rel.startsWith('..' + sep) && !isAbsolute(rel); })) return;
+      return this.panel.webview.asWebviewUri(vscode.Uri.file(target)).toString();
+    } catch { return; }
+  };
   private async refresh(notice?: string, editResult?: EditResult): Promise<void> {
     if (this.disposed || !this.baseline) return;
     const doc = await this.document();
     const text = doc.getText();
     const feedback = notice ?? (text === this.current ? this.state?.notice : undefined);
-    if (!this.review || text !== this.current) this.review = buildReview(this.baseline.text, text);
+    if (!this.review || text !== this.current) this.review = buildReview(this.snapshotBase?.text ?? this.baseline.text, text, { imageUri: this.imageUri });
     this.current = text;
     this.state = {
       uri: this.uri.toString(), name: basename(this.uri.path), html: this.review.html,
       revision: this.review.revision, count: this.review.hunks.length,
       updatedAt: this.baseline.updatedAt, dirty: doc.isDirty, notice: feedback,
-      markdown: text, draft: this.draft, editResult,
+      markdown: text, draft: this.draft, editResult, undoId: this.undo?.id, comparison: this.snapshotBase?.createdAt,
     };
     // A restored webview does not mount until its serializer resolves. Waiting for
     // delivery here would deadlock restoration; the UI's ready handshake resends it.
@@ -97,7 +111,7 @@ export class ReviewPanel implements vscode.Disposable {
   async receive(message: unknown): Promise<void> {
     if (!message || typeof message !== 'object') return;
     const action = message as Action;
-    if (!['ready', 'revert', 'reviewHunk', 'reviewed', 'save', 'edit', 'draft', 'discardDraft', 'exportDraft'].includes(action.type)) return;
+    if (!['ready', 'revert', 'reviewHunk', 'reviewed', 'save', 'edit', 'draft', 'discardDraft', 'exportDraft', 'undoReview', 'snapshot', 'chooseSnapshot'].includes(action.type)) return;
     return this.serial(async () => {
       // Persist already-received input even if the tab closes while the write is queued.
       if (action.type === 'draft') {
@@ -118,6 +132,28 @@ export class ReviewPanel implements vscode.Disposable {
         await vscode.window.showTextDocument(await vscode.workspace.openTextDocument({ language: 'markdown', content: action.text }));
         return;
       }
+      if (action.type === 'undoReview') {
+        if (!this.undo || action.id !== this.undo.id || this.snapshotBase) { await this.refresh(); return; }
+        this.baseline = await this.store.save(this.uri.toString(), this.undo.text);
+        this.undo = undefined; this.review = undefined;
+        await this.refresh('確認を取り消しました。本文は変更していません。'); return;
+      }
+      if (action.type === 'chooseSnapshot') {
+        const items = await this.store.snapshots(this.uri.toString());
+        const picked = await vscode.window.showQuickPick([
+          { label: '$(check-all) 確認済みの内容', description: '通常のレビューに戻る', id: '' },
+          ...items.map(item => ({ label: '$(history) ' + new Date(item.createdAt).toLocaleString('ja-JP'), description: 'この時点と比較', id: item.id })),
+          ...(items.length ? [{ label: '$(trash) スナップショットを削除…', description: '', id: 'delete' }] : []),
+        ], { title: '比較元を選択', placeHolder: items.length ? 'スナップショット比較は確認済みの状態を変更しません' : 'カメラボタンで現在の状態を保存できます' });
+        if (picked?.id === 'delete') {
+          const target = await vscode.window.showQuickPick(items.map(item => ({ label: new Date(item.createdAt).toLocaleString('ja-JP'), id: item.id })), { title: '削除するスナップショット' });
+          if (target) {
+            await this.store.deleteSnapshot(this.uri.toString(), target.id);
+            if (this.snapshotBase?.id === target.id) this.snapshotBase = undefined;
+          }
+        } else if (picked) this.snapshotBase = items.find(item => item.id === picked.id);
+        this.review = undefined; await this.refresh(); return;
+      }
       const result = action.type === 'edit' && typeof action.id === 'string' ? { id: action.id, accepted: false } : undefined;
       if (!this.review || action.revision !== this.review.revision) {
         await this.refresh('ファイルが更新されました。最新の差分でもう一度お試しください。', result);
@@ -128,6 +164,11 @@ export class ReviewPanel implements vscode.Disposable {
         await this.refresh('ファイルが更新されました。最新の差分でもう一度お試しください。', result);
         return;
       }
+      if (action.type === 'snapshot') {
+        await this.store.snapshot(this.uri.toString(), this.current);
+        await this.refresh('スナップショットを保存しました。履歴アイコンから比較できます。'); return;
+      }
+      if (this.snapshotBase && ['reviewed', 'reviewHunk'].includes(action.type)) { await this.refresh('確認済みの内容に戻してから確認してください。'); return; }
       if (action.type === 'edit') {
         if (typeof action.text !== 'string' || !result) return;
         try {
@@ -157,19 +198,24 @@ export class ReviewPanel implements vscode.Disposable {
         } catch (error) { await this.refresh(errorText(error)); return; }
         // Keep every unreviewed change at its previous baseline. Concurrent edits
         // arriving during this write are compared against exactly what was approved.
+        const previous = this.baseline.text;
         this.baseline = await this.store.save(this.uri.toString(), next);
+        this.undo = { id: randomBytes(12).toString('hex'), text: previous };
         this.review = undefined;
-        await this.refresh('この変更を確認済みにしました。');
+        await this.refresh('✓ 確認しました');
       } else if (action.type === 'reviewed') {
         // Snapshot exactly what was displayed, even if another edit arrives while saving.
+        const previous = this.baseline.text;
         this.baseline = await this.store.save(this.uri.toString(), this.current);
+        this.undo = { id: randomBytes(12).toString('hex'), text: previous };
         this.review = undefined;
-        await this.refresh('現在の内容を確認済みにしました。');
+        await this.refresh('✓ 確認しました');
       } else if (action.type === 'revert') {
         const hunk = this.review.hunks.find(h => h.id === action.id);
         if (!hunk) { await this.refresh(); return; }
         const edit = new vscode.WorkspaceEdit();
-        const replacement = vscode.TextEdit.replace(new vscode.Range(doc.positionAt(hunk.start), doc.positionAt(hunk.end)), hunk.before);
+        const delta = minimalEdit(this.current, revertHunk(this.current, hunk));
+        const replacement = vscode.TextEdit.replace(new vscode.Range(doc.positionAt(delta.start), doc.positionAt(delta.end)), delta.text);
         edit.set(this.uri, hunk.eol
           ? [replacement, vscode.TextEdit.setEndOfLine(hunk.eol === 'CRLF' ? vscode.EndOfLine.CRLF : vscode.EndOfLine.LF)]
           : [replacement]);
@@ -196,7 +242,7 @@ function shell(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   const css = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'review.css'));
   const script = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'webview.js'));
   const editorCss = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'webview.css'));
-  return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src 'none'; font-src ${webview.cspSource};"><link rel="stylesheet" href="${editorCss}"><link rel="stylesheet" href="${css}"><title>Markdown Review</title></head><body>
+  return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource}; font-src ${webview.cspSource};"><link rel="stylesheet" href="${editorCss}"><link rel="stylesheet" href="${css}"><title>Markdown Review</title></head><body>
   <header class="toolbar"><div class="identity"><span class="brand" aria-hidden="true">${icon('diff')}</span><span id="filename">Markdown Review</span></div><div class="mode-switch" role="tablist" aria-label="表示モード"><button id="mode-edit" role="tab" aria-selected="false">${icon('edit')}<span>編集</span></button><button id="mode-diff" role="tab" aria-selected="true">${icon('diff')}<span>差分</span></button></div><div class="actions" id="review-actions"><span id="counter" role="status" aria-live="polite">読み込み中</span><div id="change-navigation" class="navigation" aria-label="未確認の変更へ移動"><button id="previous" class="icon-button" aria-label="前の変更" title="前の変更（Alt+↑）" disabled>${icon('up')}</button><span id="position" aria-hidden="true"></span><button id="next" class="icon-button" aria-label="次の変更" title="次の変更（Alt+↓）" disabled>${icon('down')}</button></div><button id="reviewed" class="review-all has-tooltip" data-tooltip="すべて確認済みにする" aria-label="すべて確認済みにする" disabled>${icon('checkAll')}</button></div></header>
   <div id="formatting" class="formatting" role="toolbar" aria-label="書式" hidden>
     <select id="block-type" aria-label="段落の種類"><option value="paragraph">本文</option><option value="h1">見出し 1</option><option value="h2">見出し 2</option><option value="h3">見出し 3</option><option value="code">コードブロック</option></select>
@@ -205,8 +251,8 @@ function shell(webview: vscode.Webview, extensionUri: vscode.Uri): string {
     <button data-format="undo" aria-label="編集を元に戻す" title="編集を元に戻す">${icon('undo')}</button><button data-format="redo" aria-label="編集をやり直す" title="編集をやり直す">${icon('redo')}</button>
   </div>
   <form id="link-form" class="link-form" hidden><label for="link-url">リンク先</label><input id="link-url" type="text" placeholder="https://example.com" autocomplete="off"><button type="submit">適用</button><button type="button" id="link-cancel">キャンセル</button></form>
-  <div class="subbar"><span id="baseline">比較元を読み込んでいます…</span><div class="legend" id="legend"><span class="legend-add">＋ 追加</span><span class="legend-remove">− 削除</span></div></div>
-  <div id="feedback" class="feedback" role="status" aria-live="polite" hidden></div>
+  <div class="review-tools"><button id="changes-only" class="icon-button has-tooltip" aria-label="変更箇所だけ表示" aria-pressed="false" data-tooltip="変更箇所だけ表示">${icon('filter')}</button><button id="snapshot" class="icon-button has-tooltip" aria-label="スナップショットを保存" data-tooltip="現在の状態を保存">${icon('camera')}</button><button id="snapshots" class="icon-button has-tooltip" aria-label="スナップショットと比較" data-tooltip="スナップショットと比較">${icon('history')}</button></div><div class="subbar"><span id="baseline">比較元を読み込んでいます…</span><div class="legend" id="legend"><span class="legend-add">＋ 追加</span><span class="legend-remove">− 削除</span></div></div>
+  <div id="feedback" class="feedback" role="status" aria-live="polite" hidden><span id="feedback-text"></span><button id="undo-review" class="text-button" hidden>取り消す</button></div>
   <div id="conflict" class="conflict" role="alert" hidden><strong>編集中にファイルが更新されました。</strong><p>自分の下書きは保持しています。先に別のタブへ退避できます。</p><button id="export-draft">下書きを別タブに開く</button><button id="discard-draft">下書きを破棄して最新を読み込む</button></div>
   <div id="empty" class="empty-state" tabindex="-1" hidden><span class="empty-check" aria-hidden="true">${icon('check')}</span><div><strong>未確認の変更はありません</strong><p>AIや手動で編集すると、ここに差分が表示されます。</p></div></div>
   <main id="document" class="document" aria-label="Markdownの変更プレビュー"><p class="loading">プレビューを準備しています…</p></main>
@@ -219,6 +265,10 @@ export function activate(context: vscode.ExtensionContext) {
   const controllers = new Map<string, ReviewPanel>();
   const opening = new Map<string, Promise<ReviewPanel>>();
   const store = new BaselineStore(join((context.storageUri ?? context.globalStorageUri).fsPath, 'baselines'));
+  const pendingFiles = new PendingFiles(store);
+  const pendingView = vscode.window.createTreeView('markdownReview.pending', { treeDataProvider: pendingFiles });
+  pendingFiles.attach(pendingView);
+  context.subscriptions.push(pendingFiles, pendingView, vscode.commands.registerCommand('markdownReview.refresh', () => pendingFiles.refresh()));
   const open = async (uri: vscode.Uri, existing?: vscode.WebviewPanel): Promise<ReviewPanel> => {
     if (uri.scheme === 'untitled' || !/\.(md|markdown|mdown)$/i.test(uri.path)) throw new Error('保存済みのMarkdownファイル（.md / .markdown / .mdown）を開いてください。');
     const key = uri.toString();
@@ -251,5 +301,5 @@ export function activate(context: vscode.ExtensionContext) {
     },
   }));
   context.subscriptions.push({ dispose: () => { for (const c of controllers.values()) c.panel.dispose(); } });
-  return { open, get: (uri: vscode.Uri) => controllers.get(uri.toString()) };
+  return { open, pendingFiles, get: (uri: vscode.Uri) => controllers.get(uri.toString()) };
 }

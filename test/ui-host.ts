@@ -24,13 +24,27 @@ export async function run() {
   await writeFile(join(root, 'ready'), 'ready');
   await vscode.commands.executeCommand('notifications.clearAll');
   let lastTheme = '';
+  let visualFixture = false;
   let lastNotificationClear = 0;
-  while (Date.now() - start < 120000) {
+  while (Date.now() - start < 240000) {
     if (Date.now() - lastNotificationClear > 1000) {
       await vscode.commands.executeCommand('notifications.clearAll');
       lastNotificationClear = Date.now();
     }
     try { await access(join(root, 'done')); return; } catch {}
+    if (!visualFixture) {
+      const requested = await readFile(join(root, 'visual-fixture'), 'utf8').catch(() => '');
+      if (requested) {
+        visualFixture = true;
+        const visualUri = vscode.Uri.file(join(root, 'visual.md'));
+        const fixture = '# リクエスト処理\n\n認証後、データを取得する。\n\n```mermaid\nflowchart LR\nA[認証] --> D[(DB)]\n```\n\n| 設定 | 値 |\n| --- | --- |\n| 保持期間 | 30秒 |\n| 再試行 | 3回 |\n\n![構成図](./local.svg)\n';
+        await writeFile(join(root, 'local.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="280" height="64"><rect width="280" height="64" rx="8" fill="#c9f4a3"/><text x="20" y="39" font-size="18" fill="#173b12">Local image preview</text></svg>');
+        await writeFile(visualUri.fsPath, fixture);
+        await api.open(visualUri);
+        await writeFile(visualUri.fsPath, fixture.replace('認証後、', '認証後、キャッシュを経由して').replace('A[認証] --> D[(DB)]', 'A[認証] --> C[キャッシュ]\nC --> D[(DB)]').replace('30秒', '60秒'));
+        await writeFile(join(root, 'visual-ready'), 'ready');
+      }
+    }
     const theme = await readFile(join(root, 'theme'), 'utf8').catch(() => '');
     if (theme && theme !== lastTheme) {
       lastTheme = theme;

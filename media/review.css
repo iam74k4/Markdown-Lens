@@ -127,3 +127,38 @@ footer > span:first-child { margin-right: auto; }.footer-dot { padding: 0 6px; }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
 body.vscode-high-contrast .change, body.vscode-high-contrast-light .change { border-left-width: 3px; }
 body.vscode-high-contrast ins, body.vscode-high-contrast del, body.vscode-high-contrast-light ins, body.vscode-high-contrast-light del { border: 1px solid currentColor; }
+
+/* Secondary tools stay compact; the main edit/review switch stays prominent. */
+.review-tools { display: flex; justify-content: flex-end; gap: 6px; padding: 8px 26px 0; }
+.review-tools .has-tooltip::after { top: calc(100% + 8px); bottom: auto; }
+.review-tools [aria-pressed="true"], .diagram-modes [aria-pressed="true"] { background: var(--vscode-toolbar-hoverBackground, #8882); color: var(--fg); border-color: var(--focus); }
+.feedback { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.feedback .text-button { margin-left: auto; }
+.unchanged > summary { display: none; }
+.changes-only .unchanged { margin: 12px 0; }
+.changes-only .unchanged > summary { display: list-item; color: var(--muted); font-size: 12px; cursor: pointer; padding: 6px 0; }
+.changed-cell { background: var(--vscode-diffEditor-insertedTextBackground, #73b77b22); box-shadow: inset 2px 0 var(--green); }
+.move-label, .move-origin { color: var(--vscode-textLink-foreground, #72b4e8); font-size: 12px; }
+.move-origin { margin: 12px 0; }.changes-only .move-origin { display: none; }
+.markdown-image { display: block; max-width: 100%; height: auto; border-radius: 4px; margin: 12px 0; }
+.image-fallback { color: var(--muted); font-size: 12px; }
+.diagram-review { margin: 20px 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.diagram-tools { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: 12px; }
+.diagram-modes { display: flex; gap: 2px; }
+.diagram-modes button { padding: 4px 8px; }
+.diagram-canvas { padding: 18px 0 4px; text-align: center; overflow-x: auto; }
+.diagram-canvas svg { max-width: 100%; height: auto; }
+.diagram-note, .diagram-source { font-size: 12px; color: var(--muted); }
+.diagram-source summary { cursor: pointer; text-align: left; }
+.diagram-source pre { text-align: left; }
+.diagram-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.diagram-pair > div { min-width: 0; overflow-x: auto; }.diagram-pair .change-label { display: block; text-align: left; }
+.diagram-canvas .diagram-added > :is(rect,circle,ellipse,polygon,path) { fill: var(--ins-bg) !important; stroke: var(--green) !important; stroke-width: 2px !important; }
+.diagram-canvas .diagram-removed > :is(rect,circle,ellipse,polygon,path) { fill: var(--del-bg) !important; stroke: var(--red) !important; stroke-dasharray: 5 3 !important; }
+.diagram-canvas .diagram-changed > :is(rect,circle,ellipse,polygon,path) { fill: var(--vscode-diffEditor-modifiedLineBackground, #aa882244) !important; stroke: var(--vscode-editorWarning-foreground, #ccab66) !important; stroke-width: 2px !important; }
+.diagram-canvas .diagram-added text { fill: var(--ins-fg) !important; }
+.diagram-canvas .diagram-removed text { fill: var(--del-fg) !important; }
+.diagram-canvas path.diagram-added { stroke: var(--green) !important; stroke-width: 3px !important; }
+.diagram-canvas path.diagram-removed { stroke: var(--red) !important; stroke-width: 2px !important; stroke-dasharray: 5 3 !important; }
+.diagram-canvas path.diagram-changed { stroke: var(--vscode-editorWarning-foreground, #ccab66) !important; stroke-width: 3px !important; }
+@media (max-width: 500px) { .diagram-pair { grid-template-columns: 1fr; }.review-tools { padding-right: 14px; }.diagram-review { padding: 8px; } }

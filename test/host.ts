@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import assert from 'node:assert/strict';
 import { writeFile, readFile, unlink, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { PendingFiles } from '../src/pending-files';
 import type { ReviewPanel } from '../src/extension';
 
 async function until(predicate: () => boolean, label: string, timeout = 10000) {
@@ -17,7 +18,7 @@ export async function run(): Promise<void> {
   const evidence: string[] = [];
   const ext = vscode.extensions.getExtension('local-markdown-review.markdown-review');
   assert.ok(ext, 'extension is discovered by host');
-  const api = await ext.activate() as { open(uri: vscode.Uri): Promise<ReviewPanel> };
+  const api = await ext.activate() as { open(uri: vscode.Uri): Promise<ReviewPanel>; pendingFiles: PendingFiles };
   const uri = vscode.Uri.file(join(root, '設計書.md'));
   const before = '# 認証設計書\n\n## セッション\n\n期限は30分です。\n\n## 用語\n\nユーザーと表記する。\n';
   const after = before.replace('30分', '24時間').replace('ユーザー', '利用者');
@@ -145,6 +146,18 @@ export async function run(): Promise<void> {
   assert.equal(partial.inspect()?.count, 2);
   evidence.push('stale or unknown individual confirmation cannot approve other changes');
 
+  const undoId = partial.inspect()!.undoId;
+  await partial.receive({ type: 'undoReview', id: 'stale-token' });
+  assert.equal(partial.inspect()?.count, 2);
+  await partial.receive({ type: 'undoReview', id: undoId });
+  assert.equal(partial.inspect()?.count, 3);
+  assert.equal(partialDoc.getText(), partialAfter);
+  assert.equal(partialDoc.isDirty, true);
+  await partial.receive({ type: 'undoReview', id: undoId });
+  assert.equal(partial.inspect()?.count, 3);
+  await partial.receive({ type: 'reviewHunk', revision: partial.inspect()!.revision, id: /data-review="([^"]+)"/.exec(partial.inspect()!.html)![1] });
+  assert.equal(partial.inspect()?.count, 2);
+  evidence.push('confirmation undo is token-guarded, one-shot, and preserves unsaved text');
   partial.panel.dispose(); partial = await api.open(partialUri);
   assert.equal(partial.inspect()?.count, 2);
   assert.doesNotMatch(partial.inspect()!.html, /<del>30分<\/del>/);
@@ -201,6 +214,42 @@ export async function run(): Promise<void> {
   await rich.receive({ type: 'discardDraft' });
   assert.equal(rich.inspect()?.draft, undefined);
   rich.panel.dispose();
+
+  const trackedUri = vscode.Uri.file(join(root, '一覧.md'));
+  await writeFile(trackedUri.fsPath, '# 一覧\n\n旧文\n');
+  const tracked = await api.open(trackedUri);
+  await tracked.receive({ type: 'snapshot', revision: tracked.inspect()!.revision });
+  assert.match(tracked.inspect()?.notice ?? '', /スナップショットを保存/);
+  assert.equal(tracked.inspect()?.count, 0);
+  tracked.panel.dispose();
+  await writeFile(trackedUri.fsPath, '# 一覧\n\n新文\n');
+  await api.pendingFiles.refresh();
+  await until(() => api.pendingFiles.getChildren().some(e => e.uri.toString() === trackedUri.toString() && e.count === 1), 'closed tab remains in pending file index');
+  const reopenedTracked = await api.open(trackedUri);
+  await reopenedTracked.receive({ type: 'reviewed', revision: reopenedTracked.inspect()!.revision });
+  await api.pendingFiles.refresh();
+  await until(() => !api.pendingFiles.getChildren().some(e => e.uri.toString() === trackedUri.toString()), 'confirmation removes pending file');
+  const undoAll = reopenedTracked.inspect()!.undoId;
+  await writeFile(trackedUri.fsPath, '# 一覧\n\nさらに新文\n');
+  await until(() => reopenedTracked.inspect()?.markdown.includes('さらに新文') ?? false, 'external edit is loaded before confirmation undo');
+  await reopenedTracked.receive({ type: 'undoReview', id: undoAll });
+  assert.match(reopenedTracked.inspect()?.markdown ?? '', /さらに新文/);
+  assert.match(reopenedTracked.inspect()?.html ?? '', /<del>旧/);
+  reopenedTracked.panel.dispose();
+  evidence.push('snapshot preserves baseline; closed files are monitored; undo after external edits preserves newest text');
+
+  const movedUri = vscode.Uri.file(join(root, '移動.md'));
+  const movedBefore = 'Alpha\n\nBravo\n\nCharlie\n\nDelta\n\n', movedAfter = 'Alpha\n\nCharlie\n\nDelta\n\nBravo\n\n';
+  await writeFile(movedUri.fsPath, movedBefore);
+  const moved = await api.open(movedUri);
+  await writeFile(movedUri.fsPath, movedAfter);
+  await until(() => moved.inspect()?.count === 1, 'paragraph move detected');
+  await moved.receive({ type: 'revert', revision: moved.inspect()!.revision, id: /data-hunk="([^"]+)"/.exec(moved.inspect()!.html)![1] });
+  assert.equal(moved.inspect()?.markdown, movedBefore);
+  assert.equal(moved.inspect()?.dirty, true);
+  assert.equal(await readFile(movedUri.fsPath, 'utf8'), movedAfter);
+  moved.panel.dispose();
+  evidence.push('paragraph move restores both positions as one native unsaved edit');
 
   const report = { host: vscode.env.appName, version: vscode.version, checks: evidence, passed: evidence.length, skipped };
   await mkdir(join(root, 'results'), { recursive: true });
