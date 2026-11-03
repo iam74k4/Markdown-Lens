@@ -118,6 +118,50 @@ export async function run(): Promise<void> {
   eolPanel.panel.dispose();
   evidence.push('line ending conversion is restored as a single whole-file edit');
 
+  const partialUri = vscode.Uri.file(join(root, '個別確認.md'));
+  const partialBefore = '# 個別確認\n\n期限は30分です。\n\n名称は旧称です。\n\n上限は3回です。\n';
+  const partialAfter = partialBefore.replace('30分', '24時間').replace('旧称', '新称').replace('3回', '5回');
+  await writeFile(partialUri.fsPath, partialBefore);
+  let partial = await api.open(partialUri);
+  const partialDoc = await vscode.workspace.openTextDocument(partialUri);
+  const partialEdit = new vscode.WorkspaceEdit();
+  partialEdit.replace(partialUri, new vscode.Range(partialDoc.positionAt(0), partialDoc.positionAt(partialBefore.length)), partialAfter);
+  assert.ok(await vscode.workspace.applyEdit(partialEdit));
+  await until(() => partial.inspect()?.count === 3, 'three individual changes');
+  const partialState = partial.inspect()!;
+  const partialId = /data-review="([^"]+)"/.exec(partialState.html)![1];
+  await partial.receive({ type: 'reviewHunk', revision: partialState.revision, id: partialId });
+  assert.equal(partial.inspect()?.count, 2);
+  assert.equal(partialDoc.getText(), partialAfter);
+  assert.equal(partialDoc.isDirty, true);
+  assert.equal(await readFile(partialUri.fsPath, 'utf8'), partialBefore);
+  evidence.push('individual confirmation updates only the baseline, preserving the document and unsaved state');
+
+  // A duplicate click from the old screen must not confirm the next change.
+  await partial.receive({ type: 'reviewHunk', revision: partialState.revision, id: partialId });
+  assert.equal(partial.inspect()?.count, 2);
+  assert.match(partial.inspect()?.notice ?? '', /更新/);
+  await partial.receive({ type: 'reviewHunk', revision: partial.inspect()!.revision, id: 'unknown' });
+  assert.equal(partial.inspect()?.count, 2);
+  evidence.push('stale or unknown individual confirmation cannot approve other changes');
+
+  partial.panel.dispose(); partial = await api.open(partialUri);
+  assert.equal(partial.inspect()?.count, 2);
+  assert.doesNotMatch(partial.inspect()!.html, /<del>30分<\/del>/);
+  const beforeConcurrent = partial.inspect()!;
+  const remainingId = /data-review="([^"]+)"/.exec(beforeConcurrent.html)![1];
+  const again = new vscode.WorkspaceEdit();
+  again.replace(partialUri, new vscode.Range(partialDoc.positionAt(0), partialDoc.positionAt(partialDoc.getText().length)), partialAfter.replace('24時間', '48時間'));
+  await vscode.workspace.applyEdit(again);
+  await partial.receive({ type: 'reviewHunk', revision: beforeConcurrent.revision, id: remainingId });
+  assert.equal(partial.inspect()?.count, 3);
+  assert.match(partial.inspect()?.notice ?? '', /更新/);
+  assert.match(partial.inspect()!.html, /<del>24<\/del><ins>48<\/ins>/);
+  evidence.push('individual confirmation persists and re-edited content becomes unreviewed against its approved baseline');
+  await partial.receive({ type: 'reviewed', revision: partial.inspect()!.revision });
+  assert.equal(partial.inspect()?.count, 0);
+  partial.panel.dispose();
+
   const richUri = vscode.Uri.file(join(root, '編集.md'));
   const original = '# 設計\n\n最初の本文\n';
   await writeFile(richUri.fsPath, original);

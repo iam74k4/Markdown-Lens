@@ -46,10 +46,12 @@ for (const [name, executable, port] of targets) {
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     await page.setViewportSize({ width: 1280, height: 960 });
-    await expect(frame.locator('#counter')).toHaveText('1 / 3 件');
+    await expect(frame.locator('#counter')).toHaveText('未確認 3件');
     await expect(frame.locator('#document')).toContainText('認証設計書');
     await expect(frame.locator('ins').first()).toHaveText('24時間');
     await expect(frame.locator('#reviewed')).toBeEnabled();
+    await expect(frame.locator('[data-review]')).toHaveCount(3);
+    for (const control of await frame.locator('.change-actions button').all()) await expect(control).toBeVisible();
     await frame.locator('body').screenshot({ path: join(output, `markdown-review-${name}.png`) });
 
     // Both colour schemes and a narrow editor must keep the actions visible.
@@ -61,17 +63,38 @@ for (const [name, executable, port] of targets) {
     await frame.locator('body').screenshot({ path: join(base, 'narrow.png') });
     await expect.poll(() => frame.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
 
+    // Individual approval removes only one highlight and preserves the file.
+    const fileBeforeReview = await readFile(join(workspace, 'design.md'), 'utf8');
+    await frame.locator('[data-review]').first().click();
+    await expect(frame.locator('#counter')).toHaveText('未確認 2件');
+    await expect(frame.locator('[data-review]')).toHaveCount(2);
+    await expect(frame.locator('.change.active [data-review]')).toBeFocused();
+    expect(await readFile(join(workspace, 'design.md'), 'utf8')).toBe(fileBeforeReview);
+    await expect(frame.locator('#save-state')).toHaveText('保存済み');
+    await writeFile(join(workspace, 'design.md'), fileBeforeReview.replace('24時間', '48時間'));
+    await expect(frame.locator('#counter')).toHaveText('未確認 3件');
+    await expect(frame.locator('.change').first().locator('del')).toHaveText('24');
+    await writeFile(join(workspace, 'design.md'), fileBeforeReview);
+    await expect(frame.locator('#counter')).toHaveText('未確認 2件');
+    await page.setViewportSize({ width: 360, height: 800 });
+    await expect.poll(() => frame.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
+    await frame.locator('body').screenshot({ path: join(base, 'narrow-360.png') });
+    await page.setViewportSize({ width: 600, height: 850 });
+
     await frame.locator('#next').click();
-    await expect(frame.locator('#counter')).toHaveText('2 / 3 件');
+    await expect(frame.locator('#position')).toHaveText('2 / 2');
+    await frame.locator('#previous').click();
+    await expect(frame.locator('#position')).toHaveText('1 / 2');
     await frame.locator('.change.active .revert').click();
-    await expect(frame.locator('#counter')).toContainText('/ 2 件');
+    await expect(frame.locator('#counter')).toHaveText('未確認 1件');
     await expect(frame.locator('#save-state')).toContainText('未保存');
     await frame.locator('#save').click();
     await expect(frame.locator('#save-state')).toHaveText('保存済み');
     expect(await readFile(join(workspace, 'design.md'), 'utf8')).toContain('ユーザー');
-    await frame.locator('#reviewed').click();
-    await expect(frame.locator('#counter')).toHaveText('変更なし');
+    await frame.locator('[data-review]').click();
+    await expect(frame.locator('#counter')).toHaveText('✓ 確認完了');
     await expect(frame.locator('#empty')).toBeVisible();
+    await expect(frame.locator('#empty')).toBeFocused();
     await expect(frame.locator('#reviewed')).toBeDisabled();
     await expect(frame.locator('#feedback')).toContainText('確認済みにしました');
     await frame.locator('#mode-edit').click();
@@ -123,8 +146,10 @@ for (const [name, executable, port] of targets) {
     await frame.locator('#mode-diff').click();
     await expect(frame.locator('#document')).toBeVisible();
     await frame.locator('body').screenshot({ path: join(output, `markdown-review-${name}-diff.png`) });
+    await frame.locator('#reviewed').click();
+    await expect(frame.locator('#counter')).toHaveText('✓ 確認完了');
     expect(errors).toEqual([]);
-    await writeFile(join(base, 'ui-result.json'), JSON.stringify({ host: name, passed: true, checks: ['real webview rendering', 'dark and light themes', '600px layout without horizontal overflow', 'next change', 'revert button', 'save button', 'reviewed button', 'WYSIWYG typing and bold', 'edit/diff switching', 'Markdown file save', 'table editing and row insertion', 'concurrent edits preserve drafts', 'explicit draft discard loads latest', 'no renderer errors'] }, null, 2));
+    await writeFile(join(base, 'ui-result.json'), JSON.stringify({ host: name, passed: true, checks: ['real webview rendering', 'dark and light themes', '600px and 360px layout without horizontal overflow', 'always visible per-change actions', 'individual approval without saving or changing the file', 're-edits become unreviewed', 'keyboard focus after individual approval and completion', 'next and previous change', 'revert button', 'save button', 'review all button', 'WYSIWYG typing and bold', 'edit/diff switching', 'Markdown file save', 'table editing and row insertion', 'concurrent edits preserve drafts', 'explicit draft discard loads latest', 'no renderer errors'] }, null, 2));
     console.log('MARKDOWN_REVIEW_UI_RESULT ' + name + ' passed');
   } finally {
     if (browser) await browser.close();
