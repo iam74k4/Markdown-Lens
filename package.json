@@ -2,7 +2,7 @@
   "name": "markdown-review",
   "displayName": "Markdown Review",
   "description": "Markdownを直接編集し、差分へ切り替えて変更を確認。戻す・確認済みにする機能付き。",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "local-markdown-review",
   "license": "UNLICENSED",
   "engines": {
@@ -95,7 +95,8 @@
     "test:ui": "node scripts/run-ui-tests.mjs",
     "vscode:prepublish": "npm run check && npm run build && node scripts/notices.mjs",
     "package": "vsce package --no-dependencies --allow-missing-repository",
-    "test:diagrams": "node scripts/test-diagrams.mjs"
+    "test:diagrams": "node scripts/test-diagrams.mjs",
+    "test:tables": "node scripts/test-tables.mjs"
   },
   "dependencies": {
     "diff": "9.0.0",

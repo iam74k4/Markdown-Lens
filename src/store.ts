@@ -25,7 +25,7 @@ export class BaselineStore {
     try { raw = await readFile(this.path(uri), 'utf8'); }
     catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; throw error; }
     const value = JSON.parse(raw) as Baseline;
-    if (value.version !== 1 || value.uri !== uri || typeof value.text !== 'string' || typeof value.updatedAt !== 'string' || !Number.isFinite(Date.parse(value.updatedAt))) {
+    if (!value || value.version !== 1 || value.uri !== uri || typeof value.text !== 'string' || typeof value.updatedAt !== 'string' || !Number.isFinite(Date.parse(value.updatedAt))) {
       throw new Error('保存された比較元を読み込めません。現在のファイルは変更していません。');
     }
     validateSize(value.text);
@@ -48,9 +48,9 @@ export class BaselineStore {
     try { raw = await readFile(this.path(uri) + '.snapshots', 'utf8'); }
     catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []; throw error; }
     const value = JSON.parse(raw);
-    if (value.uri !== uri || !Array.isArray(value.items) || value.items.length > 20) throw new Error('スナップショットを読み込めません。');
+    if (!value || value.uri !== uri || !Array.isArray(value.items) || value.items.length > 20) throw new Error('スナップショットを読み込めません。');
     for (const item of value.items) {
-      if (typeof item.id !== 'string' || typeof item.text !== 'string' || !Number.isFinite(Date.parse(item.createdAt))) throw new Error('スナップショットを読み込めません。');
+      if (!item || typeof item.createdAt !== 'string' || typeof item.id !== 'string' || typeof item.text !== 'string' || !Number.isFinite(Date.parse(item.createdAt))) throw new Error('スナップショットを読み込めません。');
       validateSize(item.text);
     }
     return value.items;
@@ -78,7 +78,7 @@ export class BaselineStore {
     try { raw = await readFile(this.path(uri) + '.draft', 'utf8'); }
     catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; throw error; }
     const value = JSON.parse(raw);
-    if (typeof value.text !== 'string' || typeof value.baseText !== 'string') throw new Error('編集中の下書きを読み込めません。');
+    if (!value || typeof value.text !== 'string' || typeof value.baseText !== 'string') throw new Error('編集中の下書きを読み込めません。');
     validateSize(value.text); validateSize(value.baseText);
     return value;
   }

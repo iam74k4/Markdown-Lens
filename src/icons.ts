@@ -1,5 +1,8 @@
 // Small, local SVGs: consistent strokes, no icon fonts or network dependencies.
 const paths = {
+  expand: '<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',
+  close: '<path d="m6 6 12 12M18 6 6 18"/>',
+  grip: '<path d="M10 5v14M14 5v14"/>',
   filter: '<path d="M3 5h18l-7 8v6l-4 2v-8z"/>',
   camera: '<path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="4"/>',
   history: '<path d="M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v6l4 2"/>',

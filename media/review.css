@@ -162,3 +162,50 @@ body.vscode-high-contrast ins, body.vscode-high-contrast del, body.vscode-high-c
 .diagram-canvas path.diagram-removed { stroke: var(--red) !important; stroke-width: 2px !important; stroke-dasharray: 5 3 !important; }
 .diagram-canvas path.diagram-changed { stroke: var(--vscode-editorWarning-foreground, #ccab66) !important; stroke-width: 3px !important; }
 @media (max-width: 500px) { .diagram-pair { grid-template-columns: 1fr; }.review-tools { padding-right: 14px; }.diagram-review { padding: 8px; } }
+
+/* Table focus: fixed labels, quiet current values, details on demand. */
+.review-table { margin: 22px 0; color: var(--fg); background: var(--bg); min-width: 0; font-size: 13px; }
+.table-toolbar, .table-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.table-toolbar { justify-content: space-between; margin-bottom: 9px; }
+.table-count { color: var(--muted); font-size: 12px; }
+.table-tools { margin-left: auto; }
+.table-tool { display: inline-flex; gap: 5px; align-items: center; padding: 5px 7px; font-size: 12px; border-color: var(--line); }
+.table-tool .ui-icon { width: 15px; height: 15px; }
+.table-tool[aria-pressed="true"] { border-color: var(--focus); background: var(--vscode-toolbar-hoverBackground, #8882); }
+.table-scroll { max-height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; overscroll-behavior: contain; }
+.table-scroll:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.review-table table { min-width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; margin: 0; font-size: 13px; line-height: 1.7; }
+.review-table th, .review-table td { vertical-align: top; padding: 0; border: 0; border-bottom: 1px solid var(--line); text-align: left; background: var(--bg); }
+.review-table thead th { position: sticky; top: 0; z-index: 3; padding: 10px 26px 10px 12px; color: var(--fg); background: var(--vscode-sideBar-background, var(--bg)); font-weight: 500; font-size: 12px; }
+.review-table tr > :first-child { position: sticky; left: 0; z-index: 2; box-shadow: 1px 0 var(--line); }
+.review-table thead tr > :first-child { z-index: 4; }
+.review-table .table-numeric .table-cell { text-align: right; font-variant-numeric: tabular-nums; }
+.table-cell { width: 100%; padding: 11px 12px; white-space: normal; text-align: left; border-radius: 0; display: block; min-height: 44px; overflow-wrap: anywhere; }
+.table-cell-summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.table-cell p { margin: 0; }.table-cell code { white-space: normal; }
+.table-cell:focus-visible { outline-offset: -3px; }
+.review-table .changed-cell { box-shadow: inset 3px 0 var(--green); background: color-mix(in srgb, var(--ins-bg) 22%, var(--bg)); }
+.review-table .table-selected td { background: color-mix(in srgb, var(--focus) 12%, var(--bg)); }
+.table-resize { position: absolute; right: 0; top: 0; bottom: 0; width: 18px; padding: 0; border: 0; border-radius: 0; touch-action: none; cursor: col-resize; color: var(--muted); }
+.table-resize .ui-icon { width: 13px; }.table-resize:hover { color: var(--focus); }
+.table-resize:focus-visible { outline-offset: -2px; }
+.table-hint { margin-top: 8px; font-size: 11px; color: var(--muted); }
+.table-details { border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-top: 10px; background: var(--vscode-sideBar-background, var(--bg)); }
+.table-detail-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.table-detail-title strong { font-size: 12px; overflow-wrap: anywhere; }
+.table-detail-values { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 16px; margin-top: 12px; }
+.table-detail-label { color: var(--muted); font-size: 11px; }.table-detail-version p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 4px 0 0; }
+.table-group-select { max-width: 180px; font-size: 12px; }
+.review-table .table-group-row th { position: static; padding: 8px 12px; color: var(--muted); background: var(--vscode-sideBar-background, var(--bg)); font-size: 12px; }
+.table-dialog { color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 20px; width: calc(100vw - 36px); max-width: 1500px; max-height: calc(100vh - 40px); overflow: auto; }
+.table-dialog::backdrop { background: #0008; }
+.table-dialog .review-table { margin: 0; }.table-dialog .table-scroll { max-height: 55vh; }
+.table-dialog .table-details { max-height: 30vh; overflow: auto; }
+.rich-document.editor-wide { max-width: none; }
+.ProseMirror .tableWrapper { overflow-x: auto; max-width: 100%; }
+.ProseMirror td, .ProseMirror th { overflow-wrap: anywhere; }
+@media (max-width: 650px) { .table-dialog { padding: 10px; width: calc(100vw - 16px); }.table-tool { padding: 5px; }.table-toolbar { gap: 8px; }.table-group-select { max-width: 150px; } }
+.review-table td[style*="text-align:center"] .table-cell { text-align: center; }
+.review-table td[style*="text-align:right"] .table-cell { text-align: right; }
+.review-table td[style*="text-align:left"] .table-cell { text-align: left; }
+.review-table .table-removed-cell { box-shadow: inset 3px 0 var(--red); background: color-mix(in srgb, var(--del-bg) 22%, var(--bg)); }

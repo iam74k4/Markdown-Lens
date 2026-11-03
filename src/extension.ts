@@ -116,6 +116,7 @@ export class ReviewPanel implements vscode.Disposable {
       // Persist already-received input even if the tab closes while the write is queued.
       if (action.type === 'draft') {
         if (typeof action.text !== 'string' || typeof action.baseText !== 'string') return;
+        validateSize(action.text); validateSize(action.baseText);
         this.draft = { text: action.text, baseText: action.baseText };
         await this.store.saveDraft(this.uri.toString(), this.draft);
         return;
@@ -139,6 +140,7 @@ export class ReviewPanel implements vscode.Disposable {
         await this.refresh('確認を取り消しました。本文は変更していません。'); return;
       }
       if (action.type === 'chooseSnapshot') {
+        try {
         const items = await this.store.snapshots(this.uri.toString());
         const picked = await vscode.window.showQuickPick([
           { label: '$(check-all) 確認済みの内容', description: '通常のレビューに戻る', id: '' },
@@ -152,7 +154,9 @@ export class ReviewPanel implements vscode.Disposable {
             if (this.snapshotBase?.id === target.id) this.snapshotBase = undefined;
           }
         } else if (picked) this.snapshotBase = items.find(item => item.id === picked.id);
-        this.review = undefined; await this.refresh(); return;
+        this.review = undefined; await this.refresh();
+        } catch (error) { await this.refresh(errorText(error)); }
+        return;
       }
       const result = action.type === 'edit' && typeof action.id === 'string' ? { id: action.id, accepted: false } : undefined;
       if (!this.review || action.revision !== this.review.revision) {
@@ -165,8 +169,11 @@ export class ReviewPanel implements vscode.Disposable {
         return;
       }
       if (action.type === 'snapshot') {
-        await this.store.snapshot(this.uri.toString(), this.current);
-        await this.refresh('スナップショットを保存しました。履歴アイコンから比較できます。'); return;
+        try {
+          await this.store.snapshot(this.uri.toString(), this.current);
+          await this.refresh('スナップショットを保存しました。履歴アイコンから比較できます。');
+        } catch (error) { await this.refresh(errorText(error)); }
+        return;
       }
       if (this.snapshotBase && ['reviewed', 'reviewHunk'].includes(action.type)) { await this.refresh('確認済みの内容に戻してから確認してください。'); return; }
       if (action.type === 'edit') {
@@ -247,7 +254,7 @@ function shell(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   <div id="formatting" class="formatting" role="toolbar" aria-label="書式" hidden>
     <select id="block-type" aria-label="段落の種類"><option value="paragraph">本文</option><option value="h1">見出し 1</option><option value="h2">見出し 2</option><option value="h3">見出し 3</option><option value="code">コードブロック</option></select>
     <button data-format="bold" aria-label="太字" aria-pressed="false" title="太字（⌘/Ctrl+B）"><strong>B</strong></button><button data-format="italic" aria-label="斜体" title="斜体" aria-pressed="false"><em>I</em></button><button data-format="link" aria-label="リンク" title="リンク">${icon('link')}</button><button data-format="bullet" aria-label="箇条書き" title="箇条書き">${icon('bullet')}</button><button data-format="number" aria-label="番号付きリスト" title="番号付きリスト">${icon('number')}</button><button data-format="inlineCode" aria-label="インラインコード" title="インラインコード" aria-pressed="false">${icon('code')}</button>
-    <select id="table-action" aria-label="表の操作"><option value="">表</option><option value="table">表を挿入</option><option value="addRow">下に行を追加</option><option value="addColumn">右に列を追加</option><option value="deleteRow">行を削除</option><option value="deleteColumn">列を削除</option><option value="deleteTable">表を削除</option></select>
+    <button id="editor-wide" aria-label="編集領域を広く表示" aria-pressed="false" title="編集領域を広く表示">${icon('expand')}</button><select id="table-action" aria-label="表の操作"><option value="">表</option><option value="table">表を挿入</option><option value="addRow">下に行を追加</option><option value="addColumn">右に列を追加</option><option value="deleteRow">行を削除</option><option value="deleteColumn">列を削除</option><option value="deleteTable">表を削除</option></select>
     <button data-format="undo" aria-label="編集を元に戻す" title="編集を元に戻す">${icon('undo')}</button><button data-format="redo" aria-label="編集をやり直す" title="編集をやり直す">${icon('redo')}</button>
   </div>
   <form id="link-form" class="link-form" hidden><label for="link-url">リンク先</label><input id="link-url" type="text" placeholder="https://example.com" autocomplete="off"><button type="submit">適用</button><button type="button" id="link-cancel">キャンセル</button></form>

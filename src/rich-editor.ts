@@ -5,7 +5,7 @@ import { history, redo, undo } from 'prosemirror-history';
 import { keymap } from 'prosemirror-keymap';
 import { inputRules, textblockTypeInputRule, wrappingInputRule } from 'prosemirror-inputrules';
 import { wrapInList, liftListItem, sinkListItem, splitListItem } from 'prosemirror-schema-list';
-import { tableEditing, addRowAfter, addColumnAfter, deleteRow, deleteColumn, deleteTable, goToNextCell } from 'prosemirror-tables';
+import { TableView, tableEditing, addRowAfter, addColumnAfter, deleteRow, deleteColumn, deleteTable, goToNextCell } from 'prosemirror-tables';
 import { gapCursor } from 'prosemirror-gapcursor';
 import { parseRichMarkdown, serializeRichMarkdown, richSchema as schema, makeTable, RichDocument } from './rich-markdown';
 
@@ -35,6 +35,7 @@ export class RichEditor {
       state: EditorState.create({ doc: this.model.doc, schema, plugins }),
       attributes: { 'aria-label': 'Markdownを直接編集', role: 'textbox', 'aria-multiline': 'true', spellcheck: 'false' },
       editable: () => this.enabled,
+      nodeViews: { table: node => new TableView(node, 120) },
       dispatchTransaction: transaction => {
         this.view.updateState(this.view.state.apply(transaction));
         if (transaction.docChanged) this.onChange();
@@ -90,6 +91,7 @@ export class RichEditor {
     this.updateToolbar();
   }
   link(url: string): boolean {
+    if (!this.enabled || this.composing) return false;
     if (url && !/^(https?:\/\/|mailto:|#|\/|\.\.?\/)/i.test(url)) return false;
     const { from, to, empty } = this.view.state.selection;
     const transaction = this.view.state.tr;

@@ -199,6 +199,7 @@ export async function run(): Promise<void> {
   concurrent.insert(richUri, new vscode.Position(0, 0), '外部更新\n\n');
   await vscode.workspace.applyEdit(concurrent);
   await rich.receive({ type: 'draft', text: '自分の下書き\n', baseText: draft + '\n追記\n' });
+  await assert.rejects(rich.receive({ type: 'draft', text: 'x'.repeat(512 * 1024 + 1), baseText: original }), /512KB/);
   await rich.receive({ type: 'edit', id: 'conflict', revision: oldRevision, text: '自分の下書き\n', save: true });
   assert.equal(rich.inspect()?.editResult?.accepted, false);
   assert.ok(rich.inspect()?.markdown.startsWith('外部更新'));
@@ -221,6 +222,13 @@ export async function run(): Promise<void> {
   await tracked.receive({ type: 'snapshot', revision: tracked.inspect()!.revision });
   assert.match(tracked.inspect()?.notice ?? '', /スナップショットを保存/);
   assert.equal(tracked.inspect()?.count, 0);
+  for (let i = 0; i < 20; i++) await tracked.receive({ type: 'snapshot', revision: tracked.inspect()!.revision });
+  assert.match(tracked.inspect()?.notice ?? '', /20件まで/);
+  assert.equal(tracked.inspect()?.error, undefined);
+  await tracked.receive({ type: 'reviewed', revision: tracked.inspect()!.revision });
+  assert.equal(tracked.inspect()?.count, 0);
+  assert.ok(tracked.inspect()?.undoId);
+  evidence.push('snapshot limit preserves existing checkpoints and leaves review actions usable');
   tracked.panel.dispose();
   await writeFile(trackedUri.fsPath, '# 一覧\n\n新文\n');
   await api.pendingFiles.refresh();

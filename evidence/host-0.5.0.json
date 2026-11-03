@@ -1,0 +1,62 @@
+[
+  {
+    "host": "Visual Studio Code",
+    "version": "1.135.0",
+    "checks": [
+      "first open captures baseline",
+      "external filesystem edits automatically update rendered diff",
+      "revert changes only the selected block and preserves unsaved edit semantics",
+      "native editor Undo restores reverted content",
+      "stale UI action is rejected after a concurrent document edit",
+      "explicit save writes the edited document",
+      "reviewed baseline persists across closing and reopening preview",
+      "deleted files disable stale review actions",
+      "baselines remain isolated per file",
+      "line ending conversion is restored as a single whole-file edit",
+      "individual confirmation updates only the baseline, preserving the document and unsaved state",
+      "stale or unknown individual confirmation cannot approve other changes",
+      "confirmation undo is token-guarded, one-shot, and preserves unsaved text",
+      "individual confirmation persists and re-edited content becomes unreviewed against its approved baseline",
+      "WYSIWYG draft survives closing and reopening the tab",
+      "WYSIWYG edit updates document and diff without silently saving",
+      "WYSIWYG save writes Markdown to the same file",
+      "concurrent external edits reject WYSIWYG overwrite and preserve the draft",
+      "oversized drafts are rejected without disabling editing or changing the file",
+      "snapshot limit preserves existing checkpoints and leaves review actions usable",
+      "snapshot preserves baseline; closed files are monitored; undo after external edits preserves newest text",
+      "paragraph move restores both positions as one native unsaved edit"
+    ],
+    "passed": 22,
+    "skipped": []
+  },
+  {
+    "host": "Cursor",
+    "version": "1.128.0",
+    "checks": [
+      "first open captures baseline",
+      "external filesystem edits automatically update rendered diff",
+      "revert changes only the selected block and preserves unsaved edit semantics",
+      "native editor Undo restores reverted content",
+      "stale UI action is rejected after a concurrent document edit",
+      "explicit save writes the edited document",
+      "reviewed baseline persists across closing and reopening preview",
+      "deleted files disable stale review actions",
+      "baselines remain isolated per file",
+      "line ending conversion is restored as a single whole-file edit",
+      "individual confirmation updates only the baseline, preserving the document and unsaved state",
+      "stale or unknown individual confirmation cannot approve other changes",
+      "confirmation undo is token-guarded, one-shot, and preserves unsaved text",
+      "individual confirmation persists and re-edited content becomes unreviewed against its approved baseline",
+      "WYSIWYG draft survives closing and reopening the tab",
+      "WYSIWYG edit updates document and diff without silently saving",
+      "WYSIWYG save writes Markdown to the same file",
+      "concurrent external edits reject WYSIWYG overwrite and preserve the draft",
+      "oversized drafts are rejected without disabling editing or changing the file",
+      "snapshot limit preserves existing checkpoints and leaves review actions usable",
+      "snapshot preserves baseline; closed files are monitored; undo after external edits preserves newest text",
+      "paragraph move restores both positions as one native unsaved edit"
+    ],
+    "passed": 22,
+    "skipped": []
+  }
+]

@@ -1,4 +1,5 @@
 import { renderDiagrams, refreshDiagramThemes } from './diagrams';
+import { enhanceTables } from './table-review';
 import { RichEditor } from './rich-editor';
 import 'prosemirror-view/style/prosemirror.css';
 import 'prosemirror-tables/style/tables.css';
@@ -9,6 +10,7 @@ declare function acquireVsCodeApi(): { postMessage(message: unknown): void; setS
 const vscode = acquireVsCodeApi();
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T;
 let state: State | undefined;
+let disposeTables = () => {};
 let changesOnly = vscode.getState()?.changesOnly ?? false;
 let active = -1, pending = false, broken = false, selection = '';
 let resumeAction: 'review' | 'revert' | undefined;
@@ -111,6 +113,7 @@ function action(type: string, id?: string) {
 window.addEventListener('message', event => {
   const msg = event.data;
   if (msg.type === 'error') {
+    document.querySelectorAll<HTMLDialogElement>('.table-dialog[open]').forEach(dialog => dialog.close());
     broken = true; pending = false; commit = undefined; resumeAction = undefined;
     feedback(msg.message, true); $('document').classList.add('stale'); controls(); return;
   }
@@ -154,9 +157,11 @@ window.addEventListener('message', event => {
   $('document').classList.remove('stale');
   if (contentChanged) {
     const y = window.scrollY;
+    disposeTables();
     $('document').innerHTML = state.html || '<p class="blank-document">空のMarkdownファイルです。</p>';
     $('document').querySelectorAll<HTMLDetailsElement>('.unchanged').forEach(d => { d.open = !changesOnly; });
     renderDiagrams($('document'));
+    disposeTables = enhanceTables($('document'));
     $('document').querySelectorAll<HTMLImageElement>('.markdown-image').forEach(img => img.addEventListener('error', () => { img.hidden = true; (img.nextElementSibling as HTMLElement).hidden = false; }));
     const index = changes().findIndex(b => b.dataset.hunk === selection);
     move(index >= 0 ? index : Math.min(Math.max(active, 0), changes().length - 1), false);
@@ -182,6 +187,7 @@ button('changes-only').addEventListener('click', () => {
   $('document').querySelectorAll<HTMLDetailsElement>('.unchanged').forEach(d => { d.open = !changesOnly; });
   controls();
 });
+button('editor-wide').addEventListener('click', () => { const wide = $('editor').classList.toggle('editor-wide'); button('editor-wide').setAttribute('aria-pressed', String(wide)); });
 button('mode-edit').addEventListener('click', () => setMode('edit'));
 button('mode-diff').addEventListener('click', () => setMode('diff'));
 button('previous').addEventListener('click', () => move(active - 1));

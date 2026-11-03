@@ -25,6 +25,7 @@ export async function run() {
   await vscode.commands.executeCommand('notifications.clearAll');
   let lastTheme = '';
   let visualFixture = false;
+  let tableFixture = false;
   let lastNotificationClear = 0;
   while (Date.now() - start < 240000) {
     if (Date.now() - lastNotificationClear > 1000) {
@@ -44,6 +45,18 @@ export async function run() {
         await writeFile(visualUri.fsPath, fixture.replace('認証後、', '認証後、キャッシュを経由して').replace('A[認証] --> D[(DB)]', 'A[認証] --> C[キャッシュ]\nC --> D[(DB)]').replace('30秒', '60秒'));
         await writeFile(join(root, 'visual-ready'), 'ready');
       }
+    }
+    if (!tableFixture && await readFile(join(root, 'table-fixture'), 'utf8').catch(() => '')) {
+      tableFixture = true;
+      const tableUri = vscode.Uri.file(join(root, '認証設定.md'));
+      const names = ['セッション期限', 'ログイン試行上限', 'ロック解除まで', 'キャッシュ保持', '同時接続数', '監査ログ保持'];
+      const values = ['30分', '5回', '15分', '30秒', '3台', '90日'];
+      const descriptions = ['最終操作から期限を過ぎた場合は、利用者に再ログインを要求する。', '連続した認証失敗が上限に達した場合、アカウントを一時的にロックし、登録済みのメールアドレスに通知する。', 'ロック中はログインを受け付けず、解除までの時間を案内する。', '認証結果を一時保存し、同じリクエストによるデータベースへのアクセスを減らす。', '上限を超えた場合は、終了するセッションを選択してもらう。', 'ログイン・ログアウト・認証失敗の履歴を記録する。'];
+      const fixture = '# 認証設定\n\n| 項目 | 分類 | 設定値 | 説明 |\n| --- | --- | --- | --- |\n' + Array.from({ length: 18 }, (_, i) => `| ${names[i % 6]}${i >= 6 ? '（環境' + Math.floor(i / 6) + '）' : ''} | ${i % 6 === 5 ? '監査' : '認証'} | ${values[i % 6]} | ${descriptions[i % 6]} |`).join('\n') + '\n';
+      await writeFile(tableUri.fsPath, fixture);
+      await api.open(tableUri);
+      await writeFile(tableUri.fsPath, fixture.replace('| 30分 |', '| 24時間 |').replace('| 30秒 |', '| 60秒 |'));
+      await writeFile(join(root, 'table-ready'), 'ready');
     }
     const theme = await readFile(join(root, 'theme'), 'utf8').catch(() => '');
     if (theme && theme !== lastTheme) {

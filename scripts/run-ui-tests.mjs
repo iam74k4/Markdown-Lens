@@ -120,6 +120,9 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('#feedback')).toContainText('確認しました');
     await frame.locator('#mode-edit').click();
     await expect(frame.locator('.ProseMirror')).toBeVisible();
+    await frame.locator('#editor-wide').click();
+    await expect(frame.locator('#editor')).toHaveClass(/editor-wide/);
+    await frame.locator('#editor-wide').click();
     const firstParagraph = frame.locator('.ProseMirror > p').first();
     await firstParagraph.fill('認証情報を安全に管理します。');
     await expect(frame.locator('#save-state')).toHaveText('● 編集中');
@@ -203,6 +206,14 @@ for (const [name, executable, port] of targets) {
     await writeFile(join(workspace, 'theme'), 'Default Dark Modern');
     await expect(frame.locator('body')).toHaveClass(/vscode-dark/);
     await expect(frame.locator('.diagram-added.node')).toHaveCount(1);
+    const tableFileBefore = await readFile(join(workspace, 'visual.md'), 'utf8');
+    await frame.getByRole('button', { name: '広く表示', exact: true }).click();
+    await expect(frame.locator('.table-dialog')).toBeVisible();
+    await frame.getByRole('button', { name: '変更行', exact: true }).click();
+    await expect(frame.locator('.table-dialog tbody tr:visible')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(frame.locator('.table-dialog')).toBeHidden();
+    expect(await readFile(join(workspace, 'visual.md'), 'utf8')).toBe(tableFileBefore);
     await frame.locator('#snapshot').click();
     await expect(frame.locator('#feedback')).toContainText('スナップショットを保存');
     const captured = await readFile(join(workspace, 'visual.md'), 'utf8');
@@ -211,13 +222,16 @@ for (const [name, executable, port] of targets) {
     await frame.locator('#snapshots').click();
     await page.locator('.quick-input-list .monaco-list-row').filter({ hasText: 'この時点と比較' }).click();
     await expect(frame.locator('#baseline')).toContainText('スナップショット');
-    await expect(frame.locator('.changed-cell')).toContainText('60');
+    await frame.locator('.changed-cell .table-cell').click();
+    await expect(frame.locator('.table-details')).toContainText('60');
     await expect(frame.locator('.changed-cell')).toContainText('90');
     await expect(frame.locator('#reviewed')).toBeDisabled();
     await frame.locator('#snapshots').click();
     await page.locator('.quick-input-list .monaco-list-row').filter({ hasText: '通常のレビューに戻る' }).click();
     await expect(frame.locator('#baseline')).toHaveText('確認済みの内容 → 現在');
-    await expect(frame.locator('.changed-cell')).toContainText('30');
+    await frame.locator('.changed-cell .table-cell').click();
+    await expect(frame.locator('.table-details')).toContainText('30');
+    await frame.getByRole('button', { name: '閉じる', exact: true }).click();
     await frame.locator('#changes-only').click();
     await page.setViewportSize({ width: 360, height: 800 });
     await expect.poll(() => frame.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
@@ -229,8 +243,39 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('.diagram-canvas .node')).toHaveCount(2);
     await expect(frame.locator('#save-state')).toContainText('未保存');
     expect(await readFile(join(workspace, 'visual.md'), 'utf8')).toContain('キャッシュ');
+    await writeFile(join(workspace, 'table-fixture'), 'start');
+    await expect(async () => { await access(join(workspace, 'table-ready')); }).toPass({ timeout: 15000 });
+    await expect(async () => {
+      for (const p of browser.contexts().flatMap(c => c.pages())) for (const f of p.frames()) {
+        if (await f.locator('#filename').count() && await f.locator('#filename').textContent() === '認証設定.md') { page = p; frame = f; }
+      }
+      await expect(frame.locator('#filename')).toHaveText('認証設定.md');
+    }).toPass({ timeout: 15000 });
+    await expect(frame.locator('.table-count')).toHaveText('18行 · 変更 2行');
+    const tablePath = join(workspace, '認証設定.md');
+    const originalTable = await readFile(tablePath, 'utf8');
+    await frame.getByRole('button', { name: '広く表示', exact: true }).click();
+    await frame.locator('tbody tr').first().locator('td').nth(2).locator('button').click();
+    await expect(frame.locator('.table-details')).toContainText('30分');
+    await expect(frame.locator('.table-details')).toContainText('24時間');
+    await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-tables.png`) });
+    await page.keyboard.press('Escape');
+    await expect(frame.locator('.table-dialog')).toBeHidden();
+    await frame.getByRole('button', { name: '広く表示', exact: true }).click();
+    await writeFile(tablePath, originalTable.replace('24時間', '48時間'));
+    await expect(frame.locator('.table-dialog[open]')).toHaveCount(0);
+    await expect(frame.locator('.changed-cell').first()).toContainText('48時間');
+    await frame.locator('#mode-edit').click();
+    await frame.locator('.ProseMirror tr').nth(1).locator('td p').nth(2).fill('72時間');
+    await frame.locator('#mode-diff').click();
+    await expect(frame.locator('.changed-cell').first()).toContainText('72時間');
+    await expect(frame.locator('#save-state')).toContainText('未保存');
+    expect(await readFile(tablePath, 'utf8')).toContain('48時間');
+    await frame.locator('#save').click();
+    await expect(frame.locator('#save-state')).toHaveText('保存済み');
+    expect(await readFile(tablePath, 'utf8')).toContain('72時間');
     expect(errors).toEqual([]);
-    await writeFile(join(base, 'ui-result.json'), JSON.stringify({ host: name, passed: true, checks: ['real webview rendering', 'dark and light themes', '600px and 360px layout without horizontal overflow', 'always visible per-change actions', 'icon buttons retain accessible names and keyboard tooltips', 'individual approval without saving or changing the file', 're-edits become unreviewed', 'keyboard focus after individual approval and completion', 'next and previous change', 'revert button', 'save button', 'review all button', 'WYSIWYG typing and bold', 'edit/diff switching', 'Markdown file save', 'table editing and row insertion', 'concurrent edits preserve drafts', 'explicit draft discard loads latest', 'no renderer errors', 'confirmation undo preserves file', 'unchanged section collapse and expansion', 'flowchart node and edge semantic markers', 'diagram before/diff/after switch', 'local SVG image preview', 'changed table cell marker', 'snapshot capture and comparison without changing confirmed baseline', 'narrow diagram controls', 'diagram revert preserves unsaved semantics'] }, null, 2));
+    await writeFile(join(base, 'ui-result.json'), JSON.stringify({ host: name, passed: true, checks: ['real webview rendering', 'dark and light themes', '600px and 360px layout without horizontal overflow', 'always visible per-change actions', 'icon buttons retain accessible names and keyboard tooltips', 'individual approval without saving or changing the file', 're-edits become unreviewed', 'keyboard focus after individual approval and completion', 'next and previous change', 'revert button', 'save button', 'review all button', 'WYSIWYG typing and bold', 'edit/diff switching', 'Markdown file save', 'table editing and row insertion', 'concurrent edits preserve drafts', 'explicit draft discard loads latest', 'no renderer errors', 'confirmation undo preserves file', 'unchanged section collapse and expansion', 'flowchart node and edge semantic markers', 'diagram before/diff/after switch', 'local SVG image preview', 'changed table cell marker', 'snapshot capture and comparison without changing confirmed baseline', 'narrow diagram controls', 'diagram revert preserves unsaved semantics', 'expanded table and changed-row filter leave file unchanged', 'cell before/after detail', 'external update closes stale expanded table', 'long table WYSIWYG edit and explicit save', 'wide editing mode'] }, null, 2));
     console.log('MARKDOWN_REVIEW_UI_RESULT ' + name + ' passed');
   } finally {
     if (browser) await browser.close();

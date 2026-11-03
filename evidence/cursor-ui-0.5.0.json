@@ -1,0 +1,19 @@
+{
+  "version": "0.5.0",
+  "host": "Cursor",
+  "method": "native accessibility UI actions in a new window using the signed-in default profile",
+  "workspace": "markdown-lens-0.5.0-demo",
+  "passed": true,
+  "checks": [
+    "external Markdown edit appears as one table hunk with two changed rows",
+    "table expands and returns to inline view",
+    "selecting cell shows 30分 and 24時間",
+    "changed-row filter hides unchanged rows",
+    "individual confirmation clears pending count",
+    "undo confirmation restores pending table and retains current file"
+  ],
+  "limitations": [
+    "isolated-profile automated UI suite remains blocked by the login overlay",
+    "native UI spot checks cover the listed actions only"
+  ]
+}
