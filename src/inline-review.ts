@@ -66,7 +66,7 @@ export function inlineChanges(source: string, doc: PMNode, hunks: Hunk[]): Inlin
   });
 }
 
-export function reviewDecorations(doc: PMNode, plan: InlineChange[], changesOnly: boolean, expanded: Set<number>, expand: (pos: number) => void): DecorationSet {
+export function reviewDecorations(doc: PMNode, plan: InlineChange[], changesOnly: boolean, expanded: Set<number>, expand: (pos: number) => void, hidden: (pos: number) => boolean = () => false, headings = new Set<number>()): DecorationSet {
   const decorations: Decoration[] = [];
   const changed = new Set<number>();
   for (const [index, { hunk, position, blocks, inserted }] of plan.entries()) {
@@ -76,7 +76,7 @@ export function reviewDecorations(doc: PMNode, plan: InlineChange[], changesOnly
     }
     for (const span of inserted) decorations.push(Decoration.inline(span.from, span.to, { class: 'inline-insert', 'data-change': hunk.id }));
     decorations.push(Decoration.widget(position, () => {
-      const card = document.createElement('div'); card.className = 'inline-review change'; card.dataset.hunk = hunk.id; card.contentEditable = 'false'; card.tabIndex = -1;
+      const card = document.createElement('div'); card.className = 'inline-review change' + (hidden(position) ? ' section-hidden' : ''); card.dataset.hunk = hunk.id; card.contentEditable = 'false'; card.tabIndex = -1;
       const label = hunk.eol ? '改行コードの変更' : hunk.moveParts ? '移動した内容' : !hunk.after ? '− 削除された内容' : !hunk.before ? '＋ 追加した内容' : '変更した内容';
       const row = document.createElement('div'); row.className = 'inline-review-row';
       const title = document.createElement('span'); title.textContent = label; row.append(title);
@@ -94,10 +94,10 @@ export function reviewDecorations(doc: PMNode, plan: InlineChange[], changesOnly
         const pre = document.createElement('pre'); pre.textContent = hunk.before; details.append(summary, pre); card.append(details);
       }
       return card;
-    }, { side: -1, key: `${hunk.id}:${index}`, stopEvent: () => true, ignoreSelection: true }));
+    }, { side: -1, key: `${hunk.id}:${index}:${hidden(position)}`, stopEvent: () => true, ignoreSelection: true }));
   }
   if (changesOnly) doc.forEach((node, pos) => {
-    if (changed.has(pos) || expanded.has(pos)) return;
+    if (changed.has(pos) || expanded.has(pos) || hidden(pos) || headings.has(pos)) return;
     decorations.push(Decoration.node(pos, pos + node.nodeSize, { class: 'inline-folded' }));
     decorations.push(Decoration.widget(pos, () => {
       const button = document.createElement('button'); button.className = 'inline-expand'; button.type = 'button'; button.contentEditable = 'false';

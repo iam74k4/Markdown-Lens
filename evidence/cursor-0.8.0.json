@@ -1,0 +1,16 @@
+{
+  "version": "0.8.0",
+  "host": "Cursor normal profile",
+  "workspace": "markdown-lens-0.8.0-demo",
+  "observed": [
+    "Heading fold and expand controls visible in detailed comparison",
+    "Collapse all and expand all controls visible",
+    "Tables and Mermaid rendered",
+    "Collapsed session section hides body, nested heading and table; next heading and Mermaid remain visible",
+    "Saved state remains saved"
+  ],
+  "limitations": [
+    "Native UI tool timeout and noWindowsAvailable/elementHasNoFrame errors",
+    "Full Cursor UI suite not completed; observations are separate from VS Code UI test results"
+  ]
+}

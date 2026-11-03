@@ -1,5 +1,7 @@
 // Small, local SVGs: consistent strokes, no icon fonts or network dependencies.
 const paths = {
+  fold: '<path d="M4 12h16M8 3l4 4 4-4M8 21l4-4 4 4"/>',
+  unfold: '<path d="M4 12h16M8 7l4-4 4 4M8 17l4 4 4-4"/>',
   trash: '<path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   left: '<path d="m15 6-6 6 6 6"/>',

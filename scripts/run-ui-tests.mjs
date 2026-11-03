@@ -49,6 +49,31 @@ for (const [name, executable, port] of targets) {
     page.on('requestfailed', r => console.log('Request failed:', r.url().slice(0, 300), r.failure()?.errorText));
     await page.setViewportSize({ width: 1280, height: 960 });
     await expect(frame.locator('#counter')).toHaveText('未確認 3件');
+    const beforeFolding = await readFile(join(workspace, 'design.md'), 'utf8');
+    await frame.getByRole('button', { name: '「1. セッション」を折りたたむ', exact: true }).click();
+    await expect(frame.locator('.inline-review').first()).toBeHidden();
+    await expect(frame.locator('.section-fold-count')).toContainText(['1件']);
+    await expect(frame.locator('#save-state')).toHaveText('保存済み');
+    await frame.locator('#next').click();
+    await frame.locator('#previous').click();
+    await expect(frame.locator('.inline-review').first()).toBeVisible();
+    await frame.locator('#fold-all').click();
+    await expect(frame.locator('.quick-table')).toBeHidden();
+    await frame.locator('#mode-diff').click();
+    await expect(frame.locator('#document [data-hunk]').first()).toBeHidden();
+    await frame.locator('#next').click();
+    await expect(frame.locator('#document [data-hunk].active')).toBeVisible();
+    await frame.locator('#unfold-all').click();
+    await frame.getByRole('button', { name: '「1. セッション」を折りたたむ', exact: true }).click();
+    await expect(frame.locator('#document [data-hunk]').first()).toBeHidden();
+    await frame.locator('#mode-edit').click();
+    await expect(frame.locator('.inline-review').first()).toBeHidden();
+    await frame.locator('#unfold-all').click();
+    await expect(frame.locator('.quick-table')).toBeVisible();
+    expect(await readFile(join(workspace, 'design.md'), 'utf8')).toBe(beforeFolding);
+    await frame.getByRole('button', { name: '「1. セッション」を折りたたむ', exact: true }).click();
+    await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-folding.png`) });
+    await frame.locator('#unfold-all').click();
     // Unified surface: type on highlighted content, review the local draft, and keep exact source access.
     const originalUnified = await readFile(join(workspace, 'design.md'), 'utf8');
     await expect(frame.locator('.ProseMirror')).toBeVisible();
@@ -414,7 +439,7 @@ for (const [name, executable, port] of targets) {
     await frame.locator('[data-format="undo"]').click();
     await expect(frame.locator('.ProseMirror th')).toHaveCount(3);
     expect(errors).toEqual([]);
-    await writeFile(join(base, 'ui-result.json'), JSON.stringify({ host: name, passed: true, checks: ['unified editable diff by default', 'inline deletion disclosure', 'inline unchanged folding', 'typing retains selection and never saves implicitly', 'current source editing and read-only confirmed source', 'local draft confirmation and confirmation undo', 'inline revert without saving', 'WYSIWYG local image and Mermaid preview', 'live Mermaid source editing and Undo', 'task checkbox serializes Markdown', 'real webview rendering', 'dark and light themes', '600px and 360px layout without horizontal overflow', 'always visible per-change actions', 'icon buttons retain accessible names and keyboard tooltips', 'individual approval without saving or changing the file', 're-edits become unreviewed', 'keyboard focus after individual approval and completion', 'next and previous change', 'revert button', 'save button', 'review all button', 'WYSIWYG typing and bold', 'edit/diff switching', 'Markdown file save', 'table editing and row insertion', 'concurrent edits preserve drafts', 'explicit draft discard loads latest', 'no renderer errors', 'confirmation undo preserves file', 'unchanged section collapse and expansion', 'flowchart node and edge semantic markers', 'diagram before/diff/after switch', 'local SVG image preview', 'changed table cell marker', 'snapshot capture and comparison without changing confirmed baseline', 'narrow diagram controls', 'diagram revert preserves unsaved semantics', 'expanded table and changed-row filter leave file unchanged', 'cell before/after detail', 'external update closes stale expanded table', 'long table WYSIWYG edit and explicit save', 'wide editing mode', 'quick row and column movement in unified review', 'one-click insertion focuses an editable new cell', 'table quick actions remain drafts until explicit save', 'inline revert restores original table order and headers without saving', 'opt-in numbering compacts after row deletion and preserves IDs', 'row deletion and renumbering Undo together in real webview', 'renumbered Markdown saves to the same file', 'quick column deletion and Undo'] }, null, 2));
+    await writeFile(join(base, 'ui-result.json'), JSON.stringify({ host: name, passed: true, checks: ['heading fold hides content and review cards', 'collapsed heading shows change count', 'next change reveals its enclosing section', 'collapse and expand all cover tables', 'fold state shared between unified and detailed views', 'folding never changes source or save state', 'unified editable diff by default', 'inline deletion disclosure', 'inline unchanged folding', 'typing retains selection and never saves implicitly', 'current source editing and read-only confirmed source', 'local draft confirmation and confirmation undo', 'inline revert without saving', 'WYSIWYG local image and Mermaid preview', 'live Mermaid source editing and Undo', 'task checkbox serializes Markdown', 'real webview rendering', 'dark and light themes', '600px and 360px layout without horizontal overflow', 'always visible per-change actions', 'icon buttons retain accessible names and keyboard tooltips', 'individual approval without saving or changing the file', 're-edits become unreviewed', 'keyboard focus after individual approval and completion', 'next and previous change', 'revert button', 'save button', 'review all button', 'WYSIWYG typing and bold', 'edit/diff switching', 'Markdown file save', 'table editing and row insertion', 'concurrent edits preserve drafts', 'explicit draft discard loads latest', 'no renderer errors', 'confirmation undo preserves file', 'unchanged section collapse and expansion', 'flowchart node and edge semantic markers', 'diagram before/diff/after switch', 'local SVG image preview', 'changed table cell marker', 'snapshot capture and comparison without changing confirmed baseline', 'narrow diagram controls', 'diagram revert preserves unsaved semantics', 'expanded table and changed-row filter leave file unchanged', 'cell before/after detail', 'external update closes stale expanded table', 'long table WYSIWYG edit and explicit save', 'wide editing mode', 'quick row and column movement in unified review', 'one-click insertion focuses an editable new cell', 'table quick actions remain drafts until explicit save', 'inline revert restores original table order and headers without saving', 'opt-in numbering compacts after row deletion and preserves IDs', 'row deletion and renumbering Undo together in real webview', 'renumbered Markdown saves to the same file', 'quick column deletion and Undo'] }, null, 2));
     console.log('MARKDOWN_REVIEW_UI_RESULT ' + name + ' passed');
   } finally {
     if (browser) await browser.close();

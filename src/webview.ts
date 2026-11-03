@@ -1,3 +1,4 @@
+import { detailFolding } from './detail-folding';
 import { renderDiagrams, refreshDiagramThemes } from './diagrams';
 import { enhanceTables } from './table-review';
 import { RichEditor } from './rich-editor';
@@ -7,11 +8,12 @@ import 'prosemirror-gapcursor/style/gapcursor.css';
 import type { NumberingRule } from './table-numbering';
 import type { State } from './extension';
 
-declare function acquireVsCodeApi(): { postMessage(message: unknown): void; setState(state: unknown): void; getState(): { mode?: string; uri?: string; changesOnly?: boolean; numbering?: NumberingRule[] } | undefined };
+declare function acquireVsCodeApi(): { postMessage(message: unknown): void; setState(state: unknown): void; getState(): { mode?: string; uri?: string; changesOnly?: boolean; numbering?: NumberingRule[]; folds?: string[] } | undefined };
 const vscode = acquireVsCodeApi();
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T;
 let state: State | undefined;
 let disposeTables = () => {};
+let detailSections: ReturnType<typeof detailFolding> | undefined;
 let changesOnly = vscode.getState()?.changesOnly ?? false;
 let active = -1, pending = false, broken = false, selection = '';
 let resumeAction: 'review' | 'revert' | undefined;
@@ -45,9 +47,10 @@ function renderCurrent() {
     disposeTables(); $('document').innerHTML = state.html || '<p class="blank-document">空のMarkdownファイルです。</p>';
     $('document').querySelectorAll<HTMLDetailsElement>('.unchanged').forEach(d => { d.open = !changesOnly; });
     renderDiagrams($('document')); disposeTables = enhanceTables($('document'));
+    detailSections = detailFolding($('document'), editor?.folds ?? [], keys => { editor?.fold(keys); controls(); });
     $('document').querySelectorAll<HTMLImageElement>('.markdown-image').forEach(img => img.addEventListener('error', () => { img.hidden = true; (img.nextElementSibling as HTMLElement).hidden = false; }));
     editor?.review(currentText(), [], state.html);
-  } else { disposeTables(); disposeTables = () => {}; $('document').replaceChildren(); }
+  } else { detailSections = undefined; disposeTables(); disposeTables = () => {}; $('document').replaceChildren(); }
 }
 
 let commit: { id: string; text: string; target: 'edit' | 'diff' } | undefined;
@@ -90,15 +93,19 @@ function controls() {
   button('snapshots').disabled = pending || broken || localDraft;
   button('changes-only').setAttribute('aria-pressed', String(changesOnly));
   $('document').classList.toggle('changes-only', changesOnly);
-  syncSource(); vscode.setState({ uri: state?.uri, mode, changesOnly, numbering: editor?.numbering });
+  button('fold-all').disabled = button('unfold-all').disabled = pending || broken || !(mode === 'edit' ? editor?.sectionCount : detailSections?.count);
+  syncSource(); vscode.setState({ uri: state?.uri, mode, changesOnly, numbering: editor?.numbering, folds: editor?.folds });
 }
 function move(index: number, scroll = true) {
-  const blocks = changes();
+  let blocks = changes();
   if (!blocks.length) { active = -1; controls(); return; }
   active = (index + blocks.length) % blocks.length;
   blocks.forEach((b, i) => b.classList.toggle('active', i === active));
   selection = blocks[active].dataset.hunk!;
-  if (scroll) { blocks[active].scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' }); blocks[active].focus({ preventScroll: true }); }
+  if (scroll) {
+    if (mode === 'edit') editor?.revealChange(selection); else detailSections?.reveal(blocks[active]);
+    blocks = changes(); blocks.forEach((b, i) => b.classList.toggle('active', i === active));
+    blocks[active].scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' }); blocks[active].focus({ preventScroll: true }); }
   controls();
 }
 function changed() {
@@ -120,8 +127,11 @@ function loadEditor(text: string) {
   if (editor) editor.load(text);
   else {
     const saved = vscode.getState();
-    editor = new RichEditor($('editor'), text, changed);
-    if (saved && saved.uri === state?.uri && Array.isArray(saved.numbering)) editor.load(text, saved.numbering);
+    editor = new RichEditor($('editor'), text, changed, controls);
+    if (saved && saved.uri === state?.uri) {
+      if (Array.isArray(saved.numbering)) editor.load(text, saved.numbering);
+      if (Array.isArray(saved.folds)) editor.fold(saved.folds.filter(key => typeof key === 'string'));
+    }
   }
   editor.filter(changesOnly);
 }
@@ -222,6 +232,7 @@ window.addEventListener('message', event => {
   }
   // Keep keyboard review flowing after the focused buttons disappear.
   if (resumeAction && !pending) {
+    move(active);
     const block = changes()[active];
     const target = block?.querySelector<HTMLButtonElement>(`[data-${resumeAction}]`) ?? $('empty');
     target.focus({ preventScroll: true });
@@ -237,6 +248,10 @@ button('changes-only').addEventListener('click', () => {
   changesOnly = !changesOnly; editor?.filter(changesOnly);
   $('document').querySelectorAll<HTMLDetailsElement>('.unchanged').forEach(d => { d.open = !changesOnly; });
   controls();
+});
+for (const [id, collapse] of [['fold-all', true], ['unfold-all', false]] as const) button(id).addEventListener('click', () => {
+  if (editor?.composing) return;
+  if (mode === 'edit') editor?.foldAll(collapse); else detailSections?.foldAll(collapse);
 });
 button('editor-wide').addEventListener('click', () => { const wide = $('editor').classList.toggle('editor-wide'); button('editor-wide').setAttribute('aria-pressed', String(wide)); });
 button('mode-edit').addEventListener('click', () => setMode('edit'));

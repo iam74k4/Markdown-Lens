@@ -1,5 +1,5 @@
 import { EditorState, Command, TextSelection, NodeSelection } from 'prosemirror-state';
-import { EditorView } from 'prosemirror-view';
+import { DecorationSet, EditorView } from 'prosemirror-view';
 import { baseKeymap, chainCommands, exitCode, setBlockType, toggleMark, wrapIn, lift } from 'prosemirror-commands';
 import { history, redo, undo } from 'prosemirror-history';
 import { keymap } from 'prosemirror-keymap';
@@ -10,6 +10,7 @@ import { autoNumbering, numberingRules, restoreNumbering, type NumberingRule } f
 import { QuickTableView, quickTableSelection } from './quick-table-view';
 import { alignTableColumns, quickTableCommand } from './rich-table';
 import { inlineReviewPlugin, inlineReviewKey, inlineChanges, reviewDecorations, InlineChange } from './inline-review';
+import { headingSections, insideSection, sectionDecorations } from './section-folding';
 import type { Hunk } from './core';
 import { mediaNodeViews } from './rich-media';
 import { gapCursor } from 'prosemirror-gapcursor';
@@ -22,9 +23,10 @@ export class RichEditor {
   private plan: InlineChange[] = [];
   private expanded = new Set<number>();
   private filtered = false;
+  private collapsed = new Set<string>();
   private images = new Map<string, string>();
   private diagramBefore = new Map<string, string>();
-  constructor(element: HTMLElement, source: string, private onChange: () => void) {
+  constructor(element: HTMLElement, source: string, private onChange: () => void, private onFoldChange: () => void = () => {}) {
     this.model = parseRichMarkdown(source);
     const rules = inputRules({ rules: [
       textblockTypeInputRule(/^(#{1,6})\s$/, schema.nodes.heading, m => ({ level: m[1].length })),
@@ -55,7 +57,18 @@ export class RichEditor {
       dispatchTransaction: transaction => {
         const result = this.view.state.applyTransaction(transaction);
         this.view.updateState(result.state);
-        if (result.transactions.some(tr => tr.docChanged)) { this.plan = []; this.expanded.clear(); this.onChange(); }
+        const docChanged = result.transactions.some(tr => tr.docChanged);
+        if (docChanged) { this.plan = []; this.expanded.clear(); }
+        // Keyboard navigation into hidden content reveals it before continuing to edit.
+        let revealed = false;
+        if (transaction.selectionSet) for (const section of headingSections(result.state.doc)) {
+          if (this.collapsed.has(section.key) && insideSection(section, result.state.selection.head, result.state.doc.content.size)) {
+            this.collapsed.delete(section.key); revealed = true;
+          }
+        }
+        if (docChanged || revealed) this.decorate();
+        if (docChanged) this.onChange();
+        if (revealed) this.onFoldChange();
         this.updateToolbar();
       },
       handleClickOn: (view, _pos, node, nodePos) => {
@@ -83,16 +96,41 @@ export class RichEditor {
     document.querySelector<HTMLSelectElement>('#table-action')!.addEventListener('change', e => {
       this.command((e.target as HTMLSelectElement).value); (e.target as HTMLSelectElement).value = '';
     });
-    this.updateToolbar();
+    this.decorate(); this.updateToolbar();
   }
   get text(): string { return serializeRichMarkdown(this.model, this.view.state.doc); }
   get numbering(): NumberingRule[] { return numberingRules(this.view.state.doc); }
+  get folds(): string[] { return [...this.collapsed]; }
+  get sectionCount(): number { return headingSections(this.view.state.doc).length; }
+  fold(keys: string[]): void { this.collapsed = new Set(keys); this.parkSelection(); this.decorate(); }
+  foldAll(collapse: boolean): void {
+    this.collapsed = new Set(collapse ? headingSections(this.view.state.doc).map(s => s.key) : []);
+    this.parkSelection(); this.decorate(); this.onFoldChange();
+  }
+  revealChange(id: string): void {
+    const change = this.plan.find(p => p.hunk.id === id); if (!change) return;
+    for (const section of headingSections(this.view.state.doc)) if (insideSection(section, change.position, this.view.state.doc.content.size)) this.collapsed.delete(section.key);
+    this.decorate(); this.onFoldChange();
+  }
+  private toggleFold(key: string): void {
+    if (this.composing) return;
+    if (this.collapsed.has(key)) this.collapsed.delete(key); else this.collapsed.add(key);
+    this.parkSelection(); this.decorate(); this.onFoldChange();
+    // The clicked widget is replaced; retain keyboard focus on its replacement.
+    const section = headingSections(this.view.state.doc).find(s => s.key === key);
+    if (section) (this.view.nodeDOM(section.from) as HTMLElement | null)?.querySelector<HTMLButtonElement>('.section-toggle')?.focus({ preventScroll: true });
+  }
+  private parkSelection(): void {
+    const { doc, selection } = this.view.state;
+    const owner = headingSections(doc).find(s => this.collapsed.has(s.key) && (insideSection(s, selection.from, doc.content.size) || insideSection(s, selection.to, doc.content.size)));
+    if (owner) this.view.dispatch(this.view.state.tr.setSelection(TextSelection.create(doc, owner.body - 1)).setMeta('addToHistory', false));
+  }
   get composing(): boolean { return this.view.composing; }
   load(source: string, rules = this.numbering): void {
     this.model = parseRichMarkdown(source);
     this.plan = []; this.expanded.clear();
     this.view.updateState(EditorState.create({ doc: restoreNumbering(this.model.doc, rules), plugins: this.view.state.plugins }));
-    this.updateToolbar();
+    this.decorate(); this.updateToolbar();
   }
   review(source: string, hunks: Hunk[], html: string): void {
     this.plan = inlineChanges(source, this.view.state.doc, hunks);
@@ -112,7 +150,10 @@ export class RichEditor {
   }
   filter(value: boolean): void { this.filtered = value; this.expanded.clear(); this.decorate(); }
   private decorate(): void {
-    const decorations = reviewDecorations(this.view.state.doc, this.plan, this.filtered, this.expanded, pos => { this.expanded.add(pos); this.decorate(); });
+    const doc = this.view.state.doc, sections = headingSections(doc);
+    const hidden = (pos: number) => sections.some(s => this.collapsed.has(s.key) && insideSection(s, pos, doc.content.size));
+    const review = reviewDecorations(doc, this.plan, this.filtered, this.expanded, pos => { this.expanded.add(pos); this.decorate(); }, hidden, new Set(sections.map(s => s.from)));
+    const decorations = DecorationSet.create(doc, [...review.find(), ...sectionDecorations(doc, sections, this.collapsed, this.plan, key => this.toggleFold(key))]);
     this.view.dispatch(this.view.state.tr.setMeta(inlineReviewKey, decorations).setMeta('addToHistory', false));
   }
   enable(value: boolean): void { if (this.enabled !== value) { this.enabled = value; this.view.setProps({ editable: () => this.enabled }); this.view.dom.dispatchEvent(new Event('table-tools-update')); } }
