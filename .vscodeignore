@@ -6,3 +6,7 @@
 !THIRD-PARTY-NOTICES.txt
 !dist/extension.js
 !media/**
+!docs/guide.md
+!docs/images/*.png
+!MAIN_REVIEW.md
+!VALIDATION.md

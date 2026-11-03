@@ -43,6 +43,26 @@ for (const [name, executable, port] of targets) {
       }
       expect(frame).toBeTruthy();
     }).toPass({ timeout: 15000 });
+    // Optional README assets: capture real Webview pixels without changing document content or CSS.
+    const screenshots = process.env.MARKDOWN_REVIEW_SCREENSHOTS ? resolve(process.env.MARKDOWN_REVIEW_SCREENSHOTS) : undefined;
+    const captureReadme = async (file, selector) => {
+      if (!screenshots) return;
+      await mkdir(screenshots, { recursive: true });
+      await page.getByText('All installed extensions are temporarily disabled.', { exact: true }).waitFor({ state: 'hidden' });
+      const y = await frame.evaluate(() => scrollY);
+      if (selector) await frame.locator(selector).scrollIntoViewIfNeeded();
+      else await frame.evaluate(() => window.scrollTo(0, 0));
+      await page.mouse.move(0, 0);
+      if (selector) {
+        await frame.locator(selector).screenshot({ path: join(screenshots, file + '.png'), animations: 'disabled' });
+        await frame.evaluate(y => window.scrollTo(0, y), y);
+        return;
+      }
+      const viewport = await (await frame.frameElement()).boundingBox();
+      if (!viewport) throw new Error('Missing screenshot bounds');
+      await page.screenshot({ path: join(screenshots, file + '.png'), clip: viewport });
+      await frame.evaluate(y => window.scrollTo(0, y), y);
+    };
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     page.on('console', m => { if (m.type() === 'error') console.log('Renderer:', m.text().slice(0, 1000)); });
@@ -73,6 +93,7 @@ for (const [name, executable, port] of targets) {
     expect(await readFile(join(workspace, 'design.md'), 'utf8')).toBe(beforeFolding);
     await frame.getByRole('button', { name: '「1. セッション」を折りたたむ', exact: true }).click();
     await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-folding.png`) });
+    await captureReadme('section-folding');
     await frame.locator('#unfold-all').click();
     // Unified surface: type on highlighted content, review the local draft, and keep exact source access.
     const originalUnified = await readFile(join(workspace, 'design.md'), 'utf8');
@@ -81,6 +102,7 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('.inline-review')).toHaveCount(3);
     await frame.locator('.inline-before summary').first().click();
     await expect(frame.locator('.inline-before[open]')).toContainText('30分');
+    await captureReadme('inline-review');
     await frame.locator('#changes-only').click();
     await expect(frame.locator('.inline-folded').first()).toBeHidden();
     await frame.locator('.inline-expand').first().click();
@@ -121,6 +143,7 @@ for (const [name, executable, port] of targets) {
     await frame.locator('#toggle-source').click();
     await frame.locator('#source-version').selectOption('confirmed');
     await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-source.png`) });
+    await captureReadme('markdown-source');
     await page.setViewportSize({ width: 360, height: 800 });
     await expect(frame.locator('#source-text')).toBeVisible();
     await expect.poll(() => frame.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
@@ -311,6 +334,7 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('body')).toHaveClass(/vscode-light/);
     await expect(frame.locator('#document .diagram-added.node')).toHaveCount(1);
     await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-visual-light.png`) });
+    await captureReadme('mermaid-diff', '#document .diagram-review');
     await writeFile(join(workspace, 'theme'), 'Default Dark Modern');
     await expect(frame.locator('body')).toHaveClass(/vscode-dark/);
     await expect(frame.locator('#document .diagram-added.node')).toHaveCount(1);
@@ -368,6 +392,7 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('.table-details')).toContainText('30分');
     await expect(frame.locator('.table-details')).toContainText('24時間');
     await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-tables.png`) });
+    await captureReadme('table-review', '.table-dialog[open]');
     await page.keyboard.press('Escape');
     await expect(frame.locator('.table-dialog')).toBeHidden();
     await frame.getByRole('button', { name: '広く表示', exact: true }).click();
@@ -433,6 +458,7 @@ for (const [name, executable, port] of targets) {
     expect(await readFile(tablePath, 'utf8')).toContain('| 2 | 999 | Gamma |');
     await frame.locator('.ProseMirror tr').nth(2).locator('td p').first().click();
     await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-auto-number.png`) });
+    await captureReadme('table-numbering', '.ProseMirror .quick-table');
     await frame.locator('.ProseMirror tr').nth(1).locator('td p').nth(2).click();
     await frame.getByRole('button', { name: '選択した列を削除', exact: true }).click();
     await expect(frame.locator('.ProseMirror th')).toHaveCount(2);
