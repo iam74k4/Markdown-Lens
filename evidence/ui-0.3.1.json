@@ -1,0 +1,25 @@
+{
+  "host": "vscode",
+  "passed": true,
+  "checks": [
+    "real webview rendering",
+    "dark and light themes",
+    "600px and 360px layout without horizontal overflow",
+    "always visible per-change actions",
+    "icon buttons retain accessible names and keyboard tooltips",
+    "individual approval without saving or changing the file",
+    "re-edits become unreviewed",
+    "keyboard focus after individual approval and completion",
+    "next and previous change",
+    "revert button",
+    "save button",
+    "review all button",
+    "WYSIWYG typing and bold",
+    "edit/diff switching",
+    "Markdown file save",
+    "table editing and row insertion",
+    "concurrent edits preserve drafts",
+    "explicit draft discard loads latest",
+    "no renderer errors"
+  ]
+}

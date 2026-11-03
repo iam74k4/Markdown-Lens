@@ -9,6 +9,7 @@ const vscode = acquireVsCodeApi();
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T;
 let state: State | undefined;
 let active = -1, pending = false, broken = false, selection = '';
+let resumeAction: 'review' | 'revert' | undefined;
 let mode: 'edit' | 'diff' = vscode.getState()?.mode === 'edit' ? 'edit' : 'diff';
 let editor: RichEditor | undefined;
 let baseText = '', baseRevision = '', localDraft = false, conflict = false;
@@ -23,7 +24,10 @@ function feedback(text?: string, error = false) {
 }
 function controls() {
   const count = state?.count ?? 0;
-  $('counter').textContent = count ? `${Math.max(1, active + 1)} / ${count} 件` : '変更なし';
+  $('counter').textContent = count ? `未確認 ${count}件` : '✓ 確認完了';
+  $('counter').classList.toggle('complete', count === 0);
+  $('position').textContent = count ? `${Math.max(1, active + 1)} / ${count}` : '';
+  $('change-navigation').hidden = !count;
   button('previous').disabled = button('next').disabled = !count || pending || broken;
   button('reviewed').disabled = !count || pending || broken || localDraft;
   button('save').disabled = pending || broken || conflict || editInvalid;
@@ -31,7 +35,7 @@ function controls() {
   $('save').hidden = !localDraft && !state?.dirty;
   $('save-state').textContent = conflict ? '● 競合・下書きを保持' : localDraft ? '● 編集中' : state?.dirty ? '● 未保存' : '保存済み';
   $('save-state').classList.toggle('dirty', localDraft || !!state?.dirty);
-  document.querySelectorAll<HTMLButtonElement>('[data-revert]').forEach(b => { b.disabled = pending || broken; });
+  document.querySelectorAll<HTMLButtonElement>('[data-revert], [data-review]').forEach(b => { b.disabled = pending || broken || localDraft; });
   document.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('#formatting button, #formatting select').forEach(b => { b.disabled = pending || broken; });
   editor?.enable(!pending && !broken);
   $('conflict').hidden = !conflict;
@@ -98,7 +102,7 @@ function action(type: string, id?: string) {
 window.addEventListener('message', event => {
   const msg = event.data;
   if (msg.type === 'error') {
-    broken = true; pending = false; commit = undefined;
+    broken = true; pending = false; commit = undefined; resumeAction = undefined;
     feedback(msg.message, true); $('document').classList.add('stale'); controls(); return;
   }
   if (msg.type !== 'update') return;
@@ -136,7 +140,8 @@ window.addEventListener('message', event => {
   } catch (error) { feedback(String(error), true); mode = 'diff'; }
   $('filename').textContent = state.name;
   const time = new Date(state.updatedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  $('baseline').textContent = `確認した状態（${time}） → 現在`;
+  $('baseline').textContent = '確認済みの内容 → 現在';
+  $('baseline').title = `最終確認: ${time}`;
   $('document').classList.remove('stale');
   if (contentChanged) {
     const y = window.scrollY;
@@ -147,6 +152,14 @@ window.addEventListener('message', event => {
   }
   if (!first || !localDraft) feedback(state.notice);
   controls();
+  // Keep keyboard review flowing after the focused buttons disappear.
+  if (resumeAction && !pending) {
+    const block = changes()[active];
+    const target = block?.querySelector<HTMLButtonElement>(`[data-${resumeAction}]`) ?? $('empty');
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    resumeAction = undefined;
+  }
 });
 
 button('mode-edit').addEventListener('click', () => setMode('edit'));
@@ -162,9 +175,15 @@ button('discard-draft').addEventListener('click', () => {
   localDraft = false; conflict = false; editInvalid = false; vscode.postMessage({ type: 'discardDraft' }); controls();
 });
 $('document').addEventListener('click', event => {
-  const button = (event.target as Element).closest<HTMLElement>('[data-revert]');
-  if (button) action('revert', button.dataset.revert);
-  else { const block = (event.target as Element).closest<HTMLElement>('[data-hunk]'); if (block) move(changes().indexOf(block), false); }
+  const target = event.target as Element;
+  const control = target.closest<HTMLButtonElement>('[data-revert], [data-review]');
+  const block = target.closest<HTMLElement>('[data-hunk]');
+  if (!block || pending || broken || localDraft) return;
+  move(changes().indexOf(block), false);
+  if (control && !control.disabled) {
+    resumeAction = control.dataset.review ? 'review' : 'revert';
+    action(resumeAction === 'review' ? 'reviewHunk' : 'revert', control.dataset.review ?? control.dataset.revert);
+  }
 });
 $('link-form').addEventListener('submit', event => {
   event.preventDefault();

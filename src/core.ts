@@ -2,6 +2,7 @@ import MarkdownIt from 'markdown-it';
 import Token from 'markdown-it/lib/token.mjs';
 import { diffArrays } from 'diff';
 import { createHash } from 'node:crypto';
+import { icon } from './icons';
 
 // Bound synchronous diff work so a generated document cannot hang the extension host.
 export const MAX_BYTES = 512 * 1024;
@@ -15,7 +16,7 @@ md.renderer.rules.link_close = () => '</span>';
 md.renderer.rules.image = (tokens, i) => `<span class="image-placeholder">画像: ${escapeHtml(tokens[i].content)} <small>${escapeHtml(tokens[i].attrGet('src') ?? '')}</small></span>`;
 
 export interface Block { raw: string; start: number; end: number; kind: string }
-export interface Hunk { id: string; start: number; end: number; before: string; after: string; eol?: 'LF' | 'CRLF' }
+export interface Hunk { id: string; start: number; end: number; oldStart: number; oldEnd: number; before: string; after: string; eol?: 'LF' | 'CRLF' }
 export interface Review { revision: string; html: string; hunks: Hunk[] }
 export const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 
@@ -102,6 +103,10 @@ function changedRender(before: string, after: string, oldEnv: object, newEnv: ob
   return `${rendered}<details class="source-diff"${oldHtml === newHtml || /\]\(/.test(before + after) ? ' open' : ''}><summary>Markdownの差分</summary><pre>${textDifference(before, after)}</pre></details>`;
 }
 
+function changeActions(id: string, index: number): string {
+  return `<div class="change-actions"><button class="revert has-tooltip" data-revert="${id}" data-tooltip="この変更を戻す" aria-label="変更 ${index} を戻す">${icon('undo')}</button><button class="confirm-change has-tooltip" data-review="${id}" data-tooltip="この変更を確認済みにする" aria-label="変更 ${index} を確認済みにする">${icon('check')}</button></div>`;
+}
+
 export function buildReview(before: string, after: string): Review {
   const oldBlocks = splitBlocks(before), newBlocks = splitBlocks(after);
   const oldEnv = {}, newEnv = {};
@@ -113,25 +118,27 @@ export function buildReview(before: string, after: string): Review {
     const previousEol = eol(before) === '\r\n' ? 'CRLF' : 'LF';
     const nextEol = eol(after) === '\r\n' ? 'CRLF' : 'LF';
     const id = revision.slice(0, 20);
-    const hunk: Hunk = { id, start: 0, end: after.length, before, after, eol: previousEol };
-    return { revision, hunks: [hunk], html: `<section class="change" data-hunk="${id}" tabindex="-1" aria-label="変更 1"><p class="change-label">改行コード ${previousEol} → ${nextEol}（ファイル全体を戻します）</p><div class="change-content">${changedRender(before, after, oldEnv, newEnv)}</div><button class="revert" data-revert="${id}" aria-label="変更 1 を戻す">↶ 戻す</button></section>` };
+    const hunk: Hunk = { id, start: 0, end: after.length, oldStart: 0, oldEnd: before.length, before, after, eol: previousEol };
+    return { revision, hunks: [hunk], html: `<section class="change" data-hunk="${id}" tabindex="-1" aria-label="変更 1"><p class="change-label">改行コード ${previousEol} → ${nextEol}（ファイル全体を1件として確認・復元）</p><div class="change-content">${changedRender(before, after, oldEnv, newEnv)}</div>${changeActions(id, 1)}</section>` };
   }
   if (!parts) throw new Error('変更が大きいため比較に時間がかかっています。ファイルを分割してください。');
   const hunks: Hunk[] = [];
   const chunks: string[] = [];
-  let currentOffset = 0;
+  let currentOffset = 0, oldOffset = 0;
   const add = (old: string, next: string) => {
     const id = hash(JSON.stringify([hunks.length, currentOffset, old, next])).slice(0, 20);
-    const hunk = { id, start: currentOffset, end: currentOffset + next.length, before: old, after: next };
+    const hunk = { id, start: currentOffset, end: currentOffset + next.length, oldStart: oldOffset, oldEnd: oldOffset + old.length, before: old, after: next };
     hunks.push(hunk);
-    chunks.push(`<section class="change" data-hunk="${id}" tabindex="-1" aria-label="変更 ${hunks.length}"><div class="change-content">${changedRender(old, next, oldEnv, newEnv)}</div><button class="revert" data-revert="${id}" title="この変更を戻す" aria-label="変更 ${hunks.length} を戻す"><span aria-hidden="true">↶</span> 戻す</button></section>`);
+    chunks.push(`<section class="change" data-hunk="${id}" tabindex="-1" aria-label="変更 ${hunks.length}"><div class="change-content">${changedRender(old, next, oldEnv, newEnv)}</div>${changeActions(id, hunks.length)}</section>`);
     currentOffset += next.length;
+    oldOffset += old.length;
   };
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
     if (!part.added && !part.removed) {
       chunks.push(renderMarkdown(part.value.map(b => b.raw).join(''), newEnv));
       currentOffset += part.value.reduce((n, b) => n + b.raw.length, 0);
+      oldOffset += part.value.reduce((n, b) => n + b.raw.length, 0);
       continue;
     }
     let olds: Block[] = [], news: Block[] = [];
@@ -153,4 +160,12 @@ export function buildReview(before: string, after: string): Review {
 export function revertHunk(current: string, hunk: Hunk): string {
   if (current.slice(hunk.start, hunk.end) !== hunk.after) throw new Error('ファイルが更新されました。最新の差分でもう一度お試しください。');
   return current.slice(0, hunk.start) + hunk.before + current.slice(hunk.end);
+}
+
+/** Adopt only this displayed change into the confirmed baseline; never edit the document. */
+export function confirmHunk(baseline: string, hunk: Hunk): string {
+  if (baseline.slice(hunk.oldStart, hunk.oldEnd) !== hunk.before) throw new Error('比較元が更新されました。最新の差分でもう一度お試しください。');
+  const next = baseline.slice(0, hunk.oldStart) + hunk.after + baseline.slice(hunk.oldEnd);
+  validateSize(next);
+  return next;
 }

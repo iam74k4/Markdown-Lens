@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildReview, splitBlocks, revertHunk, MAX_BYTES } from '../src/core';
+import { buildReview, splitBlocks, revertHunk, confirmHunk, MAX_BYTES } from '../src/core';
 
 const examples = [
   ['# 設計書\n\n期限は30分です。\n', '# 設計書\n\n期限は24時間です。\n'],
@@ -99,5 +99,85 @@ test('random insertion/deletion/replacement reverts preserve exact text', () => 
       after = revertHunk(after, review.hunks[rand(review.hunks.length)]);
     }
     assert.equal(after, before);
+  }
+});
+
+test('confirming one paragraph preserves every other unreviewed baseline', () => {
+  const before = '# 設計\n\nA before\n\nB before\n\nC before\n';
+  const after = before.replaceAll('before', 'after');
+  const review = buildReview(before, after);
+  const baseline = confirmHunk(before, review.hunks[1]);
+  assert.equal(baseline, before.replace('B before', 'B after'));
+  assert.deepEqual(buildReview(baseline, after).hunks.map(h => h.before), ['A before\n\n', 'C before\n']);
+});
+
+test('adjacent deletions sharing a current offset can be confirmed separately', () => {
+  const before = '# 削除\n\n第一段落\n\n第二段落\n\n第三段落\n\n';
+  const after = '# 削除\n\n';
+  const review = buildReview(before, after);
+  assert.equal(review.hunks.length, 3);
+  assert.equal(review.hunks[0].start, review.hunks[1].start);
+  assert.equal(confirmHunk(before, review.hunks[1]), before.replace('第二段落\n\n', ''));
+});
+
+test('adjacent additions are confirmed at their baseline position', () => {
+  const before = '# 追加\n\n';
+  const after = before + '第一段落\n\n第二段落\n\n';
+  const baseline = confirmHunk(before, buildReview(before, after).hunks[1]);
+  assert.equal(baseline, before + '第二段落\n\n');
+  assert.equal(buildReview(baseline, after).hunks[0].after, '第一段落\n\n');
+});
+
+test('re-editing a confirmed paragraph compares against the approved text', () => {
+  const before = '期限は30分です。\n\n名称は旧称です。\n';
+  const after = before.replace('30分', '24時間').replace('旧称', '新称');
+  const baseline = confirmHunk(before, buildReview(before, after).hunks[0]);
+  const review = buildReview(baseline, after.replace('24時間', '48時間'));
+  assert.equal(review.hunks.length, 2);
+  assert.equal(review.hunks[0].before, '期限は24時間です。\n\n');
+  assert.equal(review.hunks[0].after, '期限は48時間です。\n\n');
+});
+
+test('stale baseline contents cannot be confirmed', () => {
+  const hunk = buildReview('before', 'after').hunks[0];
+  assert.throws(() => confirmHunk('another baseline', hunk), /更新/);
+});
+
+test('a partially confirmed baseline still respects the file size limit', () => {
+  const before = 'a'.repeat(300000) + '\n\n# anchor\n\n';
+  const after = '# anchor\n\n' + 'b'.repeat(300000) + '\n\n';
+  const hunk = buildReview(before, after).hunks.find(h => h.before === '')!;
+  assert.ok(hunk);
+  // Both documents fit; adopting the addition before confirming the deletion does not.
+  assert.throws(() => confirmHunk(before, hunk), /512KB/);
+});
+
+test('confirming all fixtures in arbitrary order preserves every source byte', () => {
+  for (const [before, after] of [...examples, ['# A\n\n旧文\n', '# A\r\n\r\n新文\r\n']]) {
+    let baseline = before;
+    for (let step = 0; step < 30 && baseline !== after; step++) {
+      const review = buildReview(baseline, after);
+      assert.ok(review.hunks.length);
+      const hunk = review.hunks[(step + 1) % review.hunks.length];
+      assert.equal(baseline.slice(hunk.oldStart, hunk.oldEnd), hunk.before);
+      baseline = confirmHunk(baseline, hunk);
+    }
+    assert.equal(baseline, after);
+  }
+});
+
+test('random individual confirmations converge without losing insertions or duplicate blocks', () => {
+  let seed = 803;
+  const rand = (n: number) => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed % n; };
+  const blocks = ['# 見出し\n\n', '同じ段落\n\n', '変更\n\n', '- 項目\n\n', '```\nコード\n```\n\n', '😊\n\n'];
+  for (let i = 0; i < 100; i++) {
+    let baseline = Array.from({ length: rand(8) }, () => blocks[rand(blocks.length)]).join('');
+    const current = Array.from({ length: rand(8) }, () => blocks[rand(blocks.length)]).join('');
+    for (let step = 0; step < 30 && baseline !== current; step++) {
+      const review = buildReview(baseline, current);
+      assert.ok(review.hunks.length);
+      baseline = confirmHunk(baseline, review.hunks[rand(review.hunks.length)]);
+    }
+    assert.equal(baseline, current);
   }
 });
