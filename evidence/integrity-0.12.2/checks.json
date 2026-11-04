@@ -1,0 +1,18 @@
+{
+  "version": "0.12.2",
+  "typecheck": "passed",
+  "unit_tests": 119,
+  "host_checks_per_editor": 32,
+  "vscode_ui_checks": 78,
+  "rich_browser_checks": 31,
+  "table_browser": "passed",
+  "diagram_browser": "passed",
+  "fixed": [
+    "clipboard link/image/task metadata loss",
+    "table hard-break loss",
+    "table backslash/pipe corruption",
+    "nested reference definition loss"
+  ],
+  "includes_external_refresh_fix": true,
+  "marketplace_status": "recorded separately after upload"
+}

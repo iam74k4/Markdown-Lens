@@ -5,6 +5,65 @@ import { toggleMark, setBlockType, splitBlock } from 'prosemirror-commands';
 import { addRowAfter } from 'prosemirror-tables';
 import { parseRichMarkdown, serializeRichMarkdown, richSchema, makeTable } from '../src/rich-markdown';
 import { minimalEdit } from '../src/text-edit';
+import { renderMarkdown } from '../src/core';
+
+function changeWord(source: string, from = 'change', to = 'updated') {
+  const model = parseRichMarkdown(source); let position = -1;
+  model.doc.descendants((node, pos) => { if (node.isText && node.text!.includes(from)) position = pos + node.text!.indexOf(from); });
+  assert.ok(position >= 0);
+  const doc = EditorState.create({ doc: model.doc }).tr.insertText(to, position, position + from.length).doc;
+  const saved = serializeRichMarkdown(model, doc);
+  return { doc, saved, reloaded: parseRichMarkdown(saved).doc };
+}
+
+test('editing another table cell preserves every backslash before a pipe, including code spans', () => {
+  for (let slashes = 0; slashes <= 5; slashes++) for (const code of [false, true]) {
+    const value = 'a' + '\\'.repeat(slashes) + '|b';
+    const escaped = (code ? '`' + value + '`' : value.replace(/\\/g, '\\\\')).replace(/\|/g, '\\|');
+    const source = `| Key | Value |\n| --- | --- |\n| change | ${escaped} |\n`;
+    const { doc, reloaded } = changeWord(source);
+    assert.deepEqual(reloaded.firstChild!.child(1).child(1).toJSON(), doc.firstChild!.child(1).child(1).toJSON(), `slashes=${slashes}, code=${code}`);
+    assert.equal(reloaded.firstChild!.child(1).child(1).textContent, value);
+  }
+});
+
+test('cell hard breaks survive saving, reopening and review rendering without enabling arbitrary HTML', () => {
+  const model = parseRichMarkdown('| A | B |\n| --- | --- |\n| one | two |\n');
+  let pos = -1; model.doc.descendants((node, at) => { if (node.text === 'one') pos = at + 3; });
+  const doc = EditorState.create({ doc: model.doc }).tr.insert(pos, richSchema.nodes.hard_break.create()).insertText('line2', pos + 1).doc;
+  const saved = serializeRichMarkdown(model, doc);
+  assert.match(saved, /one<br>line2/);
+  assert.deepEqual(parseRichMarkdown(saved).doc.firstChild!.child(1).toJSON(), doc.firstChild!.child(1).toJSON());
+  assert.match(renderMarkdown(saved), /one<br>\n?line2/);
+  for (const unsafe of ['<br onclick="alert(1)">', '<img src="x" onerror="alert(1)">', '<script>alert(1)</script>'])
+    assert.ok(!renderMarkdown(unsafe).includes(unsafe));
+  assert.equal(parseRichMarkdown('`<br>` and \\<br>\n').doc.firstChild!.textContent, '<br> and <br>');
+});
+
+test('references inside edited quotes and lists preserve untouched links, images and first-definition precedence', () => {
+  for (const container of [
+    '> change\n>\n> [ref]: https://example.com/spec "original"\n',
+    '- change\n\n  [ref]: https://example.com/spec "original"\n',
+    '> change\n>\n> [ref]: https://example.com/spec "original"\n\n[ref]: https://example.com/wrong\n',
+    '> change\n>\n> [ref]: https://example.com/?literal=\\&copy; "literal \\&copy;"\n',
+  ]) {
+    const source = container + '\nRead [spec][ref].\n\n![diagram][ref]\n';
+    const { doc, saved, reloaded } = changeWord(source);
+    assert.deepEqual(reloaded.child(1).toJSON(), doc.child(1).toJSON());
+    assert.deepEqual(reloaded.child(2).toJSON(), doc.child(2).toJSON());
+    assert.ok(saved.includes('https://example.com/'));
+    assert.equal(serializeRichMarkdown(parseRichMarkdown(saved), reloaded), saved);
+  }
+});
+
+test('deleting a reference-defining container preserves the target and title of surviving links', () => {
+  const source = '> change\n>\n> [a\\]b]: <https://example.com/a%20b> "quoted \\"title\\""\n\n[link][a\\]b]\n';
+  const model = parseRichMarkdown(source);
+  const doc = EditorState.create({ doc: model.doc }).tr.delete(0, model.doc.firstChild!.nodeSize).doc;
+  const saved = serializeRichMarkdown(model, doc), reloaded = parseRichMarkdown(saved).doc;
+  assert.deepEqual(reloaded.firstChild!.content.toJSON(), doc.firstChild!.content.toJSON());
+  assert.ok(reloaded.firstChild!.firstChild!.marks.some(m => m.type.name === 'link'));
+});
 
 const examples = [
   '', '\n\n', '# 設計書\n\n本文。\n', '見出し\n=====\n\n* one\n* two\n',

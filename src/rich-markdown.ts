@@ -5,6 +5,7 @@ import { schema as commonSchema, defaultMarkdownParser, defaultMarkdownSerialize
 import { withoutNumbering } from './table-numbering';
 import { tableNodes } from 'prosemirror-tables';
 import { colorMarkdown, flattenColorTokens, colorMarks, colorOpen, colorClose } from './text-colors';
+import { markdownBreaks } from './markdown-breaks';
 
 let nodes = commonSchema.spec.nodes.append(tableNodes({ tableGroup: 'block', cellContent: 'paragraph', cellAttributes: {
   align: { default: null, getFromDOM: dom => dom.getAttribute('data-align'), setDOMAttr: (value, attrs) => { if (value) attrs['data-align'] = value; } },
@@ -15,18 +16,23 @@ nodes.forEach((name, spec) => {
   if (spec.group === 'block') nodes = nodes.update(name, { ...spec, attrs: { ...spec.attrs, sourceId: { default: null } } });
 });
 nodes = nodes.update('list_item', { ...nodes.get('list_item'), attrs: { checked: { default: null } },
+  parseDOM: [{ tag: 'li[data-checked]', getAttrs: dom => ({ checked: dom.getAttribute('data-checked') === 'true' }), contentElement: dom => dom.querySelector(':scope > div') as HTMLElement ?? dom }, ...nodes.get('list_item')!.parseDOM!],
   toDOM: node => node.attrs.checked === null ? ['li', 0] : ['li', { class: 'task-item', 'data-checked': String(node.attrs.checked) },
     ['input', { type: 'checkbox', 'data-task': 'true', 'aria-label': 'タスクの完了', contenteditable: 'false', ...(node.attrs.checked ? { checked: '' } : {}) }], ['div', 0]],
 } as NodeSpec);
-nodes = nodes.update('image', { ...nodes.get('image'), toDOM: node => ['span', { class: 'image-placeholder', contenteditable: 'false' }, `画像: ${node.attrs.alt || ''} (${node.attrs.src})`] } as NodeSpec);
+nodes = nodes.update('image', { ...nodes.get('image'),
+  parseDOM: [{ tag: 'span[data-md-image]', getAttrs: dom => ({ src: dom.getAttribute('data-md-image'), alt: dom.getAttribute('data-md-alt'), title: dom.getAttribute('data-md-title') }) }, ...nodes.get('image')!.parseDOM!],
+  toDOM: node => ['span', { class: 'image-placeholder', contenteditable: 'false', 'data-md-image': node.attrs.src, 'data-md-alt': node.attrs.alt, 'data-md-title': node.attrs.title }, `画像: ${node.attrs.alt || ''} (${node.attrs.src})`],
+} as NodeSpec);
 export const richSchema = new Schema({ nodes, marks: commonSchema.spec.marks.remove('code').update('link', {
   ...commonSchema.spec.marks.get('link'),
+  parseDOM: [{ tag: 'a[data-href]', getAttrs: dom => ({ href: dom.getAttribute('data-href'), title: dom.getAttribute('data-md-link-title') }) }, ...commonSchema.spec.marks.get('link')!.parseDOM!],
   // Inert links: editing must never navigate, execute commands, or load remote resources.
-  toDOM: mark => ['a', { 'data-href': mark.attrs.href, title: mark.attrs.href }, 0],
+  toDOM: mark => ['a', { 'data-href': mark.attrs.href, 'data-md-link-title': mark.attrs.title, title: mark.attrs.title ?? mark.attrs.href }, 0],
 }).append({ strike: { parseDOM: [{ tag: 's' }, { tag: 'del' }], toDOM: () => ['s', 0] }, ...colorMarks, code: commonSchema.spec.marks.get('code')! }) });
 
 const tokenizer = new MarkdownIt('commonmark', { html: false }).enable(['table', 'strikethrough']);
-tokenizer.use(colorMarkdown).use(flattenColorTokens);
+tokenizer.use(colorMarkdown).use(flattenColorTokens).use(markdownBreaks);
 tokenizer.core.ruler.before('inline', 'task_items', state => {
   for (let i = 0; i < state.tokens.length; i++) {
     const item = state.tokens[i], inline = state.tokens[i + 2];
@@ -60,8 +66,10 @@ const serializer: MarkdownSerializer = new MarkdownSerializer({
     node.forEach((row, _offset, rowIndex) => {
       const cells: string[] = [];
       row.forEach(cell => {
-        const text = serializer.serialize(richSchema.node('doc', null, cell.content));
-        cells.push(text.replace(/(?<!\\)\|/g, '\\|').replace(/\r?\n/g, ' '));
+        const text = cellSerializer.serialize(richSchema.node('doc', null, cell.content));
+        // Markdown's table parser removes one escape before every pipe, even
+        // inside code. Add that escape independently of inline serialization.
+        cells.push(text.replace(/\|/g, '\\|').replace(/\r?\n/g, ' '));
       });
       state.write('| ' + cells.join(' | ') + ' |\n');
       if (rowIndex === 0) {
@@ -76,13 +84,19 @@ const serializer: MarkdownSerializer = new MarkdownSerializer({
   textColor: { open: (_state, mark) => colorOpen('textColor', mark.attrs.color), close: colorClose('textColor'), mixable: true, expelEnclosingWhitespace: true },
   highlight: { open: (_state, mark) => colorOpen('highlight', mark.attrs.color), close: colorClose('highlight'), mixable: true, expelEnclosingWhitespace: true },
 }, { escapeExtraCharacters: /</g });
+const cellSerializer = new MarkdownSerializer({ ...serializer.nodes,
+  hard_break(state) { state.write('<br>'); },
+}, serializer.marks, { escapeExtraCharacters: /</g });
 
 interface SourceBlock { id: string; start: number; end: number; raw: string; original: PMNode }
-export interface RichDocument { source: string; doc: PMNode; blocks: SourceBlock[]; gaps: string[]; eol: string }
+interface Reference { href: string; title: string }
+interface ReferenceEnvironment { references?: Record<string, Reference> }
+export interface RichDocument { source: string; doc: PMNode; blocks: SourceBlock[]; gaps: string[]; eol: string; references: Record<string, Reference> }
 
 export function parseRichMarkdown(source: string): RichDocument {
   if (new TextEncoder().encode(source).length > 512 * 1024) throw new Error('編集できるファイルは512KBまでです。');
-  const parsed = parser.parse(source);
+  const environment: ReferenceEnvironment = {};
+  const parsed = parser.parse(source, environment);
   const tokens = tokenizer.parse(source, {});
   const offsets = [0];
   const re = /\r\n|\r|\n/g;
@@ -105,7 +119,7 @@ export function parseRichMarkdown(source: string): RichDocument {
     cursor = end;
   });
   gaps.push(source.slice(cursor));
-  return { source, blocks, gaps, doc: richSchema.node('doc', null, children), eol: source.includes('\r\n') ? '\r\n' : '\n' };
+  return { source, blocks, gaps, doc: richSchema.node('doc', null, children), eol: source.includes('\r\n') ? '\r\n' : '\n', references: environment.references ?? {} };
 }
 
 /** Preserve the exact source of untouched blocks and retain reference definitions in gaps. */
@@ -151,6 +165,19 @@ export function serializeRichMarkdown(model: RichDocument, doc: PMNode): string 
   const suffix = model.gaps[model.gaps.length - 1] ?? '';
   if (suffix.trim()) separate();
   result += suffix;
+  // Definitions nested in edited/deleted quotes or lists are not model nodes.
+  // Keep their effective targets, including the first winner among duplicates,
+  // so untouched raw reference links and images continue to resolve correctly.
+  if (Object.keys(model.references).length) {
+    const environment: ReferenceEnvironment = {};
+    tokenizer.parse(result, environment);
+    const missing = Object.entries(model.references).filter(([label, ref]) => {
+      const current = environment.references?.[label];
+      return !current || current.href !== ref.href || current.title !== ref.title;
+    });
+    const definitions = missing.map(([label, ref]) => `[${label}]: <${ref.href.replace(/&/g, '&amp;').replace(/[\\<>]/g, '\\$&')}>${ref.title ? ` "${ref.title.replace(/&/g, '&amp;').replace(/[\\"]/g, '\\$&')}"` : ''}`);
+    if (definitions.length) result = definitions.join(eol) + eol + eol + result;
+  }
   return result;
 }
 

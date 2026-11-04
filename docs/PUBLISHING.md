@@ -8,7 +8,7 @@
 | 発行者ID | iam74k4 |
 | パッケージ名 | markdown-lens-review |
 | 拡張ID | iam74k4.markdown-lens-review |
-| 開発版 | 0.12.0（未公開） |
+| リリース対象 | 0.12.2 |
 | ライセンス | MIT |
 | アイコン | media/icon.png（256 × 256、原稿はicon.svg） |
 | リポジトリ | https://github.com/iam74k4/Markdown-Lens |
@@ -16,7 +16,7 @@
 
 掲載本文はREADME.md、更新履歴はCHANGELOG.mdを使用します。表示名は「Markdown Lens — WYSIWYG & Review」、パッケージ名は `markdown-lens-review` です。旧候補 `markdown-review` はMarketplaceで名前の重複により拒否されたため使用しません。MarketplaceとOpen VSXで同じIDを使用します。
 
-2026-11-04にVisual Studio Marketplaceで0.11.0の一般公開ページを確認しました。モノトーンの新ロゴ入り0.11.1もアップロード受理済みです。受理時点の状態はPublic／Verifyingでした。0.12.0の統合PreviewはVSIX先行版で、Marketplaceへの更新は未実施です。Open VSXは未公開です。発行者登録、パッケージ生成、ストア掲載、各エディターでの検索・インストール確認は、それぞれ別の作業です。
+0.12.2には統合Preview、外部AI編集の自動反映、コピー＆ペーストとMarkdown保存の保持修正を含みます。Marketplaceでの処理状況は管理画面と公開ページで確認します。Open VSXは未公開です。パッケージ生成、アップロード受理、一般公開、各エディターでのインストール確認は別々に記録します。
 
 ## 配布物の作成
 
@@ -24,7 +24,7 @@
 npm ci
 npm run check
 npm test
-npm run package -- --out markdown-lens-0.12.0.vsix
+npm run package -- --out markdown-lens-0.12.2.vsix
 ```
 
 VSIXにはビルド済みコード、PNGアイコン、README、画面例、MITライセンス、依存ライブラリのライセンス表記を含めます。テスト用文書・検証ログ・node_modulesは含めません。パッケージ内容は `npx vsce ls --no-dependencies` で確認できます。
@@ -34,7 +34,7 @@ VSIXにはビルド済みコード、PNGアイコン、README、画面例、MIT�
 1. [パブリッシャー管理](https://marketplace.visualstudio.com/manage)へMicrosoftアカウントでログイン。
 2. 発行者名・IDを `iam74k4` として登録。作成ボタンは出版契約への同意を兼ねるため、アカウント所有者が契約を確認してから実行します。
 3. 発行者の管理画面から「New extension」→「Visual Studio Code」を選択。
-4. `markdown-lens-0.12.0.vsix` をアップロードし、名称、発行者、アイコン、README、ライセンスを確認して公開。
+4. `markdown-lens-0.12.2.vsix` をアップロードし、名称、発行者、アイコン、README、ライセンスを確認して公開。
 5. 処理完了後に掲載ページを確認し、VS Codeで `@id:iam74k4.markdown-lens-review` を検索してインストール。
 
 手動アップロードの場合、チャットにPATを渡す必要はありません。管理画面上の検証エラーがあれば修正したVSIXを作り直します。
@@ -43,12 +43,12 @@ VSIXにはビルド済みコード、PNGアイコン、README、画面例、MIT�
 
 1. [Open VSXの公開手順](https://github.com/eclipse-openvsx/openvsx/wiki/Publishing-Extensions)に従い、Eclipseアカウント・GitHub連携・Publisher Agreementへの同意を済ませます。
 2. `iam74k4` の名前空間を作成し、必要に応じて所有者の確認手続きを行います。Marketplace側の登録とは別です。
-3. Open VSXの認証を設定し、同じVSIXを `npx ovsx publish markdown-lens-0.12.0.vsix` で公開します。PAT方式なら端末／CIの `OVSX_PAT` を使い、トークンをソースやチャットに記載しません。
+3. Open VSXの認証を設定し、同じVSIXを `npx ovsx publish markdown-lens-0.12.2.vsix` で公開します。PAT方式なら端末／CIの `OVSX_PAT` を使い、トークンをソースやチャットに記載しません。
 4. Open VSXの掲載を確認した後、Cursorで同じ拡張IDを検索し、インストール・起動を確認します。Cursor側の検査・反映状況により、Open VSXへの公開と検索可能になる時点は一致しない場合があります。
 
 ## 公開後の確認
 
-- 両エディターで発行者が `iam74k4`、表示名が「Markdown Lens — WYSIWYG & Review」、バージョンが0.12.0であること。
+- 両エディターで発行者が `iam74k4`、表示名が「Markdown Lens — WYSIWYG & Review」、バージョンが0.12.2であること。
 - Markdown LensのコマンドでPreviewを開き、Markdownソースの表示・編集・保存ができること。
 - 変更マーカー、確認／復元、表・画像・Mermaidが動作すること。
 - アイコン、READMEの画像・リンク、ライセンス・問い合わせ先がストア上でも表示されること。

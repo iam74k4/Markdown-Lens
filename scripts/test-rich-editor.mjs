@@ -11,6 +11,39 @@ const browser = await chromium.launch(process.env.CI ? { headless: true } : { he
 try {
  const page = await browser.newPage(); const errors = []; page.on('pageerror', e=>errors.push(e.message));
  await page.goto(pathToFileURL(join(folder, 'index.html')).href);
+ // Exercise the editor's real clipboard serializer and paste handler, including
+ // cut/move and saving/reopening. Display-only DOM must not erase source data.
+ for (const cut of [false, true]) for (const source of [
+  'A [spec](https://example.com/spec "仕様書") B\n',
+  '![diagram](./image.png "構成図")\n',
+  '- [x] done\n  - [ ] nested pending\n\n- [ ] pending\n',
+  '| A | B |\n| --- | --- |\n| one<br>two | `a\\\\|b` |\n',
+ ]) {
+  const result = await page.evaluate(({source,cut})=>{
+   window.loadEditor(source); const e=window.richEditor, v=e.view;
+   const normalized=doc=>JSON.parse(JSON.stringify(doc.toJSON(),(key,value)=>key==='sourceId'?undefined:value));
+   const expected=normalized(v.state.doc);
+   v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc,0,v.state.doc.content.size)));
+   const copied=v.serializeForClipboard(v.state.selection.content());
+   if(cut) v.dispatch(v.state.tr.deleteSelection());
+   const pasted=v.pasteHTML(copied.dom.innerHTML), actual=normalized(v.state.doc), saved=e.text;
+   e.load(saved);
+   return {pasted,expected,actual,reopened:normalized(e.view.state.doc),html:copied.dom.innerHTML};
+  },{source,cut});
+  expect(result.pasted).toBe(true); expect(result.actual).toEqual(result.expected); expect(result.reopened).toEqual(result.expected);
+  expect(result.html).not.toMatch(/<a href=|<img /);
+ }
+ await page.evaluate(()=>{
+  window.loadEditor('| A | B |\n| --- | --- |\n| one | two |\n'); const v=window.richEditor.view;let pos=0;
+  v.state.doc.descendants((n,p)=>{if(n.text==='one')pos=p+3;});
+  v.dispatch(v.state.tr.setSelection(v.state.selection.constructor.create(v.state.doc,pos)));v.focus();
+ });
+ await page.keyboard.press('Shift+Enter'); await page.keyboard.type('line2');
+ const multiline=await page.evaluate(()=>window.richEditor.text);
+ expect(multiline).toContain('one<br>line2');
+ await page.evaluate(source=>window.loadEditor(source),multiline);
+ await expect(page.locator('td').first().locator('br')).toHaveCount(1);
+ await expect(page.locator('td').first()).toContainText('line2');
  const source = '# Demo\n\n```mermaid\nflowchart LR\nA[開始] --> B[完了]\n```\n\n- [ ] task\n';
  await page.evaluate(s=>window.loadEditor(s), source);
  await expect(page.locator('.diagram-canvas svg')).toHaveCount(1, { timeout: 20000 });
@@ -266,6 +299,6 @@ try {
  await expect(page.locator('.table-dialog')).toHaveCount(0);
  expect(await page.evaluate(()=>window.richEditor.text)).toBe(compareAfter.replace('60','90'));
  expect(errors).toEqual([]);
- await writeFile(join(folder,'result.json'),JSON.stringify({passed:true,checks:['Chromium IME preedit preserves review DOM, commits Japanese, cancels cleanly and supports Undo/Redo', '164 KB document retains exact source across cached derived-state reads', 'Text color and marker palettes preserve selection and combine styles', 'Color save/reload, custom hex, independent removal and Undo/Redo', 'Color palette keyboard dismissal, narrow layout and stale selection guards', 'Mermaid editing and live preview','Task editing and Undo','Selected row and column quick moves','Header and data stay together','Column alignment follows column','Insert and immediately type into new row/cell','Disabled editor prevents table actions','One-action Undo','Edge controls target the correct table','1100px and 360px without document overflow','Opt-in numbering after row deletion and reorder preserves IDs','Row deletion and renumbering Undo together','Column deletion removes header and body cells','Nested heading folds cover tables and Mermaid', 'Folding preserves exact Markdown and does not enter Undo history', 'Keyboard entry reveals hidden content', 'Local table comparisons open lazily and leave exact Markdown unchanged', 'Closing comparisons and replacing a document dispose expanded table dialogs', 'All heading levels, paragraph, emphasis, lists and quotes with Undo/Redo', 'Link insertion and removal; unsafe links rejected and navigation inert', 'Image insertion rejects executable schemes and unresolved paths stay inert', 'Rule, table, Mermaid and task insertion with Undo', 'No renderer exceptions']},null,2));
+ await writeFile(join(folder,'result.json'),JSON.stringify({passed:true,checks:['Clipboard copy and cut retain link targets/titles, image paths/titles and nested task states after save/reload', 'Table clipboard preserves code backslashes, pipes and hard breaks', 'Shift+Enter in a cell survives serialization and reopening', 'Chromium IME preedit preserves review DOM, commits Japanese, cancels cleanly and supports Undo/Redo', '164 KB document retains exact source across cached derived-state reads', 'Text color and marker palettes preserve selection and combine styles', 'Color save/reload, custom hex, independent removal and Undo/Redo', 'Color palette keyboard dismissal, narrow layout and stale selection guards', 'Mermaid editing and live preview','Task editing and Undo','Selected row and column quick moves','Header and data stay together','Column alignment follows column','Insert and immediately type into new row/cell','Disabled editor prevents table actions','One-action Undo','Edge controls target the correct table','1100px and 360px without document overflow','Opt-in numbering after row deletion and reorder preserves IDs','Row deletion and renumbering Undo together','Column deletion removes header and body cells','Nested heading folds cover tables and Mermaid', 'Folding preserves exact Markdown and does not enter Undo history', 'Keyboard entry reveals hidden content', 'Local table comparisons open lazily and leave exact Markdown unchanged', 'Closing comparisons and replacing a document dispose expanded table dialogs', 'All heading levels, paragraph, emphasis, lists and quotes with Undo/Redo', 'Link insertion and removal; unsafe links rejected and navigation inert', 'Image insertion rejects executable schemes and unresolved paths stay inert', 'Rule, table, Mermaid and task insertion with Undo', 'No renderer exceptions']},null,2));
  console.log('RICH_EDITOR_BROWSER passed');
 } finally { await browser.close(); }

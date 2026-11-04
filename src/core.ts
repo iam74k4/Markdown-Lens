@@ -5,12 +5,13 @@ import { createHash } from 'node:crypto';
 import { icon } from './icons';
 import { changedCells, CellChange } from './cell-review';
 import { colorMarkdown } from './text-colors';
+import { markdownBreaks } from './markdown-breaks';
 
 // Bound synchronous diff work so a generated document cannot hang the extension host.
 export const MAX_BYTES = 512 * 1024;
 const MAX_BLOCKS = 4000;
 const md = new MarkdownIt({ html: false, linkify: false, typographer: false, breaks: false });
-md.use(colorMarkdown);
+md.use(colorMarkdown).use(markdownBreaks);
 export const escapeHtml = (s: string) => md.utils.escapeHtml(s);
 
 // Document content never creates navigable URLs or makes remote image requests.
