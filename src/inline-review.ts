@@ -74,6 +74,24 @@ export function reviewDecorations(doc: PMNode, plan: InlineChange[], changesOnly
       changed.add(block.from);
       decorations.push(Decoration.node(block.from, block.to, { class: 'inline-changed-block' }));
     }
+    if (hunk.cells?.length && blocks.length === 1) {
+      const table = doc.nodeAt(blocks[0].from);
+      if (table?.type.name === 'table') table.forEach((row, rowOffset, r) => row.forEach((cell, cellOffset, c) => {
+        if (!hunk.cells!.some(change => change.row === r && change.column === c)) return;
+        const cellPos = blocks[0].from + 2 + rowOffset + cellOffset;
+        decorations.push(Decoration.node(cellPos, cellPos + cell.nodeSize, { class: 'cell-unreviewed' }));
+        decorations.push(Decoration.widget(cellPos + cell.nodeSize - 2, () => {
+          const controls = document.createElement('span'); controls.className = 'cell-review-controls'; controls.contentEditable = 'false';
+          for (const [action, label, svg] of [['revertCell', '戻す', 'undo'], ['reviewCell', '確認済みにする', 'check']] as const) {
+            const button = document.createElement('button'); button.type = 'button'; button.innerHTML = icon(svg);
+            button.dataset.cellAction = action; button.dataset.cellHunk = hunk.id; button.dataset.row = String(r); button.dataset.column = String(c);
+            button.title = `このセルを${label}`; button.setAttribute('aria-label', `${r === 0 ? '見出し' : r + '行目'}・${c + 1}列目のセルを${label}`);
+            button.addEventListener('mousedown', e => e.preventDefault()); controls.append(button);
+          }
+          return controls;
+        }, { side: 1, key: `cell:${hunk.id}:${r}:${c}`, stopEvent: () => true, ignoreSelection: true }));
+      }));
+    }
     for (const span of inserted) decorations.push(Decoration.inline(span.from, span.to, { class: 'inline-insert', 'data-change': hunk.id }));
     decorations.push(Decoration.widget(position, () => {
       const card = document.createElement('div'); card.className = 'inline-review change' + (hidden(position) ? ' section-hidden' : ''); card.dataset.hunk = hunk.id; card.contentEditable = 'false'; card.tabIndex = -1;

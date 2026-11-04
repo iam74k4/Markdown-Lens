@@ -123,8 +123,15 @@ export async function checkEditing({ page, frame, workspace, path, output }) {
   checks.push('Cancelling composition adopts deferred external edits without false conflict');
 
   await frame.locator('#toggle-source').click();
-  const source = frame.locator('#source-text'); await source.focus();
-  await source.evaluate(field => field.setSelectionRange(field.value.length, field.value.length));
+  const source = frame.locator('#source-text');
+  await expect(source).toHaveValue(cancelledExternal);
+  await source.evaluate(async field => {
+    field.focus(); await new Promise(requestAnimationFrame);
+    field.setSelectionRange(field.value.length, field.value.length);
+    await new Promise(requestAnimationFrame);
+  });
+  await source.press('ArrowRight');
+  expect(await source.evaluate(field => field.selectionStart)).toBe(cancelledExternal.length);
   await compose('げんぶん');
   await expect(source).toHaveValue(cancelledExternal + 'げんぶん');
   updates = await frame.evaluate(() => window.hostUpdates);

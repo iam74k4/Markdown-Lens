@@ -7,12 +7,15 @@ import { buildReview, confirmHunk, revertHunk, Review, Hunk, validateSize } from
 import { minimalEdit } from './text-edit';
 import { icon } from './icons';
 import { colorToolbar } from './color-toolbar';
+import { applyCell } from './cell-review';
+import type { ReviewView } from './review-view';
+import { savePastedImage } from './pasted-image';
 import { PendingFiles } from './pending-files';
 
-type Action = { type: 'ready' | 'revert' | 'reviewHunk' | 'reviewed' | 'save' | 'edit' | 'draft' | 'discardDraft' | 'exportDraft' | 'undoReview' | 'snapshot' | 'chooseSnapshot'; revision?: string; id?: string; text?: string; baseText?: string; save?: boolean; composing?: boolean };
+type Action = { type: 'view' | 'pasteImage' | 'reviewCell' | 'revertCell' | 'ready' | 'revert' | 'reviewHunk' | 'reviewed' | 'save' | 'edit' | 'draft' | 'discardDraft' | 'exportDraft' | 'undoReview' | 'snapshot' | 'chooseSnapshot'; revision?: string; id?: string; text?: string; baseText?: string; save?: boolean; composing?: boolean; view?: ReviewView; row?: number; column?: number; data?: string };
 interface EditResult { id: string; accepted: boolean }
 export interface State {
-  uri: string; name: string; html: string; revision: string; count: number;
+  view?: ReviewView; uri: string; name: string; html: string; revision: string; count: number;
   hunks: Hunk[]; baselineMarkdown: string; confirmedMarkdown: string;
   updatedAt: string; dirty: boolean; markdown: string; draft?: Draft; undoId?: string; comparison?: string; editResult?: EditResult; error?: string; notice?: string;
 }
@@ -27,6 +30,8 @@ export class ReviewPanel implements vscode.Disposable {
   private current = '';
   private draft?: Draft;
   private latestDraft?: Action;
+  private latestView?: Action;
+  private savedView?: ReviewView;
   private state?: State;
   private timer?: ReturnType<typeof setTimeout>;
   private previewTimer?: ReturnType<typeof setTimeout>;
@@ -63,6 +68,7 @@ export class ReviewPanel implements vscode.Disposable {
       const doc = await this.document();
       validateSize(doc.getText());
       this.baseline = await this.store.ensure(this.uri.toString(), doc.getText());
+      this.savedView = await this.store.loadView(this.uri.toString());
       this.draft = await this.store.loadDraft(this.uri.toString());
       await this.refresh();
     });
@@ -96,7 +102,7 @@ export class ReviewPanel implements vscode.Disposable {
     if (!this.review || text !== this.current) this.review = buildReview(this.snapshotBase?.text ?? this.baseline.text, text, { imageUri: this.imageUri });
     this.current = text;
     this.state = {
-      uri: this.uri.toString(), name: basename(this.uri.path), html: this.review.html,
+      view: this.savedView, uri: this.uri.toString(), name: basename(this.uri.path), html: this.review.html,
       revision: this.review.revision, count: this.review.hunks.length,
       updatedAt: this.baseline.updatedAt, dirty: doc.isDirty, notice: feedback,
       hunks: this.review.hunks, baselineMarkdown: this.snapshotBase?.text ?? this.baseline.text, confirmedMarkdown: this.baseline.text,
@@ -132,13 +138,18 @@ export class ReviewPanel implements vscode.Disposable {
   async receive(message: unknown): Promise<void> {
     if (!message || typeof message !== 'object') return;
     const action = message as Action;
-    if (!['ready', 'revert', 'reviewHunk', 'reviewed', 'save', 'edit', 'draft', 'discardDraft', 'exportDraft', 'undoReview', 'snapshot', 'chooseSnapshot'].includes(action.type)) return;
+    if (!['view', 'pasteImage', 'reviewCell', 'revertCell', 'ready', 'revert', 'reviewHunk', 'reviewed', 'save', 'edit', 'draft', 'discardDraft', 'exportDraft', 'undoReview', 'snapshot', 'chooseSnapshot'].includes(action.type)) return;
+    if (action.type === 'view') this.latestView = action;
     if (action.type === 'draft') {
       if (typeof action.text !== 'string' || typeof action.baseText !== 'string') return;
       validateSize(action.text); validateSize(action.baseText);
       this.latestDraft = action;
     }
     return this.serial(async () => {
+      if (action.type === 'view') {
+        if (action === this.latestView) await this.store.saveView(this.uri.toString(), action.view);
+        return;
+      }
       // Persist already-received input even if the tab closes while the write is queued.
       if (action.type === 'draft') {
         if (action !== this.latestDraft) return;
@@ -150,6 +161,15 @@ export class ReviewPanel implements vscode.Disposable {
         return;
       }
       if (this.disposed) return;
+      if (action.type === 'pasteImage') {
+        if (typeof action.id !== 'string') return;
+        try {
+          if (this.uri.scheme !== 'file') throw new Error('ローカルのMarkdownファイルで画像を貼り付けてください。');
+          const src = await savePastedImage(this.uri.fsPath, vscode.workspace.workspaceFolders?.map(f => f.uri.fsPath) ?? [dirname(this.uri.fsPath)], action.data);
+          void this.panel.webview.postMessage({ type: 'imageSaved', id: action.id, src });
+        } catch (error) { void this.panel.webview.postMessage({ type: 'imageSaved', id: action.id, error: errorText(error) }); }
+        return;
+      }
       if (action.type === 'ready') { await this.refresh(); return; }
       if (action.type === 'discardDraft') {
         await this.store.clearDraft(this.uri.toString()); this.draft = undefined;
@@ -203,7 +223,28 @@ export class ReviewPanel implements vscode.Disposable {
         } catch (error) { await this.refresh(errorText(error)); }
         return;
       }
-      if (this.snapshotBase && ['reviewed', 'reviewHunk'].includes(action.type)) { await this.refresh('確認済みの内容に戻してから確認してください。'); return; }
+      if (this.snapshotBase && ['reviewed', 'reviewHunk', 'reviewCell'].includes(action.type)) { await this.refresh('確認済みの内容に戻してから確認してください。'); return; }
+      if (action.type === 'reviewCell' || action.type === 'revertCell') {
+        const hunk = this.review.hunks.find(h => h.id === action.id);
+        const cell = hunk?.cells?.find(c => c.row === action.row && c.column === action.column);
+        if (!hunk || !cell) { await this.refresh('対象のセルが更新されました。もう一度選択してください。'); return; }
+        if (action.type === 'reviewCell') {
+          const previous = this.baseline.text;
+          const next = applyCell(previous, hunk.oldStart + cell.before.start, hunk.oldStart + cell.before.end, cell.before.text, cell.after.text);
+          buildReview(next, this.current);
+          this.baseline = await this.store.save(this.uri.toString(), next);
+          this.undo = { id: randomBytes(12).toString('hex'), text: previous }; this.review = undefined;
+          await this.refresh('✓ セルを確認しました');
+        } else {
+          const next = applyCell(this.current, hunk.start + cell.after.start, hunk.start + cell.after.end, cell.after.text, cell.before.text);
+          buildReview(this.baseline.text, next);
+          const delta = minimalEdit(this.current, next), edit = new vscode.WorkspaceEdit();
+          edit.replace(this.uri, new vscode.Range(doc.positionAt(delta.start), doc.positionAt(delta.end)), delta.text);
+          const applied = await vscode.workspace.applyEdit(edit);
+          await this.refresh(applied ? 'セルを戻しました。保存でファイルに反映します。' : 'セルを戻せませんでした。最新の内容を確認してください。');
+        }
+        return;
+      }
       if (action.type === 'edit') {
         if (typeof action.text !== 'string' || !result) return;
         try {
@@ -290,7 +331,9 @@ function shell(webview: vscode.Webview, extensionUri: vscode.Uri): string {
   </div>
   <form id="link-form" class="link-form" hidden><label for="link-url">リンク先</label><input id="link-url" type="text" placeholder="https://example.com" autocomplete="off"><button type="submit">適用</button><button type="button" id="link-cancel">キャンセル</button></form>
   <form id="image-form" class="link-form" hidden><label for="image-src">画像パス</label><input id="image-src" placeholder="./images/design.png" aria-label="画像パス"><input id="image-alt" placeholder="画像の説明" aria-label="画像の説明"><button type="submit">挿入</button><button type="button" id="image-cancel">キャンセル</button></form>
-  <div class="review-tools"><button id="fold-all" class="icon-button has-tooltip" aria-label="見出しをすべて折りたたむ" data-tooltip="見出しをすべて折りたたむ">${icon('fold')}</button><button id="unfold-all" class="icon-button has-tooltip" aria-label="見出しをすべて展開" data-tooltip="見出しをすべて展開">${icon('unfold')}</button><button id="changes-only" class="icon-button has-tooltip" aria-label="変更箇所だけ表示" aria-pressed="false" data-tooltip="変更箇所だけ表示">${icon('filter')}</button><button id="snapshot" class="icon-button has-tooltip" aria-label="スナップショットを保存" data-tooltip="現在の状態を保存">${icon('camera')}</button><button id="snapshots" class="icon-button has-tooltip" aria-label="スナップショットと比較" data-tooltip="スナップショットと比較">${icon('history')}</button></div><div class="subbar"><span id="baseline">比較元を読み込んでいます…</span><div class="legend" id="legend"><span class="legend-add">＋ 追加</span><span class="legend-remove">− 削除</span></div></div>
+  <div class="review-tools"><button id="toggle-find" class="icon-button has-tooltip" aria-label="本文を検索・置換" aria-pressed="false" data-tooltip="検索・置換（⌘/Ctrl+F）">${icon('search')}</button><button id="toggle-outline" class="icon-button has-tooltip" aria-label="見出しナビゲーション" aria-pressed="false" data-tooltip="目次">${icon('outline')}</button><button id="fold-all" class="icon-button has-tooltip" aria-label="見出しをすべて折りたたむ" data-tooltip="見出しをすべて折りたたむ">${icon('fold')}</button><button id="unfold-all" class="icon-button has-tooltip" aria-label="見出しをすべて展開" data-tooltip="見出しをすべて展開">${icon('unfold')}</button><button id="changes-only" class="icon-button has-tooltip" aria-label="変更箇所だけ表示" aria-pressed="false" data-tooltip="変更箇所だけ表示">${icon('filter')}</button><button id="snapshot" class="icon-button has-tooltip" aria-label="スナップショットを保存" data-tooltip="現在の状態を保存">${icon('camera')}</button><button id="snapshots" class="icon-button has-tooltip" aria-label="スナップショットと比較" data-tooltip="スナップショットと比較">${icon('history')}</button></div><div class="subbar"><span id="baseline">比較元を読み込んでいます…</span><div class="legend" id="legend"><span class="legend-add">＋ 追加</span><span class="legend-remove">− 削除</span></div></div>
+  <section id="find-panel" class="find-panel" aria-label="本文の検索と置換" hidden><div class="find-row"><input id="find-query" type="search" aria-label="検索する文字" placeholder="本文を検索" maxlength="1000"><span id="find-count" role="status"></span><button id="find-previous" aria-label="前の検索結果">${icon('up')}</button><button id="find-next" aria-label="次の検索結果">${icon('down')}</button><button id="find-close" aria-label="検索を閉じる">${icon('close')}</button></div><div class="find-row"><input id="replace-text" aria-label="置換する文字" placeholder="置換する文字" maxlength="10000"><button id="replace-one">置換</button><button id="replace-all">すべて置換</button></div><div class="find-options"><label><input id="find-case" type="checkbox">大文字・小文字を区別</label><label><input id="find-changes" type="checkbox">変更箇所だけ</label><span>本文の文字を検索 · 置換後は保存で反映</span></div></section>
+  <nav id="outline-panel" class="outline-panel" aria-label="見出しナビゲーション" hidden><div class="outline-heading"><strong>目次</strong><button id="outline-close" aria-label="目次を閉じる">${icon('close')}</button></div><div id="outline-items"></div></nav>
   <div id="feedback" class="feedback" role="status" aria-live="polite" hidden><span id="feedback-text"></span><button id="undo-review" class="text-button" hidden>取り消す</button></div>
   <div id="conflict" class="conflict" role="alert" hidden><strong>編集中にファイルが更新されました。</strong><p>自分の下書きは保持しています。先に別のタブへ退避できます。</p><button id="export-draft">下書きを別タブに開く</button><button id="discard-draft">下書きを破棄して最新を読み込む</button></div>
   <div id="empty" class="empty-state" tabindex="-1" hidden><span class="empty-check" aria-hidden="true">${icon('check')}</span><div><strong>未確認の変更はありません</strong><p>AIや手動で編集すると、ここに差分が表示されます。</p></div></div>

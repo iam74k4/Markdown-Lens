@@ -1,3 +1,5 @@
+import { navigation } from './navigation';
+import type { ReviewView } from './review-view';
 import { detailFolding } from './detail-folding';
 import { renderDiagrams, refreshDiagramThemes } from './diagrams';
 import { enhanceTables } from './table-review';
@@ -8,10 +10,14 @@ import 'prosemirror-gapcursor/style/gapcursor.css';
 import type { NumberingRule } from './table-numbering';
 import type { State } from './extension';
 
-declare function acquireVsCodeApi(): { postMessage(message: unknown): void; setState(state: unknown): void; getState(): { mode?: string; uri?: string; changesOnly?: boolean; numbering?: NumberingRule[]; folds?: string[] } | undefined };
+declare function acquireVsCodeApi(): { postMessage(message: unknown): void; setState(state: unknown): void; getState(): { mode?: string; uri?: string; changesOnly?: boolean; numbering?: NumberingRule[]; folds?: string[]; view?: ReviewView } | undefined };
 const vscode = acquireVsCodeApi();
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T;
 let state: State | undefined;
+let restored = false, restoring = false, persistedView = '';
+let bookmarkY = -1, bookmarkFolds = '', savedAnchor: ReviewView['anchor'];
+let imageUpload: { id: string; text: string; source: boolean; from: number; to: number } | undefined;
+
 let disposeTables = () => {};
 let detailSections: ReturnType<typeof detailFolding> | undefined;
 let changesOnly = vscode.getState()?.changesOnly ?? false;
@@ -26,12 +32,12 @@ let sourceComposing = false;
 let sourcePending = false;
 let sourceRenderTimer: ReturnType<typeof setTimeout> | undefined;
 let sourceCompositionTimer: ReturnType<typeof setTimeout> | undefined;
-type HostMessage = { type: 'update'; state: State } | { type: 'error'; message: string } |
+type HostMessage = { type: 'imageSaved'; id: string; src?: string; error?: string } | { type: 'update'; state: State } | { type: 'error'; message: string } |
   { type: 'draftPreview'; text: string; baseText?: string; baselineMarkdown?: string; hunks: State['hunks']; html: string; error?: string };
 let deferredHostMessage: Extract<HostMessage, { type: 'update' | 'error' }> | undefined;
 const composing = () => sourceComposing || !!editor?.composing;
 let draftPreview: { text: string; hunks: State['hunks']; html: string } | undefined;
-let queuedAction: { type: string; id?: string } | undefined;
+let queuedAction: { type: string; id?: string; row?: number; column?: number } | undefined;
 const currentText = () => sourceDraft ?? editor?.text ?? state?.markdown ?? '';
 const sourceField = () => $<HTMLTextAreaElement>('source-text');
 function syncSource() {
@@ -39,7 +45,7 @@ function syncSource() {
   $('workspace').classList.toggle('with-source', sourceOpen);
   button('toggle-source').setAttribute('aria-pressed', String(sourceOpen));
   const version = $<HTMLSelectElement>('source-version').value;
-  sourceField().readOnly = version !== 'current' || pending || broken;
+  sourceField().readOnly = version !== 'current' || pending || broken || !!imageUpload;
   const text = version === 'confirmed' ? state?.confirmedMarkdown ?? '' : version === 'comparison' ? state?.baselineMarkdown ?? '' : currentText();
   if (!sourceComposing && sourceField().value !== text) sourceField().value = text;
   $('source-hint').textContent = version === 'current' ? '本文と同じ下書きを編集します。保存は ⌘ / Ctrl + S' : '読み取り専用です。確認済みの内容と比較元は、確認やスナップショット選択で変わります。';
@@ -56,7 +62,7 @@ function renderCurrent() {
     renderDiagrams($('document')); disposeTables = enhanceTables($('document'));
     detailSections = detailFolding($('document'), editor?.folds ?? [], keys => { editor?.fold(keys); controls(); });
     $('document').querySelectorAll<HTMLImageElement>('.markdown-image').forEach(img => img.addEventListener('error', () => { img.hidden = true; (img.nextElementSibling as HTMLElement).hidden = false; }));
-    editor?.review(currentText(), [], state.html);
+    editor?.review(currentText(), state.hunks, state.html, false);
   } else { detailSections = undefined; disposeTables(); disposeTables = () => {}; $('document').replaceChildren(); }
 }
 
@@ -70,22 +76,23 @@ function feedback(text?: string, error = false) {
   $('feedback').classList.toggle('error', error);
 }
 function controls() {
+  const busy = pending || !!imageUpload;
   const count = localDraft && draftPreview ? draftPreview.hunks.length : state?.count ?? 0;
   $('counter').textContent = state?.comparison ? `比較差分 ${count}件` : count ? `未確認 ${count}件` : '✓ 確認完了';
   $('counter').classList.toggle('complete', count === 0);
   $('position').textContent = count ? `${Math.max(1, active + 1)} / ${count}` : '';
   $('change-navigation').hidden = !count;
-  button('previous').disabled = button('next').disabled = !count || pending || broken;
-  button('reviewed').disabled = !count || pending || broken || conflict || editInvalid || (localDraft && !previewReady) || !!state?.comparison;
-  button('save').disabled = pending || broken || conflict || editInvalid;
-  button('mode-edit').disabled = button('mode-diff').disabled = pending || !state;
+  button('previous').disabled = button('next').disabled = !count || busy || broken;
+  button('reviewed').disabled = !count || busy || broken || conflict || editInvalid || (localDraft && !previewReady) || !!state?.comparison;
+  button('save').disabled = busy || broken || conflict || editInvalid;
+  button('mode-edit').disabled = button('mode-diff').disabled = busy || !state;
   $('save').hidden = !localDraft && !state?.dirty;
   $('save-state').textContent = conflict ? '● 競合・下書きを保持' : localDraft ? '● 編集中' : state?.dirty ? '● 未保存' : '保存済み';
   $('save-state').classList.toggle('dirty', localDraft || !!state?.dirty);
-  document.querySelectorAll<HTMLButtonElement>('[data-revert], [data-review]').forEach(b => { b.disabled = pending || broken || conflict || editInvalid || (localDraft && !previewReady) || (!!b.dataset.review && !!state?.comparison); });
-  document.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('#formatting button:not([data-color-control]), #formatting select').forEach(b => { b.disabled = pending || broken || sourcePending; });
-  document.querySelectorAll<HTMLInputElement>('input[data-task]').forEach(input => { input.disabled = pending || broken; });
-  editor?.enable(!pending && !broken && !sourcePending && !(editInvalid && sourceDraft !== undefined));
+  document.querySelectorAll<HTMLButtonElement>('[data-revert], [data-review]').forEach(b => { b.disabled = busy || broken || conflict || editInvalid || (localDraft && !previewReady) || (!!b.dataset.review && !!state?.comparison); });
+  document.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('#formatting button:not([data-color-control]), #formatting select').forEach(b => { b.disabled = busy || broken || sourcePending; });
+  document.querySelectorAll<HTMLInputElement>('input[data-task]').forEach(input => { input.disabled = busy || broken; });
+  editor?.enable(!busy && !broken && (!sourcePending || sourceComposing) && !(editInvalid && sourceDraft !== undefined));
   $('conflict').hidden = !conflict;
   $('document').hidden = mode !== 'diff';
   $('editor').hidden = $('formatting').hidden = mode !== 'edit';
@@ -95,13 +102,14 @@ function controls() {
   $('empty').querySelector('strong')!.textContent = state?.comparison ? 'スナップショットとの差分はありません' : '未確認の変更はありません';
   button('mode-edit').setAttribute('aria-selected', String(mode === 'edit'));
   button('mode-diff').setAttribute('aria-selected', String(mode === 'diff'));
-  button('undo-review').disabled = pending || broken || localDraft;
-  button('snapshot').disabled = pending || broken || localDraft;
-  button('snapshots').disabled = pending || broken || localDraft;
+  button('undo-review').disabled = busy || broken || localDraft;
+  button('snapshot').disabled = busy || broken || localDraft;
+  button('snapshots').disabled = busy || broken || localDraft;
   button('changes-only').setAttribute('aria-pressed', String(changesOnly));
   $('document').classList.toggle('changes-only', changesOnly);
-  button('fold-all').disabled = button('unfold-all').disabled = pending || broken || !(mode === 'edit' ? editor?.sectionCount : detailSections?.count);
-  syncSource(); vscode.setState({ uri: state?.uri, mode, changesOnly, numbering: editor?.numbering, folds: editor?.folds });
+  button('fold-all').disabled = button('unfold-all').disabled = busy || broken || !(mode === 'edit' ? editor?.sectionCount : detailSections?.count);
+  document.querySelectorAll<HTMLButtonElement>('[data-cell-action]').forEach(b => { b.disabled = busy || broken || conflict || editInvalid || composing() || (localDraft && !previewReady) || (b.dataset.cellAction === 'reviewCell' && !!state?.comparison); });
+  syncSource(); persistView(); nav.update();
 }
 function move(index: number, scroll = true) {
   let blocks = changes();
@@ -147,7 +155,7 @@ function loadEditor(text: string) {
   editor.filter(changesOnly);
 }
 function setMode(next: 'edit' | 'diff') {
-  if (!state || pending) return;
+  if (!state || pending || imageUpload) return;
   if (sourcePending && !flushSourceDraft()) return;
   if (editInvalid) { feedback('編集内容を修正してから切り替えてください。', true); return; }
   if (composing()) { feedback('入力を確定してから切り替えてください。'); return; }
@@ -157,28 +165,39 @@ function setMode(next: 'edit' | 'diff') {
   }
   try {
     if (next === 'edit' && !editor) loadEditor(state.markdown);
+    if (next === 'diff') nav.closeFind();
     mode = next; renderCurrent(); controls(); window.scrollTo(0, 0);
   } catch (error) { feedback(String(error), true); }
 }
 function applyDraft(save: boolean, target: 'edit' | 'diff' = mode) {
-  if (!state || !editor || pending || conflict || broken || editInvalid) return;
+  if (!state || !editor || pending || imageUpload || conflict || broken || editInvalid) return;
   if (composing()) { feedback('入力を確定してから保存してください。'); return; }
   if (sourcePending && !flushSourceDraft()) return;
   commit = { id: crypto.randomUUID(), text: currentText(), target };
   pending = true; controls();
   vscode.postMessage({ type: 'edit', id: commit.id, text: commit.text, revision: baseRevision, save });
 }
-function action(type: string, id?: string) {
-  if (!state || pending || broken || conflict || editInvalid) return;
+function action(type: string, id?: string, row?: number, column?: number) {
+  if (!state || pending || imageUpload || broken || conflict || editInvalid) return;
   if (composing()) { feedback('入力を確定してから操作してください。'); return; }
-  if (localDraft && ['reviewHunk', 'reviewed', 'revert'].includes(type)) {
+  if (localDraft && ['reviewHunk', 'reviewed', 'revert', 'reviewCell', 'revertCell'].includes(type)) {
     if (!previewReady || editor?.composing || sourceComposing) return;
-    queuedAction = { type, id }; applyDraft(false); return;
+    queuedAction = { type, id, row, column }; applyDraft(false); return;
   }
-  pending = true; controls(); vscode.postMessage({ type, id, revision: state.revision });
+  pending = true; controls(); vscode.postMessage({ type, id, row, column, revision: state.revision });
 }
 
 function receiveHostMessage(msg: HostMessage) {
+  if (msg.type === 'imageSaved') {
+    const upload = imageUpload; if (!upload || upload.id !== msg.id) return;
+    imageUpload = undefined; controls();
+    if (msg.error || !msg.src) { feedback(msg.error || '画像を保存できませんでした。', true); return; }
+    if (currentText() !== upload.text || conflict || broken) { feedback(`画像を ${msg.src} に保存しました。本文が更新されたため挿入は中止しました。`, true); return; }
+    if (upload.source) {
+      sourceField().setRangeText(`![画像](${msg.src})`, upload.from, upload.to, 'end'); sourceChanged();
+    } else editor?.image(msg.src, '画像');
+    feedback('画像を保存して挿入しました。文書は保存で反映します。'); return;
+  }
   if (composing() && (msg.type === 'update' || msg.type === 'error')) { deferredHostMessage = msg; return; }
   if (msg.type === 'draftPreview') {
     if (!state || msg.text !== currentText()) return;
@@ -200,12 +219,16 @@ function receiveHostMessage(msg: HostMessage) {
   state = next; broken = false;
   try {
     if (first) {
+      const local = vscode.getState();
+      const saved = local?.uri === next.uri ? local.view ?? next.view : next.view;
+      if (saved) { mode = saved.mode; changesOnly = saved.changesOnly; sourceOpen = saved.sourceOpen; active = saved.active; }
       const draft = next.draft;
       baseText = draft?.baseText ?? next.markdown; baseRevision = next.revision;
       if (draft && draft.text !== next.markdown && draft.text !== draft.baseText) {
         loadEditor(draft.text); localDraft = true; conflict = baseText !== next.markdown; mode = 'edit';
         feedback('前回の編集中の内容を復元しました。');
-      } else { baseText = next.markdown; if (mode === 'edit') loadEditor(next.markdown); }
+      } else { baseText = next.markdown; loadEditor(next.markdown); }
+      if (saved) editor?.fold(saved.folds);
     } else if (commit && next.editResult?.id === commit.id) {
       pending = false;
       if (next.editResult.accepted) {
@@ -241,8 +264,16 @@ function receiveHostMessage(msg: HostMessage) {
   if (localDraft && !conflict) vscode.postMessage({ type: 'draft', text: currentText(), baseText });
   if (!first || !localDraft) feedback(state.notice);
   controls();
+  if (first) {
+    const local = vscode.getState(), saved = local?.uri === next.uri ? local.view ?? next.view : next.view;
+    restoring = true;
+    requestAnimationFrame(() => {
+      if (saved) { move(saved.active, false); window.scrollTo(0, saved.y); if (mode === 'edit' && !sourceOpen && saved.anchor) editor?.restoreBookmark(saved.anchor); }
+      restoring = false; restored = true; persistView();
+    });
+  }
   if (queuedAction && !commit && !localDraft && !pending) {
-    const nextAction = queuedAction; queuedAction = undefined; action(nextAction.type, nextAction.id); return;
+    const nextAction = queuedAction; queuedAction = undefined; action(nextAction.type, nextAction.id, nextAction.row, nextAction.column); return;
   }
   // Keep keyboard review flowing after the focused buttons disappear.
   if (resumeAction && !pending) {
@@ -292,6 +323,11 @@ button('discard-draft').addEventListener('click', () => {
 });
 $('workspace').addEventListener('click', event => {
   const target = event.target as Element;
+  const cell = target.closest<HTMLButtonElement>('[data-cell-action]');
+  if (cell) {
+    if (!cell.disabled) action(cell.dataset.cellAction!, cell.dataset.cellHunk, Number(cell.dataset.row), Number(cell.dataset.column));
+    return;
+  }
   const control = target.closest<HTMLButtonElement>('[data-revert], [data-review]');
   const block = target.closest<HTMLElement>('[data-hunk]');
   if (!block || pending || broken || conflict || editInvalid || (localDraft && !previewReady)) return;
@@ -355,4 +391,36 @@ $('image-form').addEventListener('submit', event => {
   else feedback('画像のパスを入力してください。ローカル画像をプレビューできます。', true);
 });
 button('image-cancel').addEventListener('click', () => { $('image-form').hidden = true; editor?.view.focus(); });
+const nav = navigation(() => editor, () => !!state && !pending && !imageUpload && !broken && !conflict && !editInvalid && !sourcePending && !composing(), () => {
+  if (!state || pending || imageUpload || composing()) return false;
+  if (sourcePending && !flushSourceDraft()) return false;
+  sourceOpen = false; if (mode !== 'edit') setMode('edit'); controls(); return mode === 'edit';
+}, feedback);
+function persistView() {
+  if (!state || !editor || !restored || restoring) return;
+  const y = Math.max(0, window.scrollY), foldKey = JSON.stringify([mode, sourceOpen, editor.folds]);
+  if (y !== bookmarkY || foldKey !== bookmarkFolds) { bookmarkY = y; bookmarkFolds = foldKey; savedAnchor = mode === 'edit' && !sourceOpen ? editor.bookmark() : undefined; }
+  const view: ReviewView = { mode, folds: editor.folds, changesOnly, sourceOpen, y, active, anchor: mode === 'edit' && !sourceOpen ? savedAnchor : undefined };
+  vscode.setState({ uri: state.uri, mode, changesOnly, numbering: editor.numbering, folds: editor.folds, view });
+  const key = JSON.stringify(view); if (key === persistedView) return;
+  persistedView = key; vscode.postMessage({ type: 'view', view });
+}
+let viewFrame = 0;
+window.addEventListener('scroll', () => { if (!viewFrame) viewFrame = requestAnimationFrame(() => { viewFrame = 0; persistView(); }); }, { passive: true });
+window.addEventListener('pagehide', persistView);
+document.addEventListener('paste', async event => {
+  const target = event.target as HTMLElement;
+  if (!target.closest('.ProseMirror, #source-text')) return;
+  const file = [...event.clipboardData?.items ?? []].find(item => item.kind === 'file' && /^image\/(png|jpeg|gif|webp)$/.test(item.type))?.getAsFile();
+  if (!file) return;
+  event.preventDefault(); event.stopPropagation();
+  if (!state || pending || imageUpload || broken || conflict || composing() || editInvalid || mode !== 'edit' || (target.id === 'source-text' && sourceField().readOnly)) return;
+  if (file.size > 10 * 1024 * 1024) { feedback('画像は10MB以下で貼り付けてください。', true); return; }
+  imageUpload = { id: crypto.randomUUID(), text: currentText(), source: target.id === 'source-text', from: sourceField().selectionStart, to: sourceField().selectionEnd };
+  controls(); feedback('画像を保存しています…');
+  try {
+    const data = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.onerror = () => reject(new Error('画像を読み込めませんでした。')); reader.readAsDataURL(file); });
+    vscode.postMessage({ type: 'pasteImage', id: imageUpload!.id, data });
+  } catch (error) { imageUpload = undefined; controls(); feedback(String(error), true); }
+}, true);
 vscode.postMessage({ type: 'ready' });

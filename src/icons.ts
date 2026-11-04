@@ -1,5 +1,7 @@
 // Small, local SVGs: consistent strokes, no icon fonts or network dependencies.
 const paths = {
+  search: '<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/>',
+  outline: '<path d="M8 5h13M8 12h10M8 19h13"/><circle cx="3" cy="5" r="1"/><circle cx="3" cy="12" r="1"/><circle cx="3" cy="19" r="1"/>',
   highlight: '<path d="m14 3 7 7-8 8-7-7zM6 11l-3 6 4 4 6-3M3 21h8"/>',
   fold: '<path d="M4 12h16M8 3l4 4 4-4M8 21l4-4 4 4"/>',
   unfold: '<path d="M4 12h16M8 7l4-4 4 4M8 17l4 4 4-4"/>',

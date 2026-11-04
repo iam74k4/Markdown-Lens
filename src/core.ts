@@ -3,6 +3,7 @@ import Token from 'markdown-it/lib/token.mjs';
 import { diffArrays } from 'diff';
 import { createHash } from 'node:crypto';
 import { icon } from './icons';
+import { changedCells, CellChange } from './cell-review';
 import { colorMarkdown } from './text-colors';
 
 // Bound synchronous diff work so a generated document cannot hang the extension host.
@@ -33,7 +34,7 @@ function mermaidSource(source: string): string | undefined {
 }
 
 export interface Block { raw: string; start: number; end: number; kind: string }
-export interface Hunk { id: string; start: number; end: number; oldStart: number; oldEnd: number; before: string; after: string; eol?: 'LF' | 'CRLF'; moveParts?: Hunk[] }
+export interface Hunk { id: string; start: number; end: number; oldStart: number; oldEnd: number; before: string; after: string; eol?: 'LF' | 'CRLF'; moveParts?: Hunk[]; cells?: CellChange[] }
 export interface Review { revision: string; html: string; hunks: Hunk[] }
 export const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 
@@ -147,9 +148,9 @@ export function buildReview(before: string, after: string, options: RenderOption
   let currentOffset = 0, oldOffset = 0;
   const add = (old: string, next: string) => {
     const id = hash(JSON.stringify([hunks.length, currentOffset, old, next])).slice(0, 20);
-    const hunk = { id, start: currentOffset, end: currentOffset + next.length, oldStart: oldOffset, oldEnd: oldOffset + old.length, before: old, after: next };
+    const hunk: Hunk = { id, start: currentOffset, end: currentOffset + next.length, oldStart: oldOffset, oldEnd: oldOffset + old.length, before: old, after: next, cells: changedCells(old, next) };
     hunks.push(hunk);
-    chunks.push(`<section class="change" data-hunk="${id}" tabindex="-1" aria-label="変更 ${hunks.length}"><div class="change-content">${changedRender(old, next, oldEnv, newEnv)}</div>${changeActions(id, hunks.length)}</section>`);
+    chunks.push(`<section class="change" data-hunk="${id}" tabindex="-1" aria-label="変更 ${hunks.length}"><div class="change-content">${changedRender(old, next, oldEnv, newEnv)}</div>${changeActions(id, hunks.length)}${cellActions(hunk)}</section>`);
     currentOffset += next.length;
     oldOffset += old.length;
   };
@@ -220,4 +221,9 @@ function applyParts(text: string, parts: Hunk[], confirming: boolean): string {
   for (const e of edits.sort((a, b) => b.start - a.start || b.end - a.end)) text = text.slice(0, e.start) + e.replacement + text.slice(e.end);
   validateSize(text);
   return text;
+}
+
+function cellActions(hunk: Hunk): string {
+  if (!hunk.cells?.length) return '';
+  return `<details class="cell-review-list"><summary>セルごとに確認 · ${hunk.cells.length}件</summary>${hunk.cells.map(cell => `<div class="cell-review-item"><span>${cell.row === 0 ? '見出し' : cell.row + '行目'} · ${cell.column + 1}列目</span><code>${escapeHtml(cell.before.text)} → ${escapeHtml(cell.after.text)}</code><button data-cell-action="revertCell" data-cell-hunk="${hunk.id}" data-row="${cell.row}" data-column="${cell.column}" aria-label="このセルを戻す">${icon('undo')}</button><button data-cell-action="reviewCell" data-cell-hunk="${hunk.id}" data-row="${cell.row}" data-column="${cell.column}" aria-label="このセルを確認済みにする">${icon('check')}</button></div>`).join('')}</details>`;
 }

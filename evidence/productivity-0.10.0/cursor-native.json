@@ -1,0 +1,19 @@
+{
+  "version": "0.10.0",
+  "date": "2026-11-04",
+  "host": "Cursor 1.128.0",
+  "profile": "logged-in normal profile, extension development window",
+  "passed": true,
+  "checks": [
+    "Confirm A=100 cell; B=200 remains unreviewed and only B retains cell controls",
+    "Revert B cell to 20; A remains 100; explicit save matches Markdown",
+    "Find 利用者 matches twice; replace all with ユーザー; one Undo restores both, Redo restores replacements; explicit save matches Markdown",
+    "Outline shows one unreviewed change under 用語; jump unfolds target and ancestors while 金額/画像/続き remain folded",
+    "Close and reopen review tab; 金額/画像/続き remain folded, 用語 remains expanded; saved replacement and unreviewed state retained"
+  ],
+  "limits": [
+    "Clipboard image paste was exercised in VS Code real Webview, not repeated through the native macOS clipboard in Cursor",
+    "Long-document scroll restoration was tested in VS Code; Cursor native check covers folds and target section visibility",
+    "These five checks are not the full 78-check VS Code UI suite"
+  ]
+}

@@ -282,3 +282,29 @@ footer { z-index: 10; }.toolbar { z-index: 12; }
 .section-toggle[aria-expanded="false"] { color: var(--focus); background: var(--vscode-toolbar-hoverBackground, #8881); border-color: var(--line); border-radius: 5px; }
 .section-toggle .ui-icon { width: 16px; height: 16px; flex: none; }
 .section-fold-count { font-size: 11px; font-weight: 500; white-space: nowrap; }
+
+/* Optional tools stay closed until requested, leaving the document as the main surface. */
+.find-panel { position: sticky; top: 64px; z-index: 12; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; margin: 8px 24px; padding: 10px; box-shadow: 0 5px 20px #0002; }
+.find-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+.find-row input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--vscode-input-background, var(--bg)); color: var(--fg); font: inherit; }
+.find-row button { border: 1px solid var(--line); }
+.find-options { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 11px; color: var(--muted); }
+.find-options label { display: inline-flex; align-items: center; gap: 4px; }
+#find-count { min-width: 42px; text-align: center; font-variant-numeric: tabular-nums; }
+.search-hit { background: var(--vscode-editor-findMatchHighlightBackground, #dba83b60); outline: 1px solid var(--vscode-editor-findMatchHighlightBorder, #b38837); }
+.search-current { background: var(--vscode-editor-findMatchBackground, #b07a26); color: var(--vscode-editor-findMatchForeground, #fff); outline: 2px solid var(--focus); }
+.outline-panel { position: fixed; right: 14px; top: 110px; z-index: 15; width: min(320px, calc(100vw - 28px)); max-height: 65vh; overflow: auto; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); box-shadow: 0 8px 28px #0004; }
+.outline-heading { display: flex; justify-content: space-between; align-items: center; padding-left: 10px; }
+.outline-item { width: 100%; display: flex; justify-content: space-between; gap: 12px; text-align: left; white-space: normal; }
+.outline-count { background: var(--ins-bg); color: var(--ins-fg); border-radius: 12px; padding: 0 7px; height: fit-content; font-size: 11px; }
+.cell-unreviewed { box-shadow: inset 3px 0 var(--green); }
+.cell-review-controls { display: inline-flex; gap: 2px; margin-left: 8px; vertical-align: middle; white-space: nowrap; user-select: none; }
+.cell-review-controls button { border: 1px solid var(--line); padding: 2px 4px; background: var(--bg); line-height: 1; }
+.cell-review-controls .ui-icon { width: 14px; height: 14px; }
+.cell-review-list { margin-top: 10px; font-size: 12px; }
+.cell-review-item { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px; border-bottom: 1px solid var(--line); }
+.cell-review-item code { flex: 1; min-width: 100px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror h4, .ProseMirror h5, .ProseMirror h6 { scroll-margin-top: 160px; }
+@media (max-width: 600px) { .find-panel { margin: 8px; top: 0; } .find-row { flex-wrap: wrap; } .find-row input { flex-basis: 55%; } .find-options { gap: 4px 10px; } }
+
+@media (max-width: 600px) { .find-row input { flex-basis: 100%; } .find-row #find-count { margin-right: auto; } }

@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { ReviewView, reviewView } from './review-view';
 import { hash, validateSize } from './core';
 
 export interface Baseline { uri: string; text: string; updatedAt: string; version: 1 }
@@ -87,6 +88,17 @@ export class BaselineStore {
     await mkdir(this.directory, { recursive: true });
     const path = this.path(uri) + '.draft', temp = path + '.' + randomUUID();
     try { await writeFile(temp, JSON.stringify(draft), { mode: 0o600 }); await rename(temp, path); }
+    finally { await unlink(temp).catch(() => {}); }
+  }
+  async loadView(uri: string): Promise<ReviewView | undefined> {
+    try { return reviewView(JSON.parse(await readFile(this.path(uri) + '.view', 'utf8'))); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT' || error instanceof SyntaxError) return; throw error; }
+  }
+  async saveView(uri: string, value: unknown): Promise<void> {
+    const view = reviewView(value); if (!view) return;
+    await mkdir(this.directory, { recursive: true });
+    const path = this.path(uri) + '.view', temp = path + '.' + randomUUID();
+    try { await writeFile(temp, JSON.stringify(view), { mode: 0o600 }); await rename(temp, path); }
     finally { await unlink(temp).catch(() => {}); }
   }
   async clearDraft(uri: string): Promise<void> {

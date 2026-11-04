@@ -1,5 +1,5 @@
 import { EditorState, Command, TextSelection, NodeSelection } from 'prosemirror-state';
-import { DecorationSet, EditorView } from 'prosemirror-view';
+import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
 import { baseKeymap, chainCommands, exitCode, setBlockType, toggleMark, wrapIn, lift } from 'prosemirror-commands';
 import { history, redo, undo } from 'prosemirror-history';
 import { keymap } from 'prosemirror-keymap';
@@ -16,6 +16,8 @@ import { mediaNodeViews } from './rich-media';
 import { gapCursor } from 'prosemirror-gapcursor';
 import { ColorPalette } from './color-toolbar';
 import { parseRichMarkdown, serializeRichMarkdown, richSchema as schema, makeTable, RichDocument } from './rich-markdown';
+import { searchPlugin, searchKey, findText, Match } from './search';
+import { closeHistory } from 'prosemirror-history';
 import type { Node as PMNode } from 'prosemirror-model';
 
 export class RichEditor {
@@ -30,6 +32,7 @@ export class RichEditor {
   private diagramBefore = new Map<string, string>();
   private colors?: ColorPalette;
   private compositionLock = false;
+  private inlineReviewVisible = true;
   private compositionTimer?: ReturnType<typeof setTimeout>;
   private decorationPending = false;
   private textCache?: { doc: PMNode; text: string };
@@ -43,7 +46,7 @@ export class RichEditor {
       wrappingInputRule(/^(\d+)\.\s$/, schema.nodes.ordered_list, m => ({ order: +m[1] })),
       wrappingInputRule(/^>\s$/, schema.nodes.blockquote),
     ] });
-    const plugins = [inlineReviewPlugin, quickTableSelection, autoNumbering, history(), rules, keymap({
+    const plugins = [searchPlugin, inlineReviewPlugin, quickTableSelection, autoNumbering, history(), rules, keymap({
       'Mod-z': undo, 'Mod-Shift-z': redo, 'Mod-y': redo,
       'Mod-b': toggleMark(schema.marks.strong), 'Mod-i': toggleMark(schema.marks.em),
       'Mod-`': toggleMark(schema.marks.code),
@@ -171,7 +174,8 @@ export class RichEditor {
     this.view.updateState(EditorState.create({ doc: restoreNumbering(this.model.doc, rules), plugins: this.view.state.plugins }));
     this.decorate(); this.updateToolbar();
   }
-  review(source: string, hunks: Hunk[], html: string): void {
+  review(source: string, hunks: Hunk[], html: string, inline = true): void {
+    this.inlineReviewVisible = inline;
     this.plan = inlineChanges(source, this.view.state.doc, hunks);
     const rendered = new DOMParser().parseFromString(html, 'text/html');
     this.images = new Map();
@@ -193,9 +197,52 @@ export class RichEditor {
     this.decorationPending = false;
     const doc = this.view.state.doc, sections = this.sections;
     const hidden = (pos: number) => sections.some(s => this.collapsed.has(s.key) && insideSection(s, pos, doc.content.size));
-    const review = reviewDecorations(doc, this.plan, this.filtered, this.expanded, pos => { this.expanded.add(pos); this.decorate(); }, hidden, new Set(sections.map(s => s.from)));
+    const review = reviewDecorations(doc, this.inlineReviewVisible ? this.plan : [], this.filtered, this.expanded, pos => { this.expanded.add(pos); this.decorate(); }, hidden, new Set(sections.map(s => s.from)));
     const decorations = DecorationSet.create(doc, [...review.find(), ...sectionDecorations(doc, sections, this.collapsed, this.plan, key => this.toggleFold(key))]);
     this.view.dispatch(this.view.state.tr.setMeta(inlineReviewKey, decorations).setMeta('addToHistory', false));
+  }
+  get outline() {
+    return headingSections(this.view.state.doc, true).map(section => ({ ...section, count: this.plan.filter(change => change.position >= section.from && change.position < section.end).length }));
+  }
+  get documentIdentity() { return this.view.state.doc; }
+  find(query: string, sensitive: boolean, onlyChanges: boolean) {
+    return findText(this.view.state.doc, query, sensitive, onlyChanges ? this.plan.flatMap(change => change.blocks) : undefined);
+  }
+  highlightSearch(matches: Match[], active: number): void {
+    if (this.composing) return;
+    const decorations = DecorationSet.create(this.view.state.doc, matches.map((m, i) => Decoration.inline(m.from, m.to, { class: i === active ? 'search-hit search-current' : 'search-hit' })));
+    this.view.dispatch(this.view.state.tr.setMeta(searchKey, decorations).setMeta('addToHistory', false));
+  }
+  revealPosition(position: number, selectTo?: number): void {
+    if (this.composing) return;
+    const doc = this.view.state.doc;
+    for (const section of this.sections) if (insideSection(section, position, doc.content.size) || section.from === position) this.collapsed.delete(section.key);
+    doc.forEach((node, pos) => { if (position >= pos && position <= pos + node.nodeSize) this.expanded.add(pos); });
+    this.decorate();
+    if (selectTo !== undefined) this.view.dispatch(this.view.state.tr.setSelection(TextSelection.create(doc, position, selectTo)).setMeta('addToHistory', false).scrollIntoView());
+    else (this.view.nodeDOM(position) as HTMLElement | null)?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    this.onFoldChange();
+  }
+  replaceMatches(matches: Match[], replacement: string): boolean {
+    if (!this.enabled || this.composing || !matches.length || replacement.length > 10000 || replacement.includes('\n') || replacement.includes('\r')) return false;
+    let tr = closeHistory(this.view.state.tr);
+    for (const match of [...matches].sort((a, b) => b.from - a.from)) {
+      if (replacement) tr.replaceWith(match.from, match.to, schema.text(replacement, this.view.state.doc.resolve(match.from).marks()));
+      else tr.delete(match.from, match.to);
+    }
+    const candidate = serializeRichMarkdown(this.model, tr.doc);
+    if (new TextEncoder().encode(candidate).length > 512 * 1024) throw new Error('置換後の文書が512KBを超えます。');
+    this.view.dispatch(tr); this.view.dispatch(closeHistory(this.view.state.tr)); return true;
+  }
+  bookmark(): { key: string; offset: number } | undefined {
+    const headings = this.outline.map(s => ({ key: s.key, element: this.view.nodeDOM(s.from) as HTMLElement | null })).filter(s => s.element && s.element.getClientRects().length);
+    const heading = headings.filter(s => s.element!.getBoundingClientRect().top <= 180).at(-1) ?? headings[0];
+    return heading ? { key: heading.key, offset: heading.element!.getBoundingClientRect().top } : undefined;
+  }
+  restoreBookmark(anchor: { key: string; offset: number }): boolean {
+    const section = this.outline.find(s => s.key === anchor.key), element = section && this.view.nodeDOM(section.from) as HTMLElement | undefined;
+    if (!element || !element.getClientRects().length) return false;
+    window.scrollBy(0, element.getBoundingClientRect().top - anchor.offset); return true;
   }
   closeColors(): void { this.colors?.close(); }
   enable(value: boolean): void { if (this.enabled !== value) { this.enabled = value; this.view.setProps({ editable: () => this.enabled }); this.view.dom.dispatchEvent(new Event('table-tools-update')); } this.colors?.update(); }

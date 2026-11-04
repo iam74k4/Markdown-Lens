@@ -256,6 +256,31 @@ export async function run(): Promise<void> {
   slow.panel.dispose();
 
 
+  const cellUri = vscode.Uri.file(join(root, 'セル確認.md'));
+  const cellBefore = '| 項目 | 値 |\n| --- | --- |\n| A | 10 |\n| B | 20 |\n';
+  const cellAfter = cellBefore.replace('10', '100').replace('20', '200');
+  await writeFile(cellUri.fsPath, cellBefore); let cells = await api.open(cellUri);
+  await writeFile(cellUri.fsPath, cellAfter); await until(() => !!cells.inspect()?.hunks[0]?.cells?.length, 'cell changes available');
+  let cellState = cells.inspect()!;
+  await cells.receive({ type: 'reviewCell', revision: cellState.revision, id: cellState.hunks[0].id, row: 1, column: 1 });
+  assert.equal(cells.inspect()?.confirmedMarkdown, cellBefore.replace('10','100'));
+  assert.equal((await vscode.workspace.openTextDocument(cellUri)).getText(),cellAfter);
+  await cells.receive({ type: 'reviewCell', revision: cellState.revision, id: cellState.hunks[0].id, row: 2, column: 1 });
+  assert.equal(cells.inspect()?.confirmedMarkdown, cellBefore.replace('10','100'), 'stale cell confirmation rejected');
+  evidence.push('cell confirmation updates only selected baseline bytes and rejects a stale revision');
+  await cells.receive({ type: 'undoReview', id: cells.inspect()!.undoId });
+  assert.equal(cells.inspect()?.confirmedMarkdown,cellBefore);
+  cellState=cells.inspect()!;
+  await cells.receive({ type:'revertCell',revision:cellState.revision,id:cellState.hunks[0].id,row:2,column:1 });
+  assert.equal((await vscode.workspace.openTextDocument(cellUri)).getText(),cellBefore.replace('10','100'));
+  assert.equal(await readFile(cellUri.fsPath,'utf8'),cellAfter);
+  evidence.push('cell confirmation Undo and selective revert preserve other edits and unsaved semantics');
+  const view={mode:'edit',folds:['test-heading'],changesOnly:true,sourceOpen:false,y:1234,active:0};
+  await cells.receive({type:'view',view}); cells.panel.dispose(); cells=await api.open(cellUri);
+  assert.deepEqual(cells.inspect()?.view,{...view,anchor:undefined});
+  evidence.push('review position and folding persist across closing and reopening the same document');
+  cells.panel.dispose();
+
   const trackedUri = vscode.Uri.file(join(root, '一覧.md'));
   await writeFile(trackedUri.fsPath, '# 一覧\n\n旧文\n');
   const tracked = await api.open(trackedUri);

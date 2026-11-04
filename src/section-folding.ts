@@ -13,7 +13,7 @@ export function headingKeys() {
     const key = JSON.stringify([base, count]); path.push({ level, key }); return key;
   };
 }
-export function headingSections(doc: PMNode): HeadingSection[] {
+export function headingSections(doc: PMNode, includeEmpty = false): HeadingSection[] {
   const sections: HeadingSection[] = [], stack: HeadingSection[] = [], key = headingKeys();
   doc.forEach((node, pos) => {
     if (node.type.name !== 'heading') return;
@@ -22,7 +22,7 @@ export function headingSections(doc: PMNode): HeadingSection[] {
     const section = { key: key(level, node.textContent), title: node.textContent, level, from: pos, body: pos + node.nodeSize, end: doc.content.size };
     sections.push(section); stack.push(section);
   });
-  return sections.filter(s => s.body < s.end);
+  return includeEmpty ? sections : sections.filter(s => s.body < s.end);
 }
 export function insideSection(section: HeadingSection, position: number, size: number): boolean {
   return position >= section.body && (position < section.end || (section.end === size && position === size));
