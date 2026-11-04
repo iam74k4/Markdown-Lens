@@ -1,12 +1,16 @@
 {
   "version": "0.11.1",
   "extensionId": "iam74k4.markdown-lens-review",
-  "sha256": "804664d205665d278cf6e27762632fcc2153361d94a859d5063f9da18da04f89",
+  "sha256": "2b1b2bd514a7e87146a685587ec669689632128d4af76eaad114851bb01eddd1",
   "runtimeFilesMatch": true,
   "marketplaceUploaded": false,
   "iconPngMatches": true,
   "iconSize": [
     256,
     256
-  ]
+  ],
+  "iconPalette": {
+    "background": "#18181b",
+    "foreground": "#fafafa"
+  }
 }
