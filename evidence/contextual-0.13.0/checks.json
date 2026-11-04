@@ -7,7 +7,7 @@
   "cursor_host_checks": 32,
   "rich_browser_checks": 31,
   "cursor_ui": "blocked by login in isolated profile",
-  "marketplace": "Upload blocked by reCAPTCHA Timeout; public version last observed 0.12.2",
+  "marketplace": "Published 0.13.0; verified in publisher management and public listing Version History on 2026-11-04.",
   "local_user_profile_installation": "not performed",
   "ci": {
     "run_id": 41777631828,
