@@ -4,7 +4,7 @@ import { mkdir, writeFile, copyFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 const folder = resolve('test-results/rich-browser'); await mkdir(folder, { recursive: true });
-await build({ stdin: { contents: `import {RichEditor} from './src/rich-editor'; import {colorToolbar} from './src/color-toolbar'; document.getElementById('formatting').insertAdjacentHTML('beforeend',colorToolbar()); import {detailFolding} from './src/detail-folding'; window.detailFolding=detailFolding; import 'prosemirror-view/style/prosemirror.css'; window.loadEditor=(text)=>{if(window.richEditor) {window.richEditor.load(text);return;} window.richEditor=new RichEditor(document.getElementById('editor'),text,()=>{window.changed=(window.changed??0)+1});};`, resolveDir: resolve('.') }, bundle: true, platform: 'browser', outfile: join(folder, 'rich.js') });
+await build({ stdin: { contents: `import {RichEditor} from './src/rich-editor'; import {colorToolbar} from './src/color-toolbar'; document.getElementById('formatting').insertAdjacentHTML('beforeend',colorToolbar()); import 'prosemirror-view/style/prosemirror.css'; window.loadEditor=(text)=>{if(window.richEditor) {window.richEditor.load(text);return;} window.richEditor=new RichEditor(document.getElementById('editor'),text,()=>{window.changed=(window.changed??0)+1});};`, resolveDir: resolve('.') }, bundle: true, platform: 'browser', outfile: join(folder, 'rich.js') });
 await copyFile('media/review.css', join(folder, 'review.css'));
 await writeFile(join(folder, 'index.html'), '<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="review.css"><link rel="stylesheet" href="rich.css"><body class="vscode-light"><div id="formatting" class="formatting"><select id="block-type"></select><select id="table-action"></select></div><main id="editor" class="document"></main><script src="rich.js"></script>');
 const browser = await chromium.launch(process.env.CI ? { headless: true } : { headless: true, channel: 'chrome' });
@@ -236,23 +236,36 @@ try {
  // Selection navigation must reveal a folded paragraph instead of editing invisibly.
  await page.evaluate(()=>{ const e=window.richEditor; const heading=[...e.view.dom.querySelectorAll('h2')][0]; const pos=e.view.posAtDOM(heading,heading.childNodes.length); e.view.dispatch(e.view.state.tr.setSelection(e.view.state.selection.constructor.near(e.view.state.doc.resolve(pos+2)))); });
  await expect(page.locator('.ProseMirror > p').nth(1)).toBeVisible();
- // Detailed comparison can span multiple wrappers and ignore the old version's headings.
- await page.evaluate(()=>{
-   const host=document.createElement('main'); host.id='detail-test';host.className='document';document.body.append(host);
-   host.innerHTML='<details class="unchanged" open><summary>unchanged</summary><div><h1>設計書</h1><p>intro</p><h2>認証</h2></div></details><section data-hunk="one" class="change"><div class="change-content"><p>new</p></div><div class="change-actions"><button>review</button></div></section><details class="unchanged" open><summary>unchanged</summary><div><h3>設定</h3><p>settings</p><h2>API</h2><p>api</p></div></details><section class="change" data-hunk="two"><div class="before-block"><h2>OLD</h2></div><div class="after-block"><h2>New</h2><p>new heading body</p></div></section>';
-   window.detail=window.detailFolding(host,[],()=>{});
- });
- await page.locator('#detail-test').getByRole('button',{name:'「認証」を折りたたむ',exact:true}).click();
- await expect(page.locator('#detail-test [data-hunk="one"]')).toBeHidden();
- await expect(page.locator('#detail-test h2').filter({hasText:'API'})).toBeVisible();
- await expect(page.locator('#detail-test .section-fold-count')).toContainText(['1件']);
- await page.evaluate(()=>window.detail.reveal(document.querySelector('#detail-test [data-hunk="one"]')));
- await expect(page.locator('#detail-test [data-hunk="one"]')).toBeVisible();
- await expect(page.locator('#detail-test .before-block .section-toggle')).toHaveCount(0);
- await page.evaluate(()=>document.querySelector('#detail-test').remove());
  await page.getByRole('button',{name:'「認証」を折りたたむ',exact:true}).click();
  await page.screenshot({path:join(folder,'heading-folding.png')});
+ // Comparison controls stay outside Markdown; replace an open modal on an external refresh.
+ const compareBefore='| Name | Value |\n| --- | --- |\n| A | 30 |\n';
+ const compareAfter=compareBefore.replace('30','60');
+ await page.evaluate(({before,after})=>{
+   window.loadEditor(after);
+   window.richEditor.review(after,[{id:'table-one',start:0,end:after.length,oldStart:0,oldEnd:before.length,before,after}],
+    '<section data-hunk="table-one"><div class="change-content"><table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>A</td><td class="changed-cell"><del>30</del><ins>60</ins></td></tr></tbody></table></div></section>');
+ },{before:compareBefore,after:compareAfter});
+ await expect(page.locator('.review-table')).toHaveCount(0);
+ await page.locator('.inline-before > summary').click();
+ await expect(page.locator('.review-table')).toBeVisible();
+ await page.locator('.changed-cell .table-cell').click();
+ await expect(page.locator('.table-details')).toContainText('30');
+ await expect(page.locator('.table-details')).toContainText('60');
+ expect(await page.evaluate(()=>window.richEditor.text)).toBe(compareAfter);
+ await page.getByRole('button',{name:'広く表示',exact:true}).click();
+ await expect(page.locator('.table-dialog[open]')).toBeVisible();
+ await page.keyboard.press('Escape');
+ await page.locator('.inline-before > summary').click();
+ await expect(page.locator('.review-table')).toHaveCount(0);
+ await expect(page.locator('.table-dialog')).toHaveCount(0);
+ expect(await page.evaluate(()=>window.richEditor.text)).toBe(compareAfter);
+ await page.locator('.inline-before > summary').click();
+ await page.getByRole('button',{name:'広く表示',exact:true}).click();
+ await page.evaluate(s=>window.loadEditor(s),compareAfter.replace('60','90'));
+ await expect(page.locator('.table-dialog')).toHaveCount(0);
+ expect(await page.evaluate(()=>window.richEditor.text)).toBe(compareAfter.replace('60','90'));
  expect(errors).toEqual([]);
- await writeFile(join(folder,'result.json'),JSON.stringify({passed:true,checks:['Chromium IME preedit preserves review DOM, commits Japanese, cancels cleanly and supports Undo/Redo', '164 KB document retains exact source across cached derived-state reads', 'Text color and marker palettes preserve selection and combine styles', 'Color save/reload, custom hex, independent removal and Undo/Redo', 'Color palette keyboard dismissal, narrow layout and stale selection guards', 'Mermaid editing and live preview','Task editing and Undo','Selected row and column quick moves','Header and data stay together','Column alignment follows column','Insert and immediately type into new row/cell','Disabled editor prevents table actions','One-action Undo','Edge controls target the correct table','1100px and 360px without document overflow','Opt-in numbering after row deletion and reorder preserves IDs','Row deletion and renumbering Undo together','Column deletion removes header and body cells','Nested heading folds cover tables and Mermaid', 'Folding preserves exact Markdown and does not enter Undo history', 'Keyboard entry reveals hidden content', 'Detailed comparison folds across review wrappers and navigation reveals changes', 'All heading levels, paragraph, emphasis, lists and quotes with Undo/Redo', 'Link insertion and removal; unsafe links rejected and navigation inert', 'Image insertion rejects executable schemes and unresolved paths stay inert', 'Rule, table, Mermaid and task insertion with Undo', 'No renderer exceptions']},null,2));
+ await writeFile(join(folder,'result.json'),JSON.stringify({passed:true,checks:['Chromium IME preedit preserves review DOM, commits Japanese, cancels cleanly and supports Undo/Redo', '164 KB document retains exact source across cached derived-state reads', 'Text color and marker palettes preserve selection and combine styles', 'Color save/reload, custom hex, independent removal and Undo/Redo', 'Color palette keyboard dismissal, narrow layout and stale selection guards', 'Mermaid editing and live preview','Task editing and Undo','Selected row and column quick moves','Header and data stay together','Column alignment follows column','Insert and immediately type into new row/cell','Disabled editor prevents table actions','One-action Undo','Edge controls target the correct table','1100px and 360px without document overflow','Opt-in numbering after row deletion and reorder preserves IDs','Row deletion and renumbering Undo together','Column deletion removes header and body cells','Nested heading folds cover tables and Mermaid', 'Folding preserves exact Markdown and does not enter Undo history', 'Keyboard entry reveals hidden content', 'Local table comparisons open lazily and leave exact Markdown unchanged', 'Closing comparisons and replacing a document dispose expanded table dialogs', 'All heading levels, paragraph, emphasis, lists and quotes with Undo/Redo', 'Link insertion and removal; unsafe links rejected and navigation inert', 'Image insertion rejects executable schemes and unresolved paths stay inert', 'Rule, table, Mermaid and task insertion with Undo', 'No renderer exceptions']},null,2));
  console.log('RICH_EDITOR_BROWSER passed');
 } finally { await browser.close(); }

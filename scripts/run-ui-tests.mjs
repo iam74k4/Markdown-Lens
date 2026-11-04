@@ -46,7 +46,7 @@ for (const [name, executable, port] of targets) {
       expect(frame).toBeTruthy();
     }).toPass({ timeout: 15000 });
     if (name === 'cursor') {
-      await page.screenshot({ path: join(base, 'cursor-start.png') });
+      await page.screenshot({ caret: 'initial', path: join(base, 'cursor-start.png') });
     }
     // Optional README assets: capture real Webview pixels without changing document content or CSS.
     const screenshots = process.env.MARKDOWN_REVIEW_SCREENSHOTS ? resolve(process.env.MARKDOWN_REVIEW_SCREENSHOTS) : undefined;
@@ -59,13 +59,14 @@ for (const [name, executable, port] of targets) {
       else await frame.evaluate(() => window.scrollTo(0, 0));
       await page.mouse.move(0, 0);
       if (selector) {
-        await frame.locator(selector).screenshot({ path: join(screenshots, file + '.png'), animations: 'disabled' });
+        // Hiding the caret mutates contenteditable styles and makes ProseMirror rebuild media node views.
+        await frame.locator(selector).screenshot({ caret: 'initial', path: join(screenshots, file + '.png') });
         await frame.evaluate(y => window.scrollTo(0, y), y);
         return;
       }
       const viewport = await (await frame.frameElement()).boundingBox();
       if (!viewport) throw new Error('Missing screenshot bounds');
-      await page.screenshot({ path: join(screenshots, file + '.png'), clip: viewport });
+      await page.screenshot({ caret: 'initial', path: join(screenshots, file + '.png'), clip: viewport });
       await frame.evaluate(y => window.scrollTo(0, y), y);
     };
     const errors = [];
@@ -82,6 +83,17 @@ for (const [name, executable, port] of targets) {
       console.log('MARKDOWN_REVIEW_FOCUSED_UI_RESULT ' + name + ' passed'); continue;
     }
 
+    const openTables = async () => {
+      await expect(frame.locator('.inline-before[data-kind="table"]').first()).toBeVisible();
+      for (const d of await frame.locator('.inline-before[data-kind="table"]').all()) {
+        if (await d.getAttribute('open') === null) await d.locator(':scope > summary').click();
+      }
+      await expect(frame.locator('.review-table').first()).toBeVisible();
+    };
+    const closeComparisons = async () => {
+      for (const d of await frame.locator('.inline-before[open]').all()) await d.locator(':scope > summary').click();
+      await expect(frame.locator('.inline-comparison')).toHaveCount(0);
+    };
     const beforeFolding = await readFile(join(workspace, 'design.md'), 'utf8');
     await frame.getByRole('button', { name: '「1. セッション」を折りたたむ', exact: true }).click();
     await expect(frame.locator('.inline-review').first()).toBeHidden();
@@ -92,20 +104,15 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('.inline-review').first()).toBeVisible();
     await frame.locator('#fold-all').click();
     await expect(frame.locator('.quick-table')).toBeHidden();
-    await frame.locator('#mode-diff').click();
-    await expect(frame.locator('#document [data-hunk]').first()).toBeHidden();
-    await frame.locator('#next').click();
-    await expect(frame.locator('#document [data-hunk].active')).toBeVisible();
-    await frame.locator('#unfold-all').click();
-    await frame.getByRole('button', { name: '「1. セッション」を折りたたむ', exact: true }).click();
-    await expect(frame.locator('#document [data-hunk]').first()).toBeHidden();
-    await frame.locator('#mode-edit').click();
+    await expect(frame.locator('#mode-diff')).toHaveCount(0);
     await expect(frame.locator('.inline-review').first()).toBeHidden();
+    await frame.locator('#next').click();
+    await expect(frame.locator('.inline-review.active')).toBeVisible();
     await frame.locator('#unfold-all').click();
     await expect(frame.locator('.quick-table')).toBeVisible();
     expect(await readFile(join(workspace, 'design.md'), 'utf8')).toBe(beforeFolding);
     await frame.getByRole('button', { name: '「1. セッション」を折りたたむ', exact: true }).click();
-    await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-folding.png`) });
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-lens-${name}-folding.png`) });
     await captureReadme('section-folding');
     await frame.locator('#unfold-all').click();
     // Unified surface: type on highlighted content, review the local draft, and keep exact source access.
@@ -116,6 +123,7 @@ for (const [name, executable, port] of targets) {
     await frame.locator('.inline-before summary').first().click();
     await expect(frame.locator('.inline-before[open]')).toContainText('30分');
     await captureReadme('inline-review');
+    await captureReadme('view-controls', '.toolbar');
     await frame.locator('#changes-only').click();
     await expect(frame.locator('.inline-folded').first()).toBeHidden();
     await frame.locator('.inline-expand').first().click();
@@ -152,10 +160,10 @@ for (const [name, executable, port] of targets) {
     await frame.locator('#save').click();
     await expect(frame.locator('#save-state')).toHaveText('保存済み');
     expect(await readFile(join(workspace, 'design.md'), 'utf8')).toBe(originalUnified);
-    await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-unified.png`) });
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-lens-${name}-unified.png`) });
     await frame.locator('#toggle-source').click();
     await frame.locator('#source-version').selectOption('confirmed');
-    await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-source.png`) });
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-lens-${name}-source.png`) });
     await captureReadme('markdown-source');
     await page.setViewportSize({ width: 360, height: 800 });
     await expect(frame.locator('#source-text')).toBeVisible();
@@ -163,12 +171,11 @@ for (const [name, executable, port] of targets) {
     await frame.locator('#close-source').click();
     await expect(frame.locator('.ProseMirror')).toBeVisible();
     await expect.poll(() => frame.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
-    await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-unified-narrow.png`) });
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-lens-${name}-unified-narrow.png`) });
     await page.setViewportSize({ width: 1280, height: 960 });
 
-    await frame.locator('#mode-diff').click();
-    await expect(frame.locator('#document')).toContainText('認証設計書');
-    await expect(frame.locator('ins').first()).toHaveText('24時間');
+    await expect(frame.locator('.ProseMirror')).toContainText('認証設計書');
+    await expect(frame.locator('.inline-insert').first()).toHaveText('24時間');
     await expect(frame.locator('#reviewed')).toBeEnabled();
     await expect(frame.locator('[data-review]')).toHaveCount(3);
     for (const control of await frame.locator('.change-actions button').all()) await expect(control).toBeVisible();
@@ -179,18 +186,18 @@ for (const [name, executable, port] of targets) {
     await frame.locator('[data-review]').first().focus();
     await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab');
     await expect.poll(() => frame.locator('[data-review]').first().evaluate(el => getComputedStyle(el, '::after').visibility)).toBe('visible');
-    await frame.locator('#mode-diff').focus();
+    await frame.locator('#mode-edit').focus();
     await page.getByText('All installed extensions are temporarily disabled.', { exact: true }).waitFor({ state: 'hidden' });
     await frame.locator('#filename').hover();
-    await frame.locator('body').screenshot({ path: join(output, `markdown-review-${name}.png`) });
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-review-${name}.png`) });
 
     // Both colour schemes and a narrow editor must keep the actions visible.
     await writeFile(join(workspace, 'theme'), 'Default Light Modern');
     await expect(frame.locator('body')).toHaveClass(/vscode-light/);
-    await frame.locator('body').screenshot({ path: join(base, 'light.png') });
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(base, 'light.png') });
     await page.setViewportSize({ width: 600, height: 850 });
     await expect(frame.locator('#reviewed')).toBeVisible();
-    await frame.locator('body').screenshot({ path: join(base, 'narrow.png') });
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(base, 'narrow.png') });
     await expect.poll(() => frame.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
 
     // Individual approval removes only one highlight and preserves the file.
@@ -207,18 +214,19 @@ for (const [name, executable, port] of targets) {
     await frame.locator('[data-review]').first().click();
     await expect(frame.locator('#counter')).toHaveText('未確認 2件');
     await frame.locator('#changes-only').click();
-    await expect(frame.locator('.unchanged[open]')).toHaveCount(0);
-    await frame.locator('.unchanged summary').first().click();
-    await expect(frame.locator('.unchanged[open]')).toHaveCount(1);
+    await expect(frame.locator('.inline-folded').first()).toBeHidden();
+    await frame.locator('.inline-expand').first().click();
+    await expect(frame.locator('.ProseMirror h1')).toBeVisible();
     await frame.locator('#changes-only').click();
     await writeFile(join(workspace, 'design.md'), fileBeforeReview.replace('24時間', '48時間'));
     await expect(frame.locator('#counter')).toHaveText('未確認 3件');
+    await frame.locator('.inline-review').first().locator('.inline-before > summary').click();
     await expect(frame.locator('.change').first().locator('del')).toHaveText('24');
     await writeFile(join(workspace, 'design.md'), fileBeforeReview);
     await expect(frame.locator('#counter')).toHaveText('未確認 2件');
     await page.setViewportSize({ width: 360, height: 800 });
     await expect.poll(() => frame.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
-    await frame.locator('body').screenshot({ path: join(base, 'narrow-360.png') });
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(base, 'narrow-360.png') });
     await page.setViewportSize({ width: 600, height: 850 });
 
     await frame.locator('#next').click();
@@ -255,10 +263,8 @@ for (const [name, executable, port] of targets) {
     await expect.poll(() => frame.evaluate(() => window.getSelection()?.toString())).toBe('認証情報を安全に管理します。');
     await frame.locator('[data-format="bold"]').click();
     await expect(firstParagraph.locator('strong')).toHaveText('認証情報を安全に管理します。');
-    await frame.locator('#mode-diff').click();
-    await expect(frame.locator('#document')).toBeVisible();
-    await expect(frame.locator('#document')).toContainText('認証情報を安全に管理します。');
-    await expect(frame.locator('#save-state')).toContainText('未保存');
+    await expect(frame.locator('.ProseMirror')).toContainText('認証情報を安全に管理します。');
+    await expect(frame.locator('#save-state')).toContainText('編集中');
     await frame.locator('#save').click();
     await expect(frame.locator('#save-state')).toHaveText('保存済み');
     expect(await readFile(join(workspace, 'design.md'), 'utf8')).toContain('**認証情報を安全に管理します。**');
@@ -276,7 +282,10 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('#conflict')).toBeVisible();
     await expect(firstParagraph).toHaveText('自分の編集中の下書きです。');
     await expect(frame.locator('#save')).toBeDisabled();
-    await frame.locator('#mode-diff').click();
+    await frame.locator('#toggle-source').click();
+    await frame.locator('#source-version').selectOption('current');
+    await expect(frame.locator('#source-text')).toHaveValue(/自分の編集中/);
+    await frame.locator('#mode-edit').click();
     await expect(frame.locator('.ProseMirror')).toBeVisible();
     expect(await readFile(join(workspace, 'design.md'), 'utf8')).toContain('72時間');
     await frame.locator('#discard-draft').click();
@@ -285,10 +294,9 @@ for (const [name, executable, port] of targets) {
     await writeFile(join(workspace, 'theme'), 'Default Dark Modern');
     await expect(frame.locator('body')).toHaveClass(/vscode-dark/);
     await page.setViewportSize({ width: 1280, height: 960 });
-    await frame.locator('body').screenshot({ path: join(output, `markdown-review-${name}-edit.png`) });
-    await frame.locator('#mode-diff').click();
-    await expect(frame.locator('#document')).toBeVisible();
-    await frame.locator('body').screenshot({ path: join(output, `markdown-review-${name}-diff.png`) });
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-review-${name}-edit.png`) });
+    await expect(frame.locator('.ProseMirror')).toBeVisible();
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-review-${name}-diff.png`) });
     await frame.locator('#reviewed').click();
     await expect(frame.locator('#counter')).toHaveText('✓ 確認完了');
     await writeFile(join(workspace, 'visual-fixture'), 'start');
@@ -322,36 +330,37 @@ for (const [name, executable, port] of targets) {
     // Return to the fixture before exercising existing detail-review flows.
     await frame.locator('#source-text').fill(visualOriginal);
     await frame.locator('#close-source').click();
-    await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-unified-visual.png`) });
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-lens-${name}-unified-visual.png`) });
 
-    await frame.locator('#mode-diff').click();
-    await expect(frame.locator('#document .diagram-canvas svg')).toHaveCount(1, { timeout: 20000 });
-    await expect(frame.locator('#document .diagram-added.node')).toHaveCount(1);
-    await expect(frame.locator('#document path.diagram-added')).toHaveCount(2);
-    await expect(frame.locator('#document path.diagram-removed')).toHaveCount(1);
+    await openTables();
+    await expect(frame.locator('#editor .rich-diagram-preview .diagram-canvas svg')).toHaveCount(1, { timeout: 20000 });
+    await expect(frame.locator('#editor .rich-diagram-preview .diagram-added.node')).toHaveCount(1);
+    await expect(frame.locator('#editor .rich-diagram-preview path.diagram-added')).toHaveCount(2);
+    await expect(frame.locator('#editor .rich-diagram-preview path.diagram-removed')).toHaveCount(1);
     await expect(frame.locator('.changed-cell')).toHaveCount(1);
-    await expect(frame.locator('.changed-cell ins')).toHaveText('60');
-    await frame.locator('#document .markdown-image').scrollIntoViewIfNeeded();
-    await expect.poll(() => frame.locator('#document .markdown-image').evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+    await expect(frame.locator('.changed-cell')).toContainText('60');
+    await frame.locator('#editor .rich-image .markdown-image').scrollIntoViewIfNeeded();
+    await expect.poll(() => frame.locator('#editor .rich-image .markdown-image').evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
     await page.setViewportSize({ width: 1280, height: 1180 });
     await frame.evaluate(() => window.scrollTo(0, 0));
     await frame.locator('#filename').hover();
-    await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-visual.png`) });
-    await frame.locator('#document [data-diagram-mode="before"]').click();
-    await expect(frame.locator('#document .diagram-canvas .node')).toHaveCount(2);
-    await frame.locator('#document [data-diagram-mode="after"]').click();
-    await expect(frame.locator('#document .diagram-canvas .node')).toHaveCount(3);
-    await frame.locator('#document [data-diagram-mode="diff"]').click();
-    await expect(frame.locator('#document .diagram-added.node')).toHaveCount(1);
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-lens-${name}-visual.png`) });
+    await frame.locator('#editor .rich-diagram-preview [data-diagram-mode="before"]').click();
+    await expect(frame.locator('#editor .rich-diagram-preview .diagram-canvas .node')).toHaveCount(2);
+    await frame.locator('#editor .rich-diagram-preview [data-diagram-mode="after"]').click();
+    await expect(frame.locator('#editor .rich-diagram-preview .diagram-canvas .node')).toHaveCount(3);
+    await frame.locator('#editor .rich-diagram-preview [data-diagram-mode="diff"]').click();
+    await expect(frame.locator('#editor .rich-diagram-preview .diagram-added.node')).toHaveCount(1);
     await writeFile(join(workspace, 'theme'), 'Default Light Modern');
     await expect(frame.locator('body')).toHaveClass(/vscode-light/);
-    await expect(frame.locator('#document .diagram-added.node')).toHaveCount(1);
-    await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-visual-light.png`) });
-    await captureReadme('mermaid-diff', '#document .diagram-review');
+    await expect(frame.locator('#editor .rich-diagram-preview .diagram-added.node')).toHaveCount(1);
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-lens-${name}-visual-light.png`) });
+    await captureReadme('mermaid-diff', '#editor .rich-diagram-preview .diagram-review');
     await writeFile(join(workspace, 'theme'), 'Default Dark Modern');
     await expect(frame.locator('body')).toHaveClass(/vscode-dark/);
-    await expect(frame.locator('#document .diagram-added.node')).toHaveCount(1);
+    await expect(frame.locator('#editor .rich-diagram-preview .diagram-added.node')).toHaveCount(1);
     const tableFileBefore = await readFile(join(workspace, 'visual.md'), 'utf8');
+    await openTables();
     await frame.getByRole('button', { name: '広く表示', exact: true }).click();
     await expect(frame.locator('.table-dialog')).toBeVisible();
     await frame.getByRole('button', { name: '変更行', exact: true }).click();
@@ -363,10 +372,13 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('#feedback')).toContainText('スナップショットを保存');
     const captured = await readFile(join(workspace, 'visual.md'), 'utf8');
     await writeFile(join(workspace, 'visual.md'), captured.replace('60秒', '90秒'));
+    await expect(frame.locator('.quick-table')).toContainText('90秒');
+    await openTables();
     await expect(frame.locator('.changed-cell')).toContainText('90');
     await frame.locator('#snapshots').click();
     await page.locator('.quick-input-list .monaco-list-row').filter({ hasText: 'この時点と比較' }).click();
     await expect(frame.locator('#baseline')).toContainText('スナップショット');
+    await openTables();
     await frame.locator('.changed-cell .table-cell').click();
     await expect(frame.locator('.table-details')).toContainText('60');
     await expect(frame.locator('.changed-cell')).toContainText('90');
@@ -374,18 +386,19 @@ for (const [name, executable, port] of targets) {
     await frame.locator('#snapshots').click();
     await page.locator('.quick-input-list .monaco-list-row').filter({ hasText: '通常のレビューに戻る' }).click();
     await expect(frame.locator('#baseline')).toHaveText('確認済みの内容 → 現在');
+    await openTables();
     await frame.locator('.changed-cell .table-cell').click();
     await expect(frame.locator('.table-details')).toContainText('30');
     await frame.getByRole('button', { name: '閉じる', exact: true }).click();
     await frame.locator('#changes-only').click();
     await page.setViewportSize({ width: 360, height: 800 });
     await expect.poll(() => frame.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
-    await expect(frame.locator('#document .diagram-modes')).toBeVisible();
-    await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-visual-narrow.png`) });
+    await expect(frame.locator('#editor .rich-diagram-preview .diagram-modes')).toBeVisible();
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-lens-${name}-visual-narrow.png`) });
     await page.setViewportSize({ width: 1280, height: 960 });
     await frame.locator('#changes-only').click();
-    await frame.locator('.change').filter({ has: frame.locator('.diagram-review') }).locator('[data-revert]').click();
-    await expect(frame.locator('#document .diagram-canvas .node')).toHaveCount(2);
+    await frame.locator('.inline-review').filter({ has: frame.locator('[data-kind="diagram"]') }).locator('[data-revert]').click();
+    await expect(frame.locator('#editor .rich-diagram-preview .diagram-canvas .node')).toHaveCount(2);
     await expect(frame.locator('#save-state')).toContainText('未保存');
     expect(await readFile(join(workspace, 'visual.md'), 'utf8')).toContain('キャッシュ');
     await writeFile(join(workspace, 'table-fixture'), 'start');
@@ -396,7 +409,7 @@ for (const [name, executable, port] of targets) {
       }
       await expect(frame.locator('#filename')).toHaveText('認証設定.md');
     }).toPass({ timeout: 15000 });
-    await frame.locator('#mode-diff').click();
+    await openTables();
     await expect(frame.locator('.table-count')).toHaveText('18行 · 変更 2行');
     const tablePath = join(workspace, '認証設定.md');
     const originalTable = await readFile(tablePath, 'utf8');
@@ -404,23 +417,27 @@ for (const [name, executable, port] of targets) {
     await frame.locator('.table-dialog tbody tr').first().locator('td').nth(2).locator('button').click();
     await expect(frame.locator('.table-details')).toContainText('30分');
     await expect(frame.locator('.table-details')).toContainText('24時間');
-    await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-tables.png`) });
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-lens-${name}-tables.png`) });
     await captureReadme('table-review', '.table-dialog[open]');
     await page.keyboard.press('Escape');
     await expect(frame.locator('.table-dialog')).toBeHidden();
     await frame.getByRole('button', { name: '広く表示', exact: true }).click();
     await writeFile(tablePath, originalTable.replace('24時間', '48時間'));
     await expect(frame.locator('.table-dialog[open]')).toHaveCount(0);
+    await openTables();
     await expect(frame.locator('.changed-cell').first()).toContainText('48時間');
+    await closeComparisons();
     await frame.locator('#mode-edit').click();
     await frame.locator('.ProseMirror tr').nth(1).locator('td p').nth(2).fill('72時間');
-    await frame.locator('#mode-diff').click();
+    await expect(frame.locator('.inline-review [data-review]')).toBeEnabled();
+    await openTables();
     await expect(frame.locator('.changed-cell').first()).toContainText('72時間');
-    await expect(frame.locator('#save-state')).toContainText('未保存');
+    await expect(frame.locator('#save-state')).toContainText('編集中');
     expect(await readFile(tablePath, 'utf8')).toContain('48時間');
     await frame.locator('#save').click();
     await expect(frame.locator('#save-state')).toHaveText('保存済み');
     expect(await readFile(tablePath, 'utf8')).toContain('72時間');
+    await closeComparisons();
     const beforeQuick = await readFile(tablePath, 'utf8');
     await frame.locator('#mode-edit').click();
     await frame.locator('.ProseMirror tr').nth(2).locator('td p').nth(2).click();
@@ -440,7 +457,7 @@ for (const [name, executable, port] of targets) {
     expect(afterQuick).toContain('new setting');
     expect(afterQuick.indexOf('ログイン試行上限')).toBeLessThan(afterQuick.indexOf('セッション期限'));
     await frame.locator('.ProseMirror tr').nth(1).locator('td p').nth(3).click();
-    await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-quick-table.png`) });
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-lens-${name}-quick-table.png`) });
     await frame.locator('.inline-review [data-revert]').click();
     await expect(frame.locator('.ProseMirror tr')).toHaveCount(19);
     await expect(frame.locator('.ProseMirror th').nth(2)).toHaveText('設定値');
@@ -470,7 +487,7 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('#save-state')).toHaveText('保存済み');
     expect(await readFile(tablePath, 'utf8')).toContain('| 2 | 999 | Gamma |');
     await frame.locator('.ProseMirror tr').nth(2).locator('td p').first().click();
-    await frame.locator('body').screenshot({ path: join(output, `markdown-lens-${name}-auto-number.png`) });
+    await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-lens-${name}-auto-number.png`) });
     await captureReadme('table-numbering', '.ProseMirror .quick-table');
     await frame.locator('.ProseMirror tr').nth(1).locator('td p').nth(2).click();
     await frame.getByRole('button', { name: '選択した列を削除', exact: true }).click();
@@ -518,8 +535,9 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('#save-state')).toHaveText('保存済み');
     const savedColors=await readFile(tablePath,'utf8');
     expect(savedColors).toContain('<mark style="background-color:#fff2a8"><span style="color:#3984d5">24時間</span></mark>');
-    await frame.locator('#mode-diff').click();
-    await expect(frame.locator('#document .after-block mark')).toHaveText('24時間');
+    await frame.locator('.inline-before > summary').click();
+    await expect(frame.locator('.inline-comparison .after-block mark')).toHaveText('24時間');
+    await closeComparisons();
     await frame.locator('#mode-edit').click();
     await frame.locator('#toggle-source').click();
     await expect(frame.locator('#source-text')).toHaveValue(savedColors);
@@ -544,10 +562,13 @@ for (const [name, executable, port] of targets) {
     const editingChecks = await checkEditing({ page, frame, workspace, path: tablePath, output: base });
     const productivityChecks = await checkProductivity({ page, workspace, path: tablePath, output: base });
     expect(errors).toEqual([]);
-    await writeFile(join(base, 'ui-result.json'), JSON.stringify({ host: name, passed: true, checks: [...editingChecks, ...productivityChecks, 'Selected text color and marker palettes in real Webview', 'Color changes stay drafts until saved as HTML in the same Markdown file', 'Color Undo/Redo, custom hex and independent removal', 'Color-only detailed diff, source and revert preserve saved file', 'heading fold hides content and review cards', 'collapsed heading shows change count', 'next change reveals its enclosing section', 'collapse and expand all cover tables', 'fold state shared between unified and detailed views', 'folding never changes source or save state', 'unified editable diff by default', 'inline deletion disclosure', 'inline unchanged folding', 'typing retains selection and never saves implicitly', 'current source editing and read-only confirmed source', 'local draft confirmation and confirmation undo', 'inline revert without saving', 'WYSIWYG local image and Mermaid preview', 'live Mermaid source editing and Undo', 'task checkbox serializes Markdown', 'real webview rendering', 'dark and light themes', '600px and 360px layout without horizontal overflow', 'always visible per-change actions', 'icon buttons retain accessible names and keyboard tooltips', 'individual approval without saving or changing the file', 're-edits become unreviewed', 'keyboard focus after individual approval and completion', 'next and previous change', 'revert button', 'save button', 'review all button', 'WYSIWYG typing and bold', 'edit/diff switching', 'Markdown file save', 'table editing and row insertion', 'concurrent edits preserve drafts', 'explicit draft discard loads latest', 'no renderer errors', 'confirmation undo preserves file', 'unchanged section collapse and expansion', 'flowchart node and edge semantic markers', 'diagram before/diff/after switch', 'local SVG image preview', 'changed table cell marker', 'snapshot capture and comparison without changing confirmed baseline', 'narrow diagram controls', 'diagram revert preserves unsaved semantics', 'expanded table and changed-row filter leave file unchanged', 'cell before/after detail', 'external update closes stale expanded table', 'long table WYSIWYG edit and explicit save', 'wide editing mode', 'quick row and column movement in unified review', 'one-click insertion focuses an editable new cell', 'table quick actions remain drafts until explicit save', 'inline revert restores original table order and headers without saving', 'opt-in numbering compacts after row deletion and preserves IDs', 'row deletion and renumbering Undo together in real webview', 'renumbered Markdown saves to the same file', 'quick column deletion and Undo'] }, null, 2));
+    await writeFile(join(base, 'ui-result.json'), JSON.stringify({ host: name, passed: true, checks: [...editingChecks, ...productivityChecks, 'Selected text color and marker palettes in real Webview', 'Color changes stay drafts until saved as HTML in the same Markdown file', 'Color Undo/Redo, custom hex and independent removal', 'Color-only local comparison, source and revert preserve saved file', 'heading fold hides content and review cards', 'collapsed heading shows change count', 'next change reveals its enclosing section', 'collapse and expand all cover tables', 'fold state retained on unified Preview', 'folding never changes source or save state', 'unified editable diff by default', 'inline deletion disclosure', 'inline unchanged folding', 'typing retains selection and never saves implicitly', 'current source editing and read-only confirmed source', 'local draft confirmation and confirmation undo', 'inline revert without saving', 'WYSIWYG local image and Mermaid preview', 'live Mermaid source editing and Undo', 'task checkbox serializes Markdown', 'real webview rendering', 'dark and light themes', '600px and 360px layout without horizontal overflow', 'always visible per-change actions', 'icon buttons retain accessible names and keyboard tooltips', 'individual approval without saving or changing the file', 're-edits become unreviewed', 'keyboard focus after individual approval and completion', 'next and previous change', 'revert button', 'save button', 'review all button', 'WYSIWYG typing and bold', 'Preview and Markdown source switching', 'Markdown file save', 'table editing and row insertion', 'concurrent edits preserve drafts', 'explicit draft discard loads latest', 'no renderer errors', 'confirmation undo preserves file', 'unchanged section collapse and expansion', 'flowchart node and edge semantic markers', 'diagram before/diff/after switch', 'local SVG image preview', 'changed table cell marker', 'snapshot capture and comparison without changing confirmed baseline', 'narrow diagram controls', 'diagram revert preserves unsaved semantics', 'expanded table and changed-row filter leave file unchanged', 'cell before/after detail', 'external update closes stale expanded table', 'long table WYSIWYG edit and explicit save', 'wide editing mode', 'quick row and column movement in unified review', 'one-click insertion focuses an editable new cell', 'table quick actions remain drafts until explicit save', 'inline revert restores original table order and headers without saving', 'opt-in numbering compacts after row deletion and preserves IDs', 'row deletion and renumbering Undo together in real webview', 'renumbered Markdown saves to the same file', 'quick column deletion and Undo'] }, null, 2));
     console.log('MARKDOWN_REVIEW_UI_RESULT ' + name + ' passed');
   } catch (error) {
-    for (const page of browser?.contexts().flatMap(context => context.pages()) ?? []) await page.screenshot({path: join(base, 'failure.png')}).catch(() => {});
+    for (const page of browser?.contexts().flatMap(context => context.pages()) ?? []) {
+      for (const f of page.frames()) if (await f.locator('.rich-code').count()) await writeFile(join(base,'failure-media.json'),JSON.stringify(await f.evaluate(()=>({source:document.querySelector('#source-text')?.value,code:[...document.querySelectorAll('.rich-code')].map(el=>({class:el.className,language:el.querySelector('input')?.value,source:el.querySelector('code')?.textContent,preview:el.querySelector('.rich-diagram-preview')?.outerHTML.slice(0,2000)}))})),null,2));
+      await page.screenshot({path: join(base, 'failure.png')}).catch(() => {});
+    }
     throw error;
   } finally {
     if (browser) await browser.close();

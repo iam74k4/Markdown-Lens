@@ -70,3 +70,8 @@ test('pasted images save exact bytes without overwriting and reject linked desti
  await assert.rejects(savePastedImage(join(dir,'doc.md'),[child],png),/ワークスペース/);
  } finally {await rm(dir,{recursive:true,force:true});}
 });
+
+test('legacy comparison mode restores unified Preview without losing folds or source state',()=>{
+ const legacy={mode:'diff',folds:['heading'],changesOnly:true,sourceOpen:true,y:350,active:1};
+ assert.deepEqual(reviewView(legacy),{...legacy,mode:'edit',anchor:undefined});
+});

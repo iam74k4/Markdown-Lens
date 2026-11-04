@@ -1,0 +1,14 @@
+{
+  "version": "0.12.0",
+  "typecheck": true,
+  "unitTests": 115,
+  "vscodeUiChecks": 78,
+  "vscodeHostChecks": 28,
+  "cursorHostChecks": 28,
+  "richBrowserChecks": 28,
+  "tableBrowserChecks": 15,
+  "diagramBrowserChecks": 9,
+  "skipped": [],
+  "cursorFullUiRun": false,
+  "marketplaceUploaded": false
+}

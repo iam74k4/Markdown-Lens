@@ -32,9 +32,8 @@ export async function checkProductivity({page, workspace, path, output}) {
   expect(await readFile(path,'utf8')).toBe(after);
   await save();expect(await readFile(path,'utf8')).toBe(base.replace('| 10 |','| 100 |'));
   checks.push('Cell confirmation changes only its baseline; Undo and cell revert preserve other cells and explicit save');
-  await frame.locator('#mode-diff').click();await frame.locator('.cell-review-list > summary').click();
-  await frame.locator('#document [data-cell-action="reviewCell"]').click();await expect(frame.locator('#counter')).toHaveText('✓ 確認完了');
-  await frame.locator('#mode-edit').click();checks.push('Detailed comparison exposes the same cell review actions');
+  await frame.locator('[data-cell-action="reviewCell"]').click();await expect(frame.locator('#counter')).toHaveText('✓ 確認完了');
+  await expect(frame.locator('#mode-diff')).toHaveCount(0); checks.push('Cell review completes in Preview without a separate comparison mode');
   const beforeDraftCell=await readFile(path,'utf8');
   await frame.locator('.ProseMirror td p').nth(3).fill('21');
   await expect(frame.locator('[data-cell-action="reviewCell"][data-row="2"]')).toBeEnabled();

@@ -5,6 +5,7 @@ import { diffArrays } from 'diff';
 import { parseRichMarkdown } from './rich-markdown';
 import type { Hunk } from './core';
 import { icon } from './icons';
+import { comparisonDetails, disposeComparison } from './inline-comparison';
 
 export const inlineReviewKey = new PluginKey<DecorationSet>('inlineReview');
 export const inlineReviewPlugin = new Plugin({
@@ -66,7 +67,7 @@ export function inlineChanges(source: string, doc: PMNode, hunks: Hunk[]): Inlin
   });
 }
 
-export function reviewDecorations(doc: PMNode, plan: InlineChange[], changesOnly: boolean, expanded: Set<number>, expand: (pos: number) => void, hidden: (pos: number) => boolean = () => false, headings = new Set<number>()): DecorationSet {
+export function reviewDecorations(doc: PMNode, plan: InlineChange[], changesOnly: boolean, expanded: Set<number>, expand: (pos: number) => void, hidden: (pos: number) => boolean = () => false, headings = new Set<number>(), comparisons = new Map<string, string>()): DecorationSet {
   const decorations: Decoration[] = [];
   const changed = new Set<number>();
   for (const [index, { hunk, position, blocks, inserted }] of plan.entries()) {
@@ -101,18 +102,14 @@ export function reviewDecorations(doc: PMNode, plan: InlineChange[], changesOnly
       const actions = document.createElement('div'); actions.className = 'change-actions';
       for (const [type, text, svg] of [['revert', '戻す', 'undo'], ['review', '確認済みにする', 'check']] as const) {
         const button = document.createElement('button'); button.type = 'button'; button.dataset[type] = hunk.id;
-        button.className = type === 'review' ? 'confirm-change' : 'revert'; button.title = text;
+        button.className = (type === 'review' ? 'confirm-change' : 'revert') + ' has-tooltip'; button.title = text; button.dataset.tooltip = text;
         button.setAttribute('aria-label', `変更 ${index + 1} を${text}`); button.innerHTML = icon(svg);
         button.addEventListener('mousedown', event => event.preventDefault()); actions.append(button);
       }
       row.append(actions); card.append(row);
-      if (hunk.before) {
-        const details = document.createElement('details'); details.className = 'inline-before';
-        const summary = document.createElement('summary'); summary.textContent = hunk.after ? '変更前を見る' : '削除内容を見る';
-        const pre = document.createElement('pre'); pre.textContent = hunk.before; details.append(summary, pre); card.append(details);
-      }
+      if (hunk.before || comparisons.get(hunk.id)?.includes('<table')) card.append(comparisonDetails(hunk, comparisons.get(hunk.id)));
       return card;
-    }, { side: -1, key: `${hunk.id}:${index}:${hidden(position)}`, stopEvent: () => true, ignoreSelection: true }));
+    }, { side: -1, key: `${hunk.id}:${index}:${hidden(position)}`, stopEvent: () => true, ignoreSelection: true, destroy: disposeComparison }));
   }
   if (changesOnly) doc.forEach((node, pos) => {
     if (changed.has(pos) || expanded.has(pos) || hidden(pos) || headings.has(pos)) return;

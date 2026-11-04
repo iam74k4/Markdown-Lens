@@ -32,7 +32,7 @@ export class RichEditor {
   private diagramBefore = new Map<string, string>();
   private colors?: ColorPalette;
   private compositionLock = false;
-  private inlineReviewVisible = true;
+  private comparisons = new Map<string, string>();
   private compositionTimer?: ReturnType<typeof setTimeout>;
   private decorationPending = false;
   private textCache?: { doc: PMNode; text: string };
@@ -174,10 +174,10 @@ export class RichEditor {
     this.view.updateState(EditorState.create({ doc: restoreNumbering(this.model.doc, rules), plugins: this.view.state.plugins }));
     this.decorate(); this.updateToolbar();
   }
-  review(source: string, hunks: Hunk[], html: string, inline = true): void {
-    this.inlineReviewVisible = inline;
+  review(source: string, hunks: Hunk[], html: string): void {
     this.plan = inlineChanges(source, this.view.state.doc, hunks);
     const rendered = new DOMParser().parseFromString(html, 'text/html');
+    this.comparisons = new Map([...rendered.querySelectorAll<HTMLElement>('[data-hunk]')].map(block => [block.dataset.hunk!, block.querySelector('.change-content')?.innerHTML ?? '']));
     this.images = new Map();
     // Match source paths using rendered safe image order, including duplicate alt labels.
     const sourceImages: { src: string; alt: string }[] = [];
@@ -197,7 +197,7 @@ export class RichEditor {
     this.decorationPending = false;
     const doc = this.view.state.doc, sections = this.sections;
     const hidden = (pos: number) => sections.some(s => this.collapsed.has(s.key) && insideSection(s, pos, doc.content.size));
-    const review = reviewDecorations(doc, this.inlineReviewVisible ? this.plan : [], this.filtered, this.expanded, pos => { this.expanded.add(pos); this.decorate(); }, hidden, new Set(sections.map(s => s.from)));
+    const review = reviewDecorations(doc, this.plan, this.filtered, this.expanded, pos => { this.expanded.add(pos); this.decorate(); }, hidden, new Set(sections.map(s => s.from)), this.comparisons);
     const decorations = DecorationSet.create(doc, [...review.find(), ...sectionDecorations(doc, sections, this.collapsed, this.plan, key => this.toggleFold(key))]);
     this.view.dispatch(this.view.state.tr.setMeta(inlineReviewKey, decorations).setMeta('addToHistory', false));
   }

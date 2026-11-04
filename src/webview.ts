@@ -1,8 +1,6 @@
 import { navigation } from './navigation';
 import type { ReviewView } from './review-view';
-import { detailFolding } from './detail-folding';
-import { renderDiagrams, refreshDiagramThemes } from './diagrams';
-import { enhanceTables } from './table-review';
+import { refreshDiagramThemes } from './diagrams';
 import { RichEditor } from './rich-editor';
 import 'prosemirror-view/style/prosemirror.css';
 import 'prosemirror-tables/style/tables.css';
@@ -18,12 +16,9 @@ let restored = false, restoring = false, persistedView = '';
 let bookmarkY = -1, bookmarkFolds = '', savedAnchor: ReviewView['anchor'];
 let imageUpload: { id: string; text: string; source: boolean; from: number; to: number } | undefined;
 
-let disposeTables = () => {};
-let detailSections: ReturnType<typeof detailFolding> | undefined;
 let changesOnly = vscode.getState()?.changesOnly ?? false;
 let active = -1, pending = false, broken = false, selection = '';
 let resumeAction: 'review' | 'revert' | undefined;
-let mode: 'edit' | 'diff' = 'edit';
 let editor: RichEditor | undefined;
 let baseText = '', baseRevision = '', localDraft = false, conflict = false;
 let editInvalid = false, previewReady = false, sourceOpen = false;
@@ -53,21 +48,11 @@ function syncSource() {
 function renderCurrent() {
   if (!state || composing() || sourcePending) return;
   const preview = localDraft ? (draftPreview?.text === currentText() ? draftPreview : undefined) : state;
-  if (mode === 'edit' && editor && preview && !editInvalid) {
-    editor.review(currentText(), preview.hunks, preview.html);
-  }
-  if (mode === 'diff') {
-    disposeTables(); $('document').innerHTML = state.html || '<p class="blank-document">空のMarkdownファイルです。</p>';
-    $('document').querySelectorAll<HTMLDetailsElement>('.unchanged').forEach(d => { d.open = !changesOnly; });
-    renderDiagrams($('document')); disposeTables = enhanceTables($('document'));
-    detailSections = detailFolding($('document'), editor?.folds ?? [], keys => { editor?.fold(keys); controls(); });
-    $('document').querySelectorAll<HTMLImageElement>('.markdown-image').forEach(img => img.addEventListener('error', () => { img.hidden = true; (img.nextElementSibling as HTMLElement).hidden = false; }));
-    editor?.review(currentText(), state.hunks, state.html, false);
-  } else { detailSections = undefined; disposeTables(); disposeTables = () => {}; $('document').replaceChildren(); }
+  if (editor && preview && !editInvalid) editor.review(currentText(), preview.hunks, preview.html);
 }
 
-let commit: { id: string; text: string; target: 'edit' | 'diff' } | undefined;
-const changes = () => [...$(mode === 'edit' ? 'editor' : 'document').querySelectorAll<HTMLElement>('[data-hunk]')];
+let commit: { id: string; text: string } | undefined;
+const changes = () => [...$('editor').querySelectorAll<HTMLElement>('[data-hunk]')];
 const button = (id: string) => $<HTMLButtonElement>(id);
 
 function feedback(text?: string, error = false) {
@@ -85,7 +70,7 @@ function controls() {
   button('previous').disabled = button('next').disabled = !count || busy || broken;
   button('reviewed').disabled = !count || busy || broken || conflict || editInvalid || (localDraft && !previewReady) || !!state?.comparison;
   button('save').disabled = busy || broken || conflict || editInvalid;
-  button('mode-edit').disabled = button('mode-diff').disabled = busy || !state;
+  button('mode-edit').disabled = button('toggle-source').disabled = busy || !state;
   $('save').hidden = !localDraft && !state?.dirty;
   $('save-state').textContent = conflict ? '● 競合・下書きを保持' : localDraft ? '● 編集中' : state?.dirty ? '● 未保存' : '保存済み';
   $('save-state').classList.toggle('dirty', localDraft || !!state?.dirty);
@@ -94,20 +79,16 @@ function controls() {
   document.querySelectorAll<HTMLInputElement>('input[data-task]').forEach(input => { input.disabled = busy || broken; });
   editor?.enable(!busy && !broken && (!sourcePending || sourceComposing) && !(editInvalid && sourceDraft !== undefined));
   $('conflict').hidden = !conflict;
-  $('document').hidden = mode !== 'diff';
-  $('editor').hidden = $('formatting').hidden = mode !== 'edit';
+  $('editor').hidden = $('formatting').hidden = !editor || (editInvalid && sourceDraft !== undefined);
   $('review-actions').hidden = $('legend').hidden = false;
-  if (mode === 'diff') { $('link-form').hidden = true; editor?.closeColors(); }
   $('empty').hidden = !!count || localDraft;
   $('empty').querySelector('strong')!.textContent = state?.comparison ? 'スナップショットとの差分はありません' : '未確認の変更はありません';
-  button('mode-edit').setAttribute('aria-pressed', String(mode === 'edit'));
-  button('mode-diff').setAttribute('aria-pressed', String(mode === 'diff'));
+  button('mode-edit').setAttribute('aria-pressed', String(!sourceOpen));
   button('undo-review').disabled = busy || broken || localDraft;
   button('snapshot').disabled = busy || broken || localDraft;
   button('snapshots').disabled = busy || broken || localDraft;
   button('changes-only').setAttribute('aria-pressed', String(changesOnly));
-  $('document').classList.toggle('changes-only', changesOnly);
-  button('fold-all').disabled = button('unfold-all').disabled = busy || broken || !(mode === 'edit' ? editor?.sectionCount : detailSections?.count);
+  button('fold-all').disabled = button('unfold-all').disabled = busy || broken || !editor?.sectionCount;
   document.querySelectorAll<HTMLButtonElement>('[data-cell-action]').forEach(b => { b.disabled = busy || broken || conflict || editInvalid || composing() || (localDraft && !previewReady) || (b.dataset.cellAction === 'reviewCell' && !!state?.comparison); });
   syncSource(); persistView(); nav.update();
 }
@@ -118,7 +99,7 @@ function move(index: number, scroll = true) {
   blocks.forEach((b, i) => b.classList.toggle('active', i === active));
   selection = blocks[active].dataset.hunk!;
   if (scroll) {
-    if (mode === 'edit') editor?.revealChange(selection); else detailSections?.reveal(blocks[active]);
+    editor?.revealChange(selection);
     blocks = changes(); blocks.forEach((b, i) => b.classList.toggle('active', i === active));
     blocks[active].scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' }); blocks[active].focus({ preventScroll: true }); }
   controls();
@@ -152,28 +133,23 @@ function loadEditor(text: string) {
       if (Array.isArray(saved.folds)) editor.fold(saved.folds.filter(key => typeof key === 'string'));
     }
   }
-  editor.filter(changesOnly);
+  editInvalid = false; editor.filter(changesOnly);
 }
-function setMode(next: 'edit' | 'diff') {
+function showSource(open: boolean) {
   if (!state || pending || imageUpload) return;
-  if (sourcePending && !flushSourceDraft()) return;
-  if (editInvalid) { feedback('編集内容を修正してから切り替えてください。', true); return; }
-  if (composing()) { feedback('入力を確定してから切り替えてください。'); return; }
-  if (next === 'diff' && localDraft) {
-    if (conflict) { feedback('外部の変更と競合しています。下書きを退避するか、最新の内容を読み込んでください。', true); return; }
-    applyDraft(false, next); return;
+  // Opening source must remain possible during the rich editor's deferred IME flush.
+  // sourcePending then protects newer source input from the late rich callback.
+  if (!open && composing()) { feedback('入力を確定してから切り替えてください。'); return; }
+  if (!open && ((sourcePending && !flushSourceDraft()) || editInvalid)) {
+    feedback('Markdownの編集内容を修正してからPreviewを開いてください。', true); return;
   }
-  try {
-    if (next === 'edit' && !editor) loadEditor(state.markdown);
-    if (next === 'diff') nav.closeFind();
-    mode = next; renderCurrent(); controls(); window.scrollTo(0, 0);
-  } catch (error) { feedback(String(error), true); }
+  sourceOpen = open; if (!open) renderCurrent(); controls();
 }
-function applyDraft(save: boolean, target: 'edit' | 'diff' = mode) {
+function applyDraft(save: boolean) {
   if (!state || !editor || pending || imageUpload || conflict || broken || editInvalid) return;
   if (composing()) { feedback('入力を確定してから保存してください。'); return; }
   if (sourcePending && !flushSourceDraft()) return;
-  commit = { id: crypto.randomUUID(), text: currentText(), target };
+  commit = { id: crypto.randomUUID(), text: currentText() };
   pending = true; controls();
   vscode.postMessage({ type: 'edit', id: commit.id, text: commit.text, revision: baseRevision, save });
 }
@@ -210,29 +186,30 @@ function receiveHostMessage(msg: HostMessage) {
   if (msg.type === 'error') {
     document.querySelectorAll<HTMLDialogElement>('.table-dialog[open]').forEach(dialog => dialog.close());
     broken = true; pending = false; commit = undefined; queuedAction = undefined; resumeAction = undefined;
-    feedback(msg.message, true); $('document').classList.add('stale'); controls(); return;
+    feedback(msg.message, true); controls(); return;
   }
   if (msg.type !== 'update') return;
   const next: State = msg.state;
   const first = !state;
   const contentChanged = next.revision !== state?.revision;
   state = next; broken = false;
+  let loadFailed = false;
   try {
     if (first) {
       const local = vscode.getState();
       const saved = local?.uri === next.uri ? local.view ?? next.view : next.view;
-      if (saved) { mode = saved.mode; changesOnly = saved.changesOnly; sourceOpen = saved.sourceOpen; active = saved.active; }
+      if (saved) { changesOnly = saved.changesOnly; sourceOpen = saved.sourceOpen; active = saved.active; }
       const draft = next.draft;
       baseText = draft?.baseText ?? next.markdown; baseRevision = next.revision;
       if (draft && draft.text !== next.markdown && draft.text !== draft.baseText) {
-        loadEditor(draft.text); localDraft = true; conflict = baseText !== next.markdown; mode = 'edit';
+        loadEditor(draft.text); localDraft = true; conflict = baseText !== next.markdown;
         feedback('前回の編集中の内容を復元しました。');
       } else { baseText = next.markdown; loadEditor(next.markdown); }
       if (saved) editor?.fold(saved.folds);
     } else if (commit && next.editResult?.id === commit.id) {
       pending = false;
       if (next.editResult.accepted) {
-        localDraft = false; conflict = false; sourceDraft = undefined; draftPreview = undefined; mode = commit.target;
+        localDraft = false; conflict = false; sourceDraft = undefined; draftPreview = undefined;
         baseText = next.markdown; baseRevision = next.revision;
         // Keep selection and local Undo history for our own acknowledged edit.
         if (editor?.text !== next.markdown) loadEditor(next.markdown);
@@ -248,12 +225,15 @@ function receiveHostMessage(msg: HostMessage) {
         baseText = next.markdown; baseRevision = next.revision; conflict = false;
       }
     }
-  } catch (error) { feedback(String(error), true); mode = 'diff'; }
+  } catch (error) {
+    loadFailed = true; sourceDraft = next.draft?.text ?? next.markdown; sourceOpen = true; editInvalid = true;
+    $<HTMLSelectElement>('source-version').value = 'current';
+    feedback(`本文を表示できません。Markdownで内容を確認・修正してください。${String(error)}`, true);
+  }
   $('filename').textContent = state.name;
   const time = new Date(state.updatedAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   $('baseline').textContent = state.comparison ? `スナップショット ${new Date(state.comparison).toLocaleString('ja-JP')} → 現在` : '確認済みの内容 → 現在';
   $('baseline').title = `最終確認: ${time}`;
-  $('document').classList.remove('stale');
   if (contentChanged) {
     const y = window.scrollY;
     renderCurrent();
@@ -262,13 +242,13 @@ function receiveHostMessage(msg: HostMessage) {
     window.scrollTo(0, y);
   }
   if (localDraft && !conflict) vscode.postMessage({ type: 'draft', text: currentText(), baseText });
-  if (!first || !localDraft) feedback(state.notice);
+  if (!loadFailed && (!first || !localDraft)) feedback(state.notice);
   controls();
   if (first) {
     const local = vscode.getState(), saved = local?.uri === next.uri ? local.view ?? next.view : next.view;
     restoring = true;
     requestAnimationFrame(() => {
-      if (saved) { move(saved.active, false); window.scrollTo(0, saved.y); if (mode === 'edit' && !sourceOpen && saved.anchor) editor?.restoreBookmark(saved.anchor); }
+      if (saved) { move(saved.active, false); window.scrollTo(0, saved.y); if (!sourceOpen && saved.anchor) editor?.restoreBookmark(saved.anchor); }
       restoring = false; restored = true; persistView();
     });
   }
@@ -301,16 +281,14 @@ button('snapshot').addEventListener('click', () => action('snapshot'));
 button('snapshots').addEventListener('click', () => action('chooseSnapshot'));
 button('changes-only').addEventListener('click', () => {
   changesOnly = !changesOnly; editor?.filter(changesOnly);
-  $('document').querySelectorAll<HTMLDetailsElement>('.unchanged').forEach(d => { d.open = !changesOnly; });
   controls();
 });
 for (const [id, collapse] of [['fold-all', true], ['unfold-all', false]] as const) button(id).addEventListener('click', () => {
   if (editor?.composing) return;
-  if (mode === 'edit') editor?.foldAll(collapse); else detailSections?.foldAll(collapse);
+  editor?.foldAll(collapse);
 });
 button('editor-wide').addEventListener('click', () => { const wide = $('editor').classList.toggle('editor-wide'); button('editor-wide').setAttribute('aria-pressed', String(wide)); });
-button('mode-edit').addEventListener('click', () => setMode('edit'));
-button('mode-diff').addEventListener('click', () => setMode('diff'));
+button('mode-edit').addEventListener('click', () => showSource(false));
 button('previous').addEventListener('click', () => move(active - 1));
 button('next').addEventListener('click', () => move(active + 1));
 button('reviewed').addEventListener('click', () => action('reviewed'));
@@ -348,8 +326,8 @@ window.addEventListener('keydown', event => {
   if (event.altKey && (event.key === 'ArrowDown' || event.key === 'ArrowUp') && !broken && !pending) { event.preventDefault(); move(active + (event.key === 'ArrowDown' ? 1 : -1)); }
 });
 new MutationObserver(() => refreshDiagramThemes($('workspace'))).observe(document.body, { attributes: true, attributeFilter: ['class'] });
-button('toggle-source').addEventListener('click', () => { sourceOpen = !sourceOpen; syncSource(); });
-button('close-source').addEventListener('click', () => { sourceOpen = false; syncSource(); button('toggle-source').focus(); });
+button('toggle-source').addEventListener('click', () => showSource(!sourceOpen));
+button('close-source').addEventListener('click', () => { showSource(false); if (!sourceOpen) button('toggle-source').focus(); });
 $<HTMLSelectElement>('source-version').addEventListener('change', syncSource);
 function flushSourceDraft(): boolean {
   clearTimeout(sourceRenderTimer);
@@ -394,14 +372,14 @@ button('image-cancel').addEventListener('click', () => { $('image-form').hidden 
 const nav = navigation(() => editor, () => !!state && !pending && !imageUpload && !broken && !conflict && !editInvalid && !sourcePending && !composing(), () => {
   if (!state || pending || imageUpload || composing()) return false;
   if (sourcePending && !flushSourceDraft()) return false;
-  sourceOpen = false; if (mode !== 'edit') setMode('edit'); controls(); return mode === 'edit';
+  if (editInvalid) return false; sourceOpen = false; controls(); return true;
 }, feedback);
 function persistView() {
   if (!state || !editor || !restored || restoring) return;
-  const y = Math.max(0, window.scrollY), foldKey = JSON.stringify([mode, sourceOpen, editor.folds]);
-  if (y !== bookmarkY || foldKey !== bookmarkFolds) { bookmarkY = y; bookmarkFolds = foldKey; savedAnchor = mode === 'edit' && !sourceOpen ? editor.bookmark() : undefined; }
-  const view: ReviewView = { mode, folds: editor.folds, changesOnly, sourceOpen, y, active, anchor: mode === 'edit' && !sourceOpen ? savedAnchor : undefined };
-  vscode.setState({ uri: state.uri, mode, changesOnly, numbering: editor.numbering, folds: editor.folds, view });
+  const y = Math.max(0, window.scrollY), foldKey = JSON.stringify([sourceOpen, editor.folds]);
+  if (y !== bookmarkY || foldKey !== bookmarkFolds) { bookmarkY = y; bookmarkFolds = foldKey; savedAnchor = !sourceOpen ? editor.bookmark() : undefined; }
+  const view: ReviewView = { mode: 'edit', folds: editor.folds, changesOnly, sourceOpen, y, active, anchor: !sourceOpen ? savedAnchor : undefined };
+  vscode.setState({ uri: state.uri, changesOnly, numbering: editor.numbering, folds: editor.folds, view });
   const key = JSON.stringify(view); if (key === persistedView) return;
   persistedView = key; vscode.postMessage({ type: 'view', view });
 }
@@ -414,7 +392,7 @@ document.addEventListener('paste', async event => {
   const file = [...event.clipboardData?.items ?? []].find(item => item.kind === 'file' && /^image\/(png|jpeg|gif|webp)$/.test(item.type))?.getAsFile();
   if (!file) return;
   event.preventDefault(); event.stopPropagation();
-  if (!state || pending || imageUpload || broken || conflict || composing() || editInvalid || mode !== 'edit' || (target.id === 'source-text' && sourceField().readOnly)) return;
+  if (!state || pending || imageUpload || broken || conflict || composing() || editInvalid || (target.id === 'source-text' && sourceField().readOnly)) return;
   if (file.size > 10 * 1024 * 1024) { feedback('画像は10MB以下で貼り付けてください。', true); return; }
   imageUpload = { id: crypto.randomUUID(), text: currentText(), source: target.id === 'source-text', from: sourceField().selectionStart, to: sourceField().selectionEnd };
   controls(); feedback('画像を保存しています…');
