@@ -1,0 +1,21 @@
+{
+  "date": "2026-11-04",
+  "publisher": "iam74k4",
+  "version": "0.11.0",
+  "published": false,
+  "attempts": [
+    {
+      "name": "markdown-review",
+      "displayName": "Markdown Lens",
+      "result": "rejected",
+      "reason": "The extension markdown-review already exists in the Marketplace."
+    },
+    {
+      "name": "markdown-lens-review",
+      "displayName": "Markdown Lens",
+      "result": "rejected",
+      "reason": "This extension display name is taken. Please try a different one."
+    }
+  ],
+  "nextStep": "User selection of an alternative display name; repackage and retry authorized public upload."
+}

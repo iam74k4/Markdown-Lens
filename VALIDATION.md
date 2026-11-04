@@ -1,3 +1,14 @@
+# Marketplace登録の状況 — 0.11.0
+
+2026-11-04（日本時間）。発行者 `iam74k4` の登録・Owner権限を管理画面で確認。一般公開の承認を受け、VSIXをアップロードしました。
+
+- 内部名 `markdown-review` は名前重複で拒否されたため、`markdown-lens-review` へ変更。新しい拡張IDは `iam74k4.markdown-lens-review`。
+- 新IDで型チェック・ビルド、VS Code／Cursorの拡張ホスト各28項目に成功。mainのCIも成功。
+- 再アップロードは表示名「Markdown Lens」の重複で拒否。**Marketplaceには未掲載**です。代替表示名の選択後に、再パッケージ・アップロードを続行します。
+- 配布物のハッシュと登録結果は [evidence/marketplace-0.11.0](evidence/marketplace-0.11.0) に記録。以下の公開準備時のID・配布物ハッシュとは異なります。
+
+---
+
 # 検証記録 — 0.11.0 Marketplace公開準備
 
 実施日: 2026-11-04（日本時間）。表示名をMarkdown Lens、発行者をiam74k4、ライセンスをMITへ変更。
