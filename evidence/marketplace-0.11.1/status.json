@@ -1,0 +1,15 @@
+{
+  "date": "2026-11-04",
+  "extensionId": "iam74k4.markdown-lens-review",
+  "version": "0.11.1",
+  "accepted": true,
+  "availability": "Public",
+  "validation": "Verifying",
+  "published": false,
+  "previousPublicVersion": "0.11.0",
+  "sha256": "2b1b2bd514a7e87146a685587ec669689632128d4af76eaad114851bb01eddd1",
+  "iconPalette": {
+    "background": "#18181b",
+    "foreground": "#fafafa"
+  }
+}
