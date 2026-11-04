@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "checks": [
+    "Preview and detailed comparison switch correctly",
+    "Detailed comparison tooltip visible on hover",
+    "Comparison icon visible at 360px width",
+    "No renderer errors"
+  ]
+}

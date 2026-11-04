@@ -40,7 +40,9 @@ button:disabled { opacity: .4; cursor: default; }
 .view-controls { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
 .mode-switch { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; }
 .mode-switch button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 55px; padding: 4px 10px; color: var(--muted); }
-.view-controls > .icon-button .ui-icon { width: 16px; height: 16px; }
+.view-controls > .icon-button { color: var(--muted); }
+.view-controls > .icon-button:hover { color: var(--fg); }
+.view-controls > .icon-button .ui-icon { width: 18px; height: 18px; }
 .view-controls [aria-pressed="true"] { background: var(--vscode-toolbar-hoverBackground, #8882); color: var(--fg); }
 .formatting { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 3px; padding: 9px 16px; border-bottom: 1px solid var(--line); }
 .formatting button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 4px; font-size: 14px; }

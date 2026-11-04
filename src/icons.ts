@@ -27,7 +27,7 @@ const paths = {
   up: '<path d="m6 15 6-6 6 6"/>',
   down: '<path d="m6 9 6 6 6-6"/>',
   edit: '<path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14z"/>',
-  diff: '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 3v18M6 9h3m6 6h3m-1.5-1.5v3"/>',
+  diff: '<path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4"/>',
   link: '<path d="m10 13 4-4m-5 6-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m0 12a4 4 0 0 0 6 0l4-4a4 4 0 0 0-6-6l-1 1" transform="translate(0 1)"/>',
   bullet: '<path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
   number: '<path d="M10 6h11M10 12h11M10 18h11M3 3h1v6M3 9h3M3 14c0-2 4-2 4 0s-4 2-4 6h4"/>',
