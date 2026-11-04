@@ -1,0 +1,42 @@
+{
+  "version": "0.11.0",
+  "extensionId": "iam74k4.markdown-review",
+  "displayName": "Markdown Lens",
+  "license": "MIT",
+  "iconSize": [
+    256,
+    256
+  ],
+  "sha256": "5057ab376985bebb23083ee9432889b7531e9542a056d0e5bbbbe6521ba64d91",
+  "bytes": 1791865,
+  "entries": [
+    "extension.vsixmanifest",
+    "[Content_Types].xml",
+    "extension/changelog.md",
+    "extension/LICENSE.txt",
+    "extension/MAIN_REVIEW.md",
+    "extension/readme.md",
+    "extension/THIRD-PARTY-NOTICES.txt",
+    "extension/VALIDATION.md",
+    "extension/package.json",
+    "extension/dist/extension.js",
+    "extension/docs/PUBLISHING.md",
+    "extension/docs/guide.md",
+    "extension/media/icon.png",
+    "extension/media/icon.svg",
+    "extension/media/review.css",
+    "extension/media/webview.css",
+    "extension/media/webview.js",
+    "extension/docs/images/cell-review.png",
+    "extension/docs/images/inline-review.png",
+    "extension/docs/images/markdown-source.png",
+    "extension/docs/images/mermaid-diff.png",
+    "extension/docs/images/search-outline.png",
+    "extension/docs/images/section-folding.png",
+    "extension/docs/images/table-numbering.png",
+    "extension/docs/images/table-review.png",
+    "extension/docs/images/text-colors.png"
+  ],
+  "passed": true,
+  "published": false
+}

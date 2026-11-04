@@ -8,7 +8,7 @@
 
 **緑のマーカーで変更を見つける → 必要ならその場で編集 → ↶ 戻す / ✓ 確認済み。**
 
-> このREADMEは **0.10.0** の機能を紹介しています。画像は0.9.0・0.10.0のサンプル文書を使って **VS Codeの実際の拡張画面** を撮影したものです。エディター内の表示名・コマンド名は現在 **Markdown Review** です。
+> このREADMEは **0.11.0** の機能を紹介しています。画像は0.9.0・0.10.0・0.11.0のサンプル文書を使って **VS Codeの実際の拡張画面** を撮影したものです。表示名・コマンド名は **Markdown Lens** に統一しました。画像内には旧表示名が含まれます。
 
 ## できること
 
@@ -32,9 +32,9 @@
 
 ### インストール
 
-VS Code / Cursorのコマンドパレットで **Extensions: Install from VSIX...** を実行し、`markdown-review-0.10.0.vsix` を選びます。更新後、古い画面が残る場合はウィンドウを再読み込みしてください。
+VS Code / Cursorのコマンドパレットで **Extensions: Install from VSIX...** を実行し、`markdown-lens-0.11.0.vsix` を選びます。更新後、古い画面が残る場合はウィンドウを再読み込みしてください。
 
-現在はVSIX形式でインストールします。Marketplace / Open VSXには未公開です。0.10.0のVSIXが手元にない場合は、以下の手順でこのリポジトリから作成できます。
+現在はVSIX形式でインストールします。Marketplace / Open VSXには未公開です。0.11.0のVSIXが手元にない場合は、以下の手順でこのリポジトリから作成できます。
 
 <details>
 <summary>VSIXの作り方（Node.js 22.12以降）</summary>
@@ -43,17 +43,19 @@ VS Code / Cursorのコマンドパレットで **Extensions: Install from VSIX..
 
 ```sh
 npm ci
-npm run package -- --out markdown-review-0.10.0.vsix
+npm run package -- --out markdown-lens-0.11.0.vsix
 ```
 
 拡張を使う側にはNode.jsは不要です。
 
 </details>
 
+ローカル版（発行者 `local-markdown-review`）からの移行は [移行案内](docs/guide.md#ローカル版からの移行) を参照してください。公開準備と登録手順は [公開ガイド](docs/PUBLISHING.md) にまとめています。
+
 ### レビューの流れ
 
 1. **AIに修正を頼む前に**作業フォルダーを開き、エクスプローラーの **Markdown Lens · 未確認** が「監視中」になるのを待ちます。
-2. Markdownファイルを開き、**Markdown Review: 変更プレビューを開く** を実行します。
+2. Markdownファイルを開き、**Markdown Lens: 変更プレビューを開く** を実行します。
 3. Claude Code・Codex・Cursor・手動で同じファイルを編集すると、差分が自動で更新されます。
 4. マーカーを確認し、**↶ 戻す** または **✓ 確認済み** を選びます。本文を直接直すこともできます。
 
@@ -151,7 +153,7 @@ Mermaidソースを直接編集すると、図も更新されます。複雑な�
 - 確認・復元は段落、リスト、表などのブロック単位。表の確認・復元は表全体が対象です。
 - 採番・折りたたみの設定はレビュータブ内で保持します。タブを閉じて新しく開く場合は再設定してください。
 - Mermaidの図形ドラッグ編集、結合セル、文字色・マーカー以外の任意HTMLや数式のWYSIWYG編集には対応していません。
-- これは **Markdown Reviewの変更プレビュー** の機能です。Cursor標準のMarkdownプレビューを置き換えるものではありません。
+- これは **Markdown Lensの変更プレビュー** の機能です。Cursor標準のMarkdownプレビューを置き換えるものではありません。
 
 [詳しい操作・対応範囲・保存データ・開発手順](docs/guide.md) · [変更履歴](CHANGELOG.md) · [0.8.0時点の全機能レビュー](MAIN_REVIEW.md) · [最新版の検証記録](VALIDATION.md)
 
@@ -177,3 +179,7 @@ MARKDOWN_REVIEW_SCREENSHOTS=docs/images npm run test:ui
 VS Code / Cursorの拡張ホスト検証は `npm run test:host`。日本語変換はChromiumの入力イベントとCursor上のmacOS実キー入力で検証しています。Cursor実画面では下書き復元・保存・Undo／Redo・折りたたみも追試しました。候補一覧UIや全UI操作など、未検証の範囲は[最新版の検証記録](VALIDATION.md)を参照してください。
 
 </details>
+
+## ライセンス
+
+[MIT License](LICENSE)。同梱ライブラリのライセンスは [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) を参照してください。
