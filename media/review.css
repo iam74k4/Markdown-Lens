@@ -40,6 +40,8 @@ button:disabled { opacity: .4; cursor: default; }
 .mode-switch { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; margin-left: auto; }
 .mode-switch button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 55px; padding: 4px 10px; color: var(--muted); }
 .mode-switch .ui-icon { width: 15px; height: 15px; }
+.source-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 10px; }
+.source-toggle[aria-pressed="true"] { background: var(--vscode-toolbar-hoverBackground, #8882); }
 .mode-switch [aria-selected="true"] { background: var(--vscode-toolbar-hoverBackground, #8882); color: var(--fg); }
 .formatting { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 3px; padding: 9px 16px; border-bottom: 1px solid var(--line); }
 .formatting button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 4px; font-size: 14px; }

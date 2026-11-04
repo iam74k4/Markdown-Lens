@@ -2,7 +2,7 @@
   "name": "markdown-review",
   "displayName": "Markdown Review",
   "description": "差分が見えるMarkdownをそのまま編集。WYSIWYG・ソース・図・表を1画面で確認。",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "publisher": "local-markdown-review",
   "license": "UNLICENSED",
   "engines": {
