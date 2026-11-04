@@ -1,0 +1,23 @@
+{
+  "host": "vscode",
+  "passed": true,
+  "checks": [
+    "Chromium IME composition preserves review DOM and guards save until commit",
+    "Japanese input in a colored table cell restores after tab close and saves exact Markdown",
+    "External edits during composition retain both the Japanese draft and newer file",
+    "Cancelling composition adopts deferred external edits without false conflict",
+    "Source textarea IME preserves preedit and committed text through external updates",
+    "164 KB / 500-section Japanese document accepts sequential input and saves exact source",
+    "Source input immediately after IME commit wins over delayed rich-editor callbacks",
+    "Cell confirmation changes only its baseline; Undo and cell revert preserve other cells and explicit save",
+    "Detailed comparison exposes the same cell review actions",
+    "Cell confirmation on an unsaved rich-text draft applies that cell without implicitly saving",
+    "Literal find crosses inline marks; replace all is one Undo action and stays a draft until saved",
+    "Changes-only search excludes unchanged text",
+    "Outline includes nested headings and unreviewed counts; jumping reveals a folded section",
+    "Clipboard image bytes save locally, render inline, persist as a relative path and support Undo/Redo",
+    "Source-pane image paste inserts at the captured caret and saves a distinct local file",
+    "Closing and reopening restores per-file fold state and reading position without modifying Markdown",
+    "Search and outline controls fit both 1100px and 360px layouts"
+  ]
+}

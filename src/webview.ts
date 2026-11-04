@@ -100,8 +100,8 @@ function controls() {
   if (mode === 'diff') { $('link-form').hidden = true; editor?.closeColors(); }
   $('empty').hidden = !!count || localDraft;
   $('empty').querySelector('strong')!.textContent = state?.comparison ? 'スナップショットとの差分はありません' : '未確認の変更はありません';
-  button('mode-edit').setAttribute('aria-selected', String(mode === 'edit'));
-  button('mode-diff').setAttribute('aria-selected', String(mode === 'diff'));
+  button('mode-edit').setAttribute('aria-pressed', String(mode === 'edit'));
+  button('mode-diff').setAttribute('aria-pressed', String(mode === 'diff'));
   button('undo-review').disabled = busy || broken || localDraft;
   button('snapshot').disabled = busy || broken || localDraft;
   button('snapshots').disabled = busy || broken || localDraft;

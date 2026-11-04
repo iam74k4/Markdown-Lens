@@ -8,7 +8,11 @@
 
 **緑のマーカーで変更を見つける → 必要ならその場で編集 → ↶ 戻す / ✓ 確認済み。**
 
-> このREADMEは **0.11.0** の機能を紹介しています。画像は0.9.0・0.10.0・0.11.0のサンプル文書を使って **VS Codeの実際の拡張画面** を撮影したものです。ストア表示名は **Markdown Lens — WYSIWYG & Review**、コマンド名は **Markdown Lens** です。画像内には旧表示名が含まれます。
+> このREADMEは **0.11.1** の機能を紹介しています。画像は0.9.0・0.10.0・0.11.0・0.11.1のサンプル文書を使って **VS Codeの実際の拡張画面** を撮影したものです。ストア表示名は **Markdown Lens — WYSIWYG & Review**、コマンド名は **Markdown Lens** です。画像内には旧表示名が含まれます。
+
+上部の **Preview** で見たまま編集し、**Markdown** で元のソースを開きます。詳細比較は、その右の小さな差分アイコンから開けます。
+
+![PreviewとMarkdownを並べ、詳細比較を小さなアイコンにした上部ボタン](docs/images/simple-controls.png)
 
 ## できること
 
@@ -34,9 +38,9 @@
 
 **VS Code:** 拡張機能パネルで `@id:iam74k4.markdown-lens-review` を検索してインストールします。発行者は **iam74k4** です。
 
-**Cursor / VSIXでのインストール:** コマンドパレットで **Extensions: Install from VSIX...** を実行し、`markdown-lens-0.11.0.vsix` を選びます。更新後、古い画面が残る場合はウィンドウを再読み込みしてください。
+**Cursor / VSIXでのインストール:** コマンドパレットで **Extensions: Install from VSIX...** を実行し、`markdown-lens-0.11.1.vsix` を選びます。更新後、古い画面が残る場合はウィンドウを再読み込みしてください。
 
-Cursor向けOpen VSXは公開準備中です。VS Codeで検索にまだ反映されていない場合も、VSIXからインストールできます。0.11.0のVSIXが手元にない場合は、以下の手順でこのリポジトリから作成できます。
+Cursor向けOpen VSXは公開準備中です。VS Codeで検索にまだ反映されていない場合も、VSIXからインストールできます。0.11.1のVSIXが手元にない場合は、以下の手順でこのリポジトリから作成できます。
 
 <details>
 <summary>VSIXの作り方（Node.js 22.12以降）</summary>
@@ -45,7 +49,7 @@ Cursor向けOpen VSXは公開準備中です。VS Codeで検索にまだ反映�
 
 ```sh
 npm ci
-npm run package -- --out markdown-lens-0.11.0.vsix
+npm run package -- --out markdown-lens-0.11.1.vsix
 ```
 
 拡張を使う側にはNode.jsは不要です。

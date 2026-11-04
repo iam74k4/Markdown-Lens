@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.1
+
+- 上部を文字だけの「Preview」「Markdown」と、小さな詳細比較アイコンに整理。詳細比較はツールチップと読み上げ名を維持。
+
 ## 0.11.0
 
 - 公開用の表示名を「Markdown Lens — WYSIWYG & Review」、コマンド名をMarkdown Lens、発行者IDをiam74k4に設定。
