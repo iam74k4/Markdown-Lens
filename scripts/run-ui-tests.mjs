@@ -29,6 +29,7 @@ for (const [name, executable, port] of targets) {
     'chat.disableAIFeatures': true, 'workbench.secondarySideBar.defaultVisibility': 'hidden',
   }));
   const running = runTests({ vscodeExecutablePath: executable, extensionDevelopmentPath: root, extensionTestsPath: join(root, 'dist', 'test-ui.js'),
+    extensionTestsEnv: { MARKDOWN_REVIEW_REFRESH_TEST: process.env.MARKDOWN_REVIEW_FOCUS === 'external-refresh' ? '1' : '' },
     launchArgs: [workspace, '--user-data-dir=' + userData, '--extensions-dir=' + join(base, 'extensions'), '--disable-extensions', '--remote-debugging-port=' + port] });
   // Attach a rejection handler immediately while waiting for the renderer.
   running.catch(() => {});
@@ -75,6 +76,25 @@ for (const [name, executable, port] of targets) {
     page.on('requestfailed', r => console.log('Request failed:', r.url().slice(0, 300), r.failure()?.errorText));
     await page.setViewportSize({ width: 1280, height: 960 });
     await expect(frame.locator('#counter')).toHaveText('未確認 3件');
+    if (process.env.MARKDOWN_REVIEW_FOCUS === 'external-refresh') {
+      expect(JSON.parse(await readFile(join(workspace, 'preview-source-visible.json'), 'utf8'))).toBe(false);
+      const path = join(workspace, 'design.md'), initial = await readFile(path, 'utf8');
+      const updated = initial.replace('24時間', '96時間');
+      await writeFile(path, updated);
+      await expect(frame.locator('.ProseMirror')).toContainText('96時間', { timeout: 10000 });
+      await expect(frame.locator('#save-state')).toHaveText('保存済み');
+      await frame.getByRole('button', { name: '変更 1 を戻す', exact: true }).click();
+      await expect(frame.locator('.ProseMirror')).toContainText('30分');
+      expect(await readFile(path, 'utf8')).toBe(updated);
+      await frame.locator('#save').click();
+      await expect(frame.locator('#save-state')).toHaveText('保存済み');
+      expect(await readFile(path, 'utf8')).toBe(updated.replace('96時間', '30分'));
+      await expect(frame.locator('#mode-edit')).toHaveAttribute('aria-pressed', 'true');
+      expect(errors).toEqual([]);
+      await page.screenshot({ caret: 'initial', path: join(base, 'external-refresh.png') });
+      await writeFile(join(base, 'ui-result.json'), JSON.stringify({ host: name, passed: true, checks: ['external edit reaches rendered Preview without ever opening Markdown manually, with watcherExclude', 'revert preserves other AI changes and does not save implicitly', 'explicit save succeeds after stale-buffer synchronization and returns to Preview'] }, null, 2));
+      console.log('MARKDOWN_REVIEW_EXTERNAL_REFRESH_UI_RESULT ' + name + ' passed'); continue;
+    }
     if (process.env.MARKDOWN_REVIEW_FOCUS === 'productivity') {
       const args = {page,frame,workspace,path:join(workspace,'design.md'),output:base};
       const checks = [...await checkEditing(args), ...await checkProductivity(args)];

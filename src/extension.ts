@@ -11,6 +11,7 @@ import { applyCell } from './cell-review';
 import type { ReviewView } from './review-view';
 import { savePastedImage } from './pasted-image';
 import { PendingFiles } from './pending-files';
+import { documentText } from './document-source';
 
 type Action = { type: 'view' | 'pasteImage' | 'reviewCell' | 'revertCell' | 'ready' | 'revert' | 'reviewHunk' | 'reviewed' | 'save' | 'edit' | 'draft' | 'discardDraft' | 'exportDraft' | 'undoReview' | 'snapshot' | 'chooseSnapshot'; revision?: string; id?: string; text?: string; baseText?: string; save?: boolean; composing?: boolean; view?: ReviewView; row?: number; column?: number; data?: string };
 interface EditResult { id: string; accepted: boolean }
@@ -35,6 +36,8 @@ export class ReviewPanel implements vscode.Disposable {
   private state?: State;
   private timer?: ReturnType<typeof setTimeout>;
   private previewTimer?: ReturnType<typeof setTimeout>;
+  private pollTimer?: ReturnType<typeof setInterval>;
+  private polling = false;
   private queue: Promise<unknown> = Promise.resolve();
   private disposed = false;
   private disposables: vscode.Disposable[] = [];
@@ -57,6 +60,16 @@ export class ReviewPanel implements vscode.Disposable {
     const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(parent, '*'));
     const changed = (file: vscode.Uri) => { if (file.toString() === uri.toString()) this.schedule(); };
     this.disposables.push(watcher, watcher.onDidChange(changed), watcher.onDidCreate(changed), watcher.onDidDelete(changed));
+    this.disposables.push(panel.onDidChangeViewState(e => { if (e.webviewPanel.visible) this.schedule(); }),
+      vscode.window.onDidChangeWindowState(e => { if (e.focused && panel.visible) this.schedule(); }));
+    // Some watcher exclusions suppress notifications entirely. Only visible
+    // previews poll, with at most one queued read and no unchanged UI messages.
+    this.pollTimer = setInterval(() => {
+      if (this.disposed || !panel.visible || this.polling) return;
+      this.polling = true;
+      void this.serial(() => this.refresh(undefined, undefined, true)).catch(error => this.sendError(error))
+        .finally(() => { this.polling = false; });
+    }, 1500);
   }
   private serial<T>(work: () => Promise<T>): Promise<T> {
     const pending = this.queue.then(work, work);
@@ -66,8 +79,7 @@ export class ReviewPanel implements vscode.Disposable {
   async initialize(): Promise<void> {
     return this.serial(async () => {
       const doc = await this.document();
-      validateSize(doc.getText());
-      this.baseline = await this.store.ensure(this.uri.toString(), doc.getText());
+      this.baseline = await this.store.ensure(this.uri.toString(), await documentText(this.uri, doc));
       this.savedView = await this.store.loadView(this.uri.toString());
       this.draft = await this.store.loadDraft(this.uri.toString());
       await this.refresh();
@@ -94,10 +106,11 @@ export class ReviewPanel implements vscode.Disposable {
       return this.panel.webview.asWebviewUri(vscode.Uri.file(target)).toString();
     } catch { return; }
   };
-  private async refresh(notice?: string, editResult?: EditResult): Promise<void> {
+  private async refresh(notice?: string, editResult?: EditResult, onlyIfChanged = false): Promise<void> {
     if (this.disposed || !this.baseline) return;
     const doc = await this.document();
-    const text = doc.getText();
+    const text = await documentText(this.uri, doc);
+    if (onlyIfChanged && this.review && text === this.current && doc.isDirty === this.state?.dirty && !this.state.error) return;
     const feedback = notice ?? (text === this.current ? this.state?.notice : undefined);
     if (!this.review || text !== this.current) this.review = buildReview(this.snapshotBase?.text ?? this.baseline.text, text, { imageUri: this.imageUri });
     this.current = text;
@@ -211,10 +224,17 @@ export class ReviewPanel implements vscode.Disposable {
         await this.refresh('ファイルが更新されました。最新の差分でもう一度お試しください。', result);
         return;
       }
-      const doc = await this.document();
-      if (doc.getText() !== this.current) {
+      let doc = await this.document();
+      if (await documentText(this.uri, doc) !== this.current) {
         await this.refresh('ファイルが更新されました。最新の差分でもう一度お試しください。', result);
         return;
+      }
+      if (['edit', 'revert', 'revertCell', 'save'].includes(action.type) && !doc.isDirty && doc.getText() !== this.current) {
+        doc = await this.reloadCleanDocument(doc);
+        if (doc.getText() !== this.current || await documentText(this.uri, doc) !== this.current) {
+          await this.refresh('ファイルが更新されました。下書きを保持しています。最新の差分を確認してください。', result);
+          return;
+        }
       }
       if (action.type === 'snapshot') {
         try {
@@ -238,9 +258,7 @@ export class ReviewPanel implements vscode.Disposable {
         } else {
           const next = applyCell(this.current, hunk.start + cell.after.start, hunk.start + cell.after.end, cell.after.text, cell.before.text);
           buildReview(this.baseline.text, next);
-          const delta = minimalEdit(this.current, next), edit = new vscode.WorkspaceEdit();
-          edit.replace(this.uri, new vscode.Range(doc.positionAt(delta.start), doc.positionAt(delta.end)), delta.text);
-          const applied = await vscode.workspace.applyEdit(edit);
+          const applied = await this.applyText(doc, next);
           await this.refresh(applied ? 'セルを戻しました。保存でファイルに反映します。' : 'セルを戻せませんでした。最新の内容を確認してください。');
         }
         return;
@@ -254,10 +272,7 @@ export class ReviewPanel implements vscode.Disposable {
           // Invalid drafts must remain editable instead of disabling the entire preview.
           await this.refresh(errorText(error), result); return;
         }
-        const change = minimalEdit(this.current, action.text);
-        const edit = new vscode.WorkspaceEdit();
-        edit.replace(this.uri, new vscode.Range(doc.positionAt(change.start), doc.positionAt(change.end)), change.text);
-        const applied = action.text === this.current || await vscode.workspace.applyEdit(edit);
+        const applied = action.text === this.current || await this.applyText(doc, action.text);
         if (applied) {
           this.draft = undefined;
           await this.store.clearDraft(this.uri.toString());
@@ -289,19 +304,47 @@ export class ReviewPanel implements vscode.Disposable {
       } else if (action.type === 'revert') {
         const hunk = this.review.hunks.find(h => h.id === action.id);
         if (!hunk) { await this.refresh(); return; }
-        const edit = new vscode.WorkspaceEdit();
-        const delta = minimalEdit(this.current, revertHunk(this.current, hunk));
-        const replacement = vscode.TextEdit.replace(new vscode.Range(doc.positionAt(delta.start), doc.positionAt(delta.end)), delta.text);
-        edit.set(this.uri, hunk.eol
-          ? [replacement, vscode.TextEdit.setEndOfLine(hunk.eol === 'CRLF' ? vscode.EndOfLine.CRLF : vscode.EndOfLine.LF)]
-          : [replacement]);
-        const applied = await vscode.workspace.applyEdit(edit);
+        const applied = await this.applyText(doc, revertHunk(this.current, hunk), hunk.eol);
         await this.refresh(applied ? '変更を戻しました。保存でファイルに反映します。エディタのUndoで取り消せます。' : 'ファイルが更新されたため戻せませんでした。もう一度お試しください。');
       } else if (action.type === 'save') {
         const saved = await doc.save();
         await this.refresh(saved ? '保存しました。' : '保存できませんでした。エディタでファイルを確認してください。');
       }
     });
+  }
+  private async reloadCleanDocument(doc: vscode.TextDocument): Promise<vscode.TextDocument> {
+    // Opening a clean file editor refreshes both text and the host's save etag.
+    // openTextDocument alone returns a stale cached model. Do this only for an
+    // explicit edit/save, preserve focus, then restore Preview and close only
+    // the temporary clean tab. Never revert a dirty document or force-save it.
+    if (doc.isDirty || this.disposed) return doc;
+    const existing = new Set(vscode.window.tabGroups.all.flatMap(group => group.tabs));
+    const version = doc.version;
+    try {
+      await vscode.window.showTextDocument(doc, { viewColumn: this.panel.viewColumn, preserveFocus: true, preview: false });
+      // File editor opening can resolve before its asynchronous disk reload.
+      const deadline = Date.now() + 2000;
+      while (!doc.isClosed && !doc.isDirty && doc.version === version && doc.getText() !== this.current && Date.now() < deadline)
+        await new Promise(resolve => setTimeout(resolve, 25));
+      return await this.document();
+    } finally {
+      if (!this.disposed) this.panel.reveal(this.panel.viewColumn, true);
+      const temporary = vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab => !existing.has(tab) && !tab.isDirty
+        && tab.input instanceof vscode.TabInputText && tab.input.uri.toString() === this.uri.toString());
+      if (temporary.length) await vscode.window.tabGroups.close(temporary, true);
+    }
+  }
+  private async applyText(doc: vscode.TextDocument, text: string, eol?: 'LF' | 'CRLF'): Promise<boolean> {
+    // Coordinates belong to the actual VS Code buffer, which may still contain
+    // the pre-AI version. The caller has already validated the latest source.
+    const delta = minimalEdit(doc.getText(), text), edit = new vscode.WorkspaceEdit();
+    const edits = [vscode.TextEdit.replace(new vscode.Range(doc.positionAt(delta.start), doc.positionAt(delta.end)), delta.text)];
+    const newline = /\r?\n/.exec(text)?.[0];
+    const ending = eol ? (eol === 'CRLF' ? vscode.EndOfLine.CRLF : vscode.EndOfLine.LF)
+      : newline ? (newline === '\r\n' ? vscode.EndOfLine.CRLF : vscode.EndOfLine.LF) : doc.eol;
+    if (ending !== doc.eol) edits.push(vscode.TextEdit.setEndOfLine(ending));
+    edit.set(this.uri, edits);
+    return vscode.workspace.applyEdit(edit);
   }
   inspect(): State | undefined { return this.state ? { ...this.state } : undefined; }
   settled(): Promise<void> { return this.queue.then(() => {}); }
@@ -310,6 +353,7 @@ export class ReviewPanel implements vscode.Disposable {
     this.disposed = true;
     clearTimeout(this.timer);
     clearTimeout(this.previewTimer);
+    clearInterval(this.pollTimer);
     this.disposables.splice(0).forEach(d => d.dispose());
     this.onClose();
   }

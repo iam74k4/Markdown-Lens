@@ -1,0 +1,9 @@
+{
+  "host": "vscode",
+  "passed": true,
+  "checks": [
+    "external edit reaches rendered Preview without ever opening Markdown manually, with watcherExclude",
+    "revert preserves other AI changes and does not save implicitly",
+    "explicit save succeeds after stale-buffer synchronization and returns to Preview"
+  ]
+}

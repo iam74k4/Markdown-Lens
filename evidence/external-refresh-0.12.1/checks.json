@@ -1,0 +1,13 @@
+{
+  "version": "0.12.1",
+  "unit_tests": 115,
+  "typecheck": "passed",
+  "host_checks_per_editor": 32,
+  "focused_ui_checks": 3,
+  "full_ui_checks": 78,
+  "vsix": "markdown-lens-0.12.1.vsix",
+  "sha256": "56c5a1dc36e49b6467bdde2c942a7a4337d6cd6caab7d4e8149e474d46de2e39",
+  "marketplace_uploaded": false,
+  "other_pc_verified": false,
+  "claude_code_invoked": false
+}

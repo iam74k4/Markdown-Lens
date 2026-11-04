@@ -8,8 +8,9 @@ export async function run() {
   const uri = vscode.Uri.file(join(root, 'design.md'));
   const before = '# 認証設計書\n\nアカウント認証に関する仕様をまとめます。\n\n## 1. セッション\n\nセッションの有効期限は30分とする。\n期限を過ぎた場合は再認証を要求する。\n\n## 2. 用語\n\n本設計書ではユーザーと表記する。\n\n## 3. エラー\n\n| コード | 説明 |\n| --- | --- |\n| 401 | 認証が必要です |\n| 429 | リクエストが多すぎます |\n';
   const after = before.replace('30分', '24時間').replace('ユーザー', '利用者').replace('リクエストが多すぎます', 'リクエスト数の上限超過');
+  if (process.env.MARKDOWN_REVIEW_REFRESH_TEST === '1')
+    await vscode.workspace.getConfiguration('files').update('watcherExclude', { '**/design.md': true }, vscode.ConfigurationTarget.Workspace);
   await writeFile(uri.fsPath, before);
-  await vscode.window.showTextDocument(uri);
   for (const command of ['workbench.action.closeSidebar', 'workbench.action.closeAuxiliaryBar', 'workbench.action.closePanel']) {
     try { await vscode.commands.executeCommand(command); } catch {}
   }
@@ -22,6 +23,7 @@ export async function run() {
     if (Date.now() - start > 15000) throw new Error('UI preview failed to update');
     await new Promise(resolve => setTimeout(resolve, 100));
   }
+  await writeFile(join(root, 'preview-source-visible.json'), JSON.stringify(vscode.window.visibleTextEditors.some(e => e.document.uri.toString() === uri.toString())));
   await writeFile(join(root, 'ready'), 'ready');
   await vscode.commands.executeCommand('notifications.clearAll');
   let lastTheme = '';

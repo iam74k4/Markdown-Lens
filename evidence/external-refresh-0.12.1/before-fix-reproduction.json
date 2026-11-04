@@ -1,0 +1,38 @@
+[
+  {
+    "kind": "preview-only",
+    "reflected": true,
+    "fileEvents": 4,
+    "docEvents": 1,
+    "panel": "# Design\n\nnew preview-only\n",
+    "cached": "# Design\n\nnew preview-only\n",
+    "visible": false
+  },
+  {
+    "kind": "closed-source",
+    "reflected": true,
+    "fileEvents": 1,
+    "docEvents": 1,
+    "panel": "# Design\n\nnew closed-source\n",
+    "cached": "# Design\n\nnew closed-source\n",
+    "visible": false
+  },
+  {
+    "kind": "atomic-replace",
+    "reflected": true,
+    "fileEvents": 3,
+    "docEvents": 1,
+    "panel": "# Design\n\nnew atomic-replace\n",
+    "cached": "# Design\n\nnew atomic-replace\n",
+    "visible": false
+  },
+  {
+    "kind": "excluded-watcher",
+    "reflected": false,
+    "fileEvents": 2,
+    "docEvents": 0,
+    "panel": "# Design\n\nold\n",
+    "cached": "# Design\n\nold\n",
+    "visible": false
+  }
+]

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { BaselineStore } from './store';
 import { buildReview, MAX_BYTES, validateSize } from './core';
+import { documentText } from './document-source';
 
 interface Entry { uri: vscode.Uri; count?: number; error?: string }
 /** One workspace index; it keeps monitoring when all review tabs are closed. */
@@ -40,11 +41,11 @@ export class PendingFiles implements vscode.TreeDataProvider<Entry>, vscode.Disp
             const key = uri.toString();
             const doc = vscode.workspace.textDocuments.find(d => d.uri.toString() === key);
             const stat = await vscode.workspace.fs.stat(uri);
-            const stamp = doc ? `document:${doc.version}:${doc.getText().length}` : `disk:${stat.mtime}:${stat.size}`;
+            const stamp = doc?.isDirty ? `document:${doc.version}:${doc.getText().length}` : `disk:${stat.mtime}:${stat.size}`;
             const cached = this.cache.get(key);
             if (cached?.stamp === stamp) { if (cached.entry) entries.push(cached.entry); continue; }
             if (!doc && stat.size > MAX_BYTES) throw new Error('512KBを超えるため比較できません');
-            const text = doc?.getText() ?? new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+            const text = await documentText(uri, doc);
             validateSize(text);
             const baseline = await this.store.ensure(uri.toString(), text);
             const count = buildReview(baseline.text, text).hunks.length;

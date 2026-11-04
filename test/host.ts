@@ -4,6 +4,7 @@ import { writeFile, readFile, unlink, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { PendingFiles } from '../src/pending-files';
 import type { ReviewPanel } from '../src/extension';
+import { externalRefreshChecks } from './external-refresh';
 
 async function until(predicate: () => boolean, label: string, timeout = 10000) {
   const start = Date.now();
@@ -19,6 +20,7 @@ export async function run(): Promise<void> {
   const ext = vscode.extensions.getExtension('iam74k4.markdown-lens-review');
   assert.ok(ext, 'extension is discovered by host');
   const api = await ext.activate() as { open(uri: vscode.Uri): Promise<ReviewPanel>; pendingFiles: PendingFiles };
+  evidence.push(...await externalRefreshChecks(api, root));
   const uri = vscode.Uri.file(join(root, '設計書.md'));
   const before = '# 認証設計書\n\n## セッション\n\n期限は30分です。\n\n## 用語\n\nユーザーと表記する。\n';
   const after = before.replace('30分', '24時間').replace('ユーザー', '利用者');
@@ -264,7 +266,10 @@ export async function run(): Promise<void> {
   let cellState = cells.inspect()!;
   await cells.receive({ type: 'reviewCell', revision: cellState.revision, id: cellState.hunks[0].id, row: 1, column: 1 });
   assert.equal(cells.inspect()?.confirmedMarkdown, cellBefore.replace('10','100'));
-  assert.equal((await vscode.workspace.openTextDocument(cellUri)).getText(),cellAfter);
+  // Preview can now see disk before VS Code reloads its clean hidden buffer.
+  assert.equal(cells.inspect()?.markdown, cellAfter);
+  assert.equal(await readFile(cellUri.fsPath, 'utf8'), cellAfter);
+  assert.equal((await vscode.workspace.openTextDocument(cellUri)).isDirty, false);
   await cells.receive({ type: 'reviewCell', revision: cellState.revision, id: cellState.hunks[0].id, row: 2, column: 1 });
   assert.equal(cells.inspect()?.confirmedMarkdown, cellBefore.replace('10','100'), 'stale cell confirmation rejected');
   evidence.push('cell confirmation updates only selected baseline bytes and rejects a stale revision');
