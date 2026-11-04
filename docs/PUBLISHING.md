@@ -6,15 +6,15 @@
 | --- | --- |
 | 表示名 | Markdown Lens |
 | 発行者ID | iam74k4 |
-| パッケージ名 | markdown-review |
-| 拡張ID | iam74k4.markdown-review |
+| パッケージ名 | markdown-lens-review |
+| 拡張ID | iam74k4.markdown-lens-review |
 | 初回公開候補 | 0.11.0 |
 | ライセンス | MIT |
 | アイコン | media/icon.png（256 × 256、原稿はicon.svg） |
 | リポジトリ | https://github.com/iam74k4/Markdown-Lens |
 | 問い合わせ | https://github.com/iam74k4/Markdown-Lens/issues |
 
-掲載本文はREADME.md、更新履歴はCHANGELOG.mdを使用します。パッケージ名は既存の `markdown-review` を維持し、表示名をMarkdown Lensに統一しています。MarketplaceとOpen VSXで同じIDを使用します。
+掲載本文はREADME.md、更新履歴はCHANGELOG.mdを使用します。表示名はMarkdown Lens、パッケージ名は `markdown-lens-review` です。旧候補 `markdown-review` はMarketplaceで名前の重複により拒否されたため使用しません。MarketplaceとOpen VSXで同じIDを使用します。
 
 このガイドを用意した時点ではMarketplace／Open VSXへ未公開です。発行者登録、パッケージ生成、ストア掲載、各エディターでの検索・インストール確認は、それぞれ別の作業です。
 
@@ -35,7 +35,7 @@ VSIXにはビルド済みコード、PNGアイコン、README、画面例、MIT�
 2. 発行者名・IDを `iam74k4` として登録。作成ボタンは出版契約への同意を兼ねるため、アカウント所有者が契約を確認してから実行します。
 3. 発行者の管理画面から「New extension」→「Visual Studio Code」を選択。
 4. `markdown-lens-0.11.0.vsix` をアップロードし、名称、発行者、アイコン、README、ライセンスを確認して公開。
-5. 処理完了後に掲載ページを確認し、VS Codeで `@id:iam74k4.markdown-review` を検索してインストール。
+5. 処理完了後に掲載ページを確認し、VS Codeで `@id:iam74k4.markdown-lens-review` を検索してインストール。
 
 手動アップロードの場合、チャットにPATを渡す必要はありません。管理画面上の検証エラーがあれば修正したVSIXを作り直します。
 

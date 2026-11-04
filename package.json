@@ -1,5 +1,5 @@
 {
-  "name": "markdown-review",
+  "name": "markdown-lens-review",
   "displayName": "Markdown Lens",
   "description": "差分が見えるMarkdownをそのまま編集。WYSIWYG・ソース・図・表を1画面で確認。",
   "version": "0.11.0",

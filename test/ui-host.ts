@@ -13,7 +13,7 @@ export async function run() {
   for (const command of ['workbench.action.closeSidebar', 'workbench.action.closeAuxiliaryBar', 'workbench.action.closePanel']) {
     try { await vscode.commands.executeCommand(command); } catch {}
   }
-  const api = await vscode.extensions.getExtension('iam74k4.markdown-review')!.activate() as { open(uri: vscode.Uri): Promise<ReviewPanel> };
+  const api = await vscode.extensions.getExtension('iam74k4.markdown-lens-review')!.activate() as { open(uri: vscode.Uri): Promise<ReviewPanel> };
   const panel = await api.open(uri);
   let currentPanel = panel;
   await writeFile(uri.fsPath, after);

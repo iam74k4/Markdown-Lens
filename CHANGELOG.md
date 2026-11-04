@@ -5,7 +5,7 @@
 - 公開用の表示名・コマンド名をMarkdown Lens、発行者IDをiam74k4に統一。
 - Marketplace用アイコンとバナー、掲載情報、公開手順を整備。
 - プロジェクトをMITライセンスで公開。
-- 拡張IDは `iam74k4.markdown-review`。旧ローカル版からの移行手順を追加。
+- 拡張IDは `iam74k4.markdown-lens-review`。旧ローカル版からの移行手順を追加。
 
 ## 0.10.1
 

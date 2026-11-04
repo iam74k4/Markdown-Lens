@@ -16,7 +16,7 @@ async function until(predicate: () => boolean, label: string, timeout = 10000) {
 export async function run(): Promise<void> {
   const root = vscode.workspace.workspaceFolders![0].uri.fsPath;
   const evidence: string[] = [];
-  const ext = vscode.extensions.getExtension('iam74k4.markdown-review');
+  const ext = vscode.extensions.getExtension('iam74k4.markdown-lens-review');
   assert.ok(ext, 'extension is discovered by host');
   const api = await ext.activate() as { open(uri: vscode.Uri): Promise<ReviewPanel>; pendingFiles: PendingFiles };
   const uri = vscode.Uri.file(join(root, '設計書.md'));

@@ -32,9 +32,11 @@
 
 ### インストール
 
-VS Code / Cursorのコマンドパレットで **Extensions: Install from VSIX...** を実行し、`markdown-lens-0.11.0.vsix` を選びます。更新後、古い画面が残る場合はウィンドウを再読み込みしてください。
+**VS Code:** 拡張機能パネルで `@id:iam74k4.markdown-lens-review` を検索してインストールします。発行者は **iam74k4** です。
 
-現在はVSIX形式でインストールします。Marketplace / Open VSXには未公開です。0.11.0のVSIXが手元にない場合は、以下の手順でこのリポジトリから作成できます。
+**Cursor / VSIXでのインストール:** コマンドパレットで **Extensions: Install from VSIX...** を実行し、`markdown-lens-0.11.0.vsix` を選びます。更新後、古い画面が残る場合はウィンドウを再読み込みしてください。
+
+Cursor向けOpen VSXは公開準備中です。VS Codeで検索にまだ反映されていない場合も、VSIXからインストールできます。0.11.0のVSIXが手元にない場合は、以下の手順でこのリポジトリから作成できます。
 
 <details>
 <summary>VSIXの作り方（Node.js 22.12以降）</summary>
