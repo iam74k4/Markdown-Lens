@@ -1,3 +1,4 @@
+import { clickTool, revealTool } from './ui-tools.mjs';
 import { expect } from '@playwright/test';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -6,7 +7,7 @@ import { join } from 'node:path';
 export async function checkEditing({ page, frame, workspace, path, output }) {
   const checks = [];
   const selectEnd = async selector => {
-    await frame.locator(selector).click();
+    await clickTool(frame, selector);
     await frame.locator(selector).evaluate(element => {
       const range = document.createRange(); range.selectNodeContents(element); range.collapse(false);
       const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);

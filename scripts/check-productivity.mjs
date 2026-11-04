@@ -1,11 +1,18 @@
+import { clickTool, revealTool } from './ui-tools.mjs';
 import { expect } from '@playwright/test';
 import { readFile, writeFile } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+import { join, dirname, basename } from 'node:path';
 export async function checkProductivity({page, workspace, path, output}) {
   let frame;
   const checks = [];
   const findFrame = async () => { await expect(async()=>{
-    for(const candidate of page.frames()) if(await candidate.locator('#toggle-find').count()) frame=candidate;
+    frame = undefined;
+    for (const candidate of page.frames()) {
+      if (!await candidate.locator('#toggle-find').count()) continue;
+      if (await candidate.locator('#filename').textContent() !== basename(path)) continue;
+      if (await (await candidate.frameElement()).isVisible()) frame = candidate;
+    }
+    expect(frame).toBeTruthy();
     await expect(frame.locator('.ProseMirror')).toBeVisible();
   }).toPass({timeout:15000}); };
   await findFrame();
@@ -43,30 +50,30 @@ export async function checkProductivity({page, workspace, path, output}) {
   checks.push('Cell confirmation on an unsaved rich-text draft applies that cell without implicitly saving');
 
 
-  await frame.locator('#toggle-find').click();await frame.locator('#find-query').fill('日本語');
+  await clickTool(frame, '#toggle-find');await frame.locator('#find-query').fill('日本語');
   await expect(frame.locator('#find-count')).toHaveText('1 / 2');
   await expect(frame.locator('.search-hit')).toHaveCount(4); // second occurrence crosses three marks
   await frame.locator('#replace-text').fill('利用者');await frame.locator('#replace-all').click();
   await expect(frame.locator('#find-count')).toHaveText('0 / 0');await frame.locator('#find-close').click();
-  await frame.locator('[data-format="undo"]').click();await expect(frame.locator('.ProseMirror')).toContainText('日本語と日本語。');
-  await frame.locator('[data-format="redo"]').click();await expect(frame.locator('.ProseMirror')).toContainText('利用者と利用者。');
+  await clickTool(frame, '[data-format="undo"]');await expect(frame.locator('.ProseMirror')).toContainText('日本語と日本語。');
+  await clickTool(frame, '[data-format="redo"]');await expect(frame.locator('.ProseMirror')).toContainText('利用者と利用者。');
   expect(await readFile(path,'utf8')).toContain('日**本**語');
   await save();expect(await readFile(path,'utf8')).toContain('利用者と利用者。');
   checks.push('Literal find crosses inline marks; replace all is one Undo action and stays a draft until saved');
-  await frame.locator('#toggle-find').click();await frame.locator('#find-query').fill('利用者');await frame.locator('#find-changes').check();
+  await clickTool(frame, '#toggle-find');await frame.locator('#find-query').fill('利用者');await frame.locator('#find-changes').check();
   await expect(frame.locator('#find-count')).toHaveText('1 / 2');
-  await frame.locator('#toggle-outline').click();await expect(frame.locator('.outline-item').filter({hasText:'用語'})).toContainText('1');
+  await clickTool(frame, '#toggle-outline');await expect(frame.locator('.outline-item').filter({hasText:'用語'})).toContainText('1');
   await page.screenshot({path:join(output,'search-outline.png')});await frame.locator('#outline-close').click();
   await frame.locator('#find-query').fill('完了');await expect(frame.locator('#find-count')).toHaveText('0 / 0');
   await frame.locator('#find-changes').uncheck();await expect(frame.locator('#find-count')).toHaveText('1 / 1');
   await frame.locator('#find-close').click();checks.push('Changes-only search excludes unchanged text');
 
-  await frame.locator('#fold-all').click();await frame.locator('#toggle-outline').click();
+  await clickTool(frame, '#fold-all');await clickTool(frame, '#toggle-outline');
   await expect(frame.locator('.outline-item')).toHaveCount(4);
   await expect(frame.locator('.outline-item').filter({hasText:'用語'})).toContainText('1');
   await frame.locator('.outline-item').filter({hasText:'用語'}).click();
   await expect(frame.locator('.ProseMirror > p').filter({hasText:'利用者'})).toBeVisible();
-  await frame.locator('#outline-close').click();await frame.locator('#unfold-all').click();
+  await frame.locator('#outline-close').click();await clickTool(frame, '#unfold-all');
   checks.push('Outline includes nested headings and unreviewed counts; jumping reveals a folded section');
 
   await frame.locator('.ProseMirror > p').last().click();await page.keyboard.press('End');
@@ -82,8 +89,8 @@ export async function checkProductivity({page, workspace, path, output}) {
   await page.screenshot({path:join(output,'image-paste.png')});
   const withImage=await readFile(path,'utf8'), imagePath=withImage.match(/\.\/\.markdown-lens-images\/[a-f0-9-]+\.png/)?.[0];expect(imagePath).toBeTruthy();
   expect(await readFile(join(dirname(path),imagePath))).toEqual(Buffer.from(png,'base64'));
-  await frame.locator('[data-format="undo"]').click();await expect(frame.locator('.ProseMirror img.markdown-image')).toHaveCount(0);
-  await frame.locator('[data-format="redo"]').click();await expect(frame.locator('.ProseMirror img.markdown-image')).toHaveCount(1);
+  await clickTool(frame, '[data-format="undo"]');await expect(frame.locator('.ProseMirror img.markdown-image')).toHaveCount(0);
+  await clickTool(frame, '[data-format="redo"]');await expect(frame.locator('.ProseMirror img.markdown-image')).toHaveCount(1);
   checks.push('Clipboard image bytes save locally, render inline, persist as a relative path and support Undo/Redo');
   await frame.locator('#toggle-source').click();
   await frame.locator('#source-text').evaluate((field,data)=>{
@@ -103,6 +110,12 @@ export async function checkProductivity({page, workspace, path, output}) {
   await frame.getByRole('button',{name:'「節 20」を折りたたむ',exact:true}).click();
   await frame.locator('.ProseMirror h2').nth(19).scrollIntoViewIfNeeded();
   const previousY=await frame.evaluate(()=>scrollY);expect(previousY).toBeGreaterThan(1000);
+  await frame.locator('#toggle-source').click();
+  await expect(frame.locator('.reading-pane')).toBeHidden();
+  await frame.locator('#mode-edit').click();
+  await expect.poll(()=>frame.evaluate(()=>scrollY)).toBeGreaterThan(1000);
+  expect(Math.abs((await frame.evaluate(()=>scrollY))-previousY)).toBeLessThan(120);
+  checks.push('Preview / MD switching preserves the reading position in a long document');
   // Let the scroll event's rAF persist its bookmark before the host closes the tab.
   await frame.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   const request=String(Date.now());await writeFile(join(workspace,'reopen-request'),request);
@@ -111,7 +124,7 @@ export async function checkProductivity({page, workspace, path, output}) {
   await expect.poll(()=>frame.evaluate(()=>scrollY)).toBeGreaterThan(1000);
   expect(Math.abs((await frame.evaluate(()=>scrollY))-previousY)).toBeLessThan(120);
   expect(await readFile(path,'utf8')).toBe(long);checks.push('Closing and reopening restores per-file fold state and reading position without modifying Markdown');
-  await frame.locator('#toggle-find').click();await frame.locator('#find-query').fill('日本語');
+  await clickTool(frame, '#toggle-find');await frame.locator('#find-query').fill('日本語');
   for(const width of [1100,360]){
     await page.setViewportSize({width,height:900});await expect(frame.locator('#find-panel')).toBeVisible();
     expect(await frame.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1)).toBe(false);

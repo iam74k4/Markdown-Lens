@@ -1,0 +1,12 @@
+{
+  "version": "0.13.0",
+  "typecheck": "passed",
+  "unit_tests": 119,
+  "vscode_webview_checks": 87,
+  "vscode_host_checks": 32,
+  "cursor_host_checks": 32,
+  "rich_browser_checks": 31,
+  "cursor_ui": "blocked by login in isolated profile",
+  "marketplace": "not yet uploaded",
+  "local_user_profile_installation": "not performed"
+}

@@ -1,3 +1,4 @@
+import { contextualUI } from './contextual-ui';
 import { navigation } from './navigation';
 import type { ReviewView } from './review-view';
 import { refreshDiagramThemes } from './diagrams';
@@ -14,6 +15,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 let state: State | undefined;
 let restored = false, restoring = false, persistedView = '';
 let bookmarkY = -1, bookmarkFolds = '', savedAnchor: ReviewView['anchor'];
+let previewY = 0, previewAnchor: ReviewView['anchor'];
 let imageUpload: { id: string; text: string; source: boolean; from: number; to: number } | undefined;
 
 let changesOnly = vscode.getState()?.changesOnly ?? false;
@@ -75,12 +77,13 @@ function controls() {
   $('save-state').textContent = conflict ? '● 競合・下書きを保持' : localDraft ? '● 編集中' : state?.dirty ? '● 未保存' : '保存済み';
   $('save-state').classList.toggle('dirty', localDraft || !!state?.dirty);
   document.querySelectorAll<HTMLButtonElement>('[data-revert], [data-review]').forEach(b => { b.disabled = busy || broken || conflict || editInvalid || (localDraft && !previewReady) || (!!b.dataset.review && !!state?.comparison); });
-  document.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('#formatting button:not([data-color-control]), #formatting select').forEach(b => { b.disabled = busy || broken || sourcePending; });
+  document.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('#formatting button:not([data-color-control]), #formatting select, #insert-tools button, #insert-tools select').forEach(b => { b.disabled = busy || broken || sourcePending; });
   document.querySelectorAll<HTMLInputElement>('input[data-task]').forEach(input => { input.disabled = busy || broken; });
   editor?.enable(!busy && !broken && (!sourcePending || sourceComposing) && !(editInvalid && sourceDraft !== undefined));
   $('conflict').hidden = !conflict;
-  $('editor').hidden = $('formatting').hidden = !editor || (editInvalid && sourceDraft !== undefined);
-  $('review-actions').hidden = $('legend').hidden = false;
+  $('editor').hidden = !editor || (editInvalid && sourceDraft !== undefined);
+  $('review-actions').hidden = !count || sourceOpen;
+  $('legend').hidden = !count;
   $('empty').hidden = !!count || localDraft;
   $('empty').querySelector('strong')!.textContent = state?.comparison ? 'スナップショットとの差分はありません' : '未確認の変更はありません';
   button('mode-edit').setAttribute('aria-pressed', String(!sourceOpen));
@@ -90,7 +93,7 @@ function controls() {
   button('changes-only').setAttribute('aria-pressed', String(changesOnly));
   button('fold-all').disabled = button('unfold-all').disabled = busy || broken || !editor?.sectionCount;
   document.querySelectorAll<HTMLButtonElement>('[data-cell-action]').forEach(b => { b.disabled = busy || broken || conflict || editInvalid || composing() || (localDraft && !previewReady) || (b.dataset.cellAction === 'reviewCell' && !!state?.comparison); });
-  syncSource(); persistView(); nav.update();
+  syncSource(); persistView(); nav.update(); contextual.update(sourceOpen);
 }
 function move(index: number, scroll = true) {
   let blocks = changes();
@@ -143,7 +146,17 @@ function showSource(open: boolean) {
   if (!open && ((sourcePending && !flushSourceDraft()) || editInvalid)) {
     feedback('Markdownの編集内容を修正してからPreviewを開いてください。', true); return;
   }
+  const switching = sourceOpen !== open;
+  if (switching) {
+    if (open) { previewY = window.scrollY; previewAnchor = editor?.bookmark(); }
+    $('link-form').hidden = $('image-form').hidden = true; editor?.closeColors();
+  }
   sourceOpen = open; if (!open) renderCurrent(); controls();
+  if (switching && !open) {
+    window.scrollTo(0, previewY);
+    if (previewAnchor) editor?.restoreBookmark(previewAnchor);
+    persistView();
+  }
 }
 function applyDraft(save: boolean) {
   if (!state || !editor || pending || imageUpload || conflict || broken || editInvalid) return;
@@ -198,7 +211,7 @@ function receiveHostMessage(msg: HostMessage) {
     if (first) {
       const local = vscode.getState();
       const saved = local?.uri === next.uri ? local.view ?? next.view : next.view;
-      if (saved) { changesOnly = saved.changesOnly; sourceOpen = saved.sourceOpen; active = saved.active; }
+      if (saved) { changesOnly = saved.changesOnly; sourceOpen = saved.sourceOpen; active = saved.active; previewY = saved.y; previewAnchor = saved.anchor; }
       const draft = next.draft;
       baseText = draft?.baseText ?? next.markdown; baseRevision = next.revision;
       if (draft && draft.text !== next.markdown && draft.text !== draft.baseText) {
@@ -248,7 +261,7 @@ function receiveHostMessage(msg: HostMessage) {
     const local = vscode.getState(), saved = local?.uri === next.uri ? local.view ?? next.view : next.view;
     restoring = true;
     requestAnimationFrame(() => {
-      if (saved) { move(saved.active, false); window.scrollTo(0, saved.y); if (!sourceOpen && saved.anchor) editor?.restoreBookmark(saved.anchor); }
+      if (saved) { move(saved.active, false); window.scrollTo(0, sourceOpen ? 0 : saved.y); if (!sourceOpen && saved.anchor) editor?.restoreBookmark(saved.anchor); }
       restoring = false; restored = true; persistView();
     });
   }
@@ -369,16 +382,17 @@ $('image-form').addEventListener('submit', event => {
   else feedback('画像のパスを入力してください。ローカル画像をプレビューできます。', true);
 });
 button('image-cancel').addEventListener('click', () => { $('image-form').hidden = true; editor?.view.focus(); });
+const contextual = contextualUI(() => editor);
 const nav = navigation(() => editor, () => !!state && !pending && !imageUpload && !broken && !conflict && !editInvalid && !sourcePending && !composing(), () => {
   if (!state || pending || imageUpload || composing()) return false;
   if (sourcePending && !flushSourceDraft()) return false;
-  if (editInvalid) return false; sourceOpen = false; controls(); return true;
+  if (editInvalid) return false; showSource(false); return true;
 }, feedback);
 function persistView() {
   if (!state || !editor || !restored || restoring) return;
-  const y = Math.max(0, window.scrollY), foldKey = JSON.stringify([sourceOpen, editor.folds]);
-  if (y !== bookmarkY || foldKey !== bookmarkFolds) { bookmarkY = y; bookmarkFolds = foldKey; savedAnchor = !sourceOpen ? editor.bookmark() : undefined; }
-  const view: ReviewView = { mode: 'edit', folds: editor.folds, changesOnly, sourceOpen, y, active, anchor: !sourceOpen ? savedAnchor : undefined };
+  const y = sourceOpen ? previewY : Math.max(0, window.scrollY), foldKey = JSON.stringify([sourceOpen, editor.folds]);
+  if (y !== bookmarkY || foldKey !== bookmarkFolds) { bookmarkY = y; bookmarkFolds = foldKey; savedAnchor = sourceOpen ? previewAnchor : editor.bookmark(); }
+  const view: ReviewView = { mode: 'edit', folds: editor.folds, changesOnly, sourceOpen, y, active, anchor: savedAnchor };
   vscode.setState({ uri: state.uri, changesOnly, numbering: editor.numbering, folds: editor.folds, view });
   const key = JSON.stringify(view); if (key === persistedView) return;
   persistedView = key; vscode.postMessage({ type: 'view', view });

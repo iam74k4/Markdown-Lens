@@ -1,3 +1,5 @@
+import { checkContextual } from './check-contextual.mjs';
+import { clickTool, revealTool } from './ui-tools.mjs';
 import { runTests } from '@vscode/test-electron';
 import { chromium, expect } from '@playwright/test';
 import { build } from 'esbuild';
@@ -46,6 +48,7 @@ for (const [name, executable, port] of targets) {
       }
       expect(frame).toBeTruthy();
     }).toPass({ timeout: 15000 });
+    page.setDefaultTimeout(12000);
     if (name === 'cursor') {
       await page.screenshot({ caret: 'initial', path: join(base, 'cursor-start.png') });
     }
@@ -103,6 +106,13 @@ for (const [name, executable, port] of targets) {
       console.log('MARKDOWN_REVIEW_FOCUSED_UI_RESULT ' + name + ' passed'); continue;
     }
 
+    const contextualChecks = await checkContextual({page,frame,output:base});
+    if (process.env.MARKDOWN_REVIEW_FOCUS === 'contextual') {
+      expect(errors).toEqual([]);
+      await writeFile(join(base,'ui-result.json'),JSON.stringify({host:name,passed:true,checks:contextualChecks},null,2));
+      console.log('MARKDOWN_REVIEW_CONTEXTUAL_UI_RESULT ' + name + ' passed'); continue;
+    }
+
     const openTables = async () => {
       await expect(frame.locator('.inline-before[data-kind="table"]').first()).toBeVisible();
       for (const d of await frame.locator('.inline-before[data-kind="table"]').all()) {
@@ -122,19 +132,19 @@ for (const [name, executable, port] of targets) {
     await frame.locator('#next').click();
     await frame.locator('#previous').click();
     await expect(frame.locator('.inline-review').first()).toBeVisible();
-    await frame.locator('#fold-all').click();
+    await clickTool(frame, '#fold-all');
     await expect(frame.locator('.quick-table')).toBeHidden();
     await expect(frame.locator('#mode-diff')).toHaveCount(0);
     await expect(frame.locator('.inline-review').first()).toBeHidden();
     await frame.locator('#next').click();
     await expect(frame.locator('.inline-review.active')).toBeVisible();
-    await frame.locator('#unfold-all').click();
+    await clickTool(frame, '#unfold-all');
     await expect(frame.locator('.quick-table')).toBeVisible();
     expect(await readFile(join(workspace, 'design.md'), 'utf8')).toBe(beforeFolding);
     await frame.getByRole('button', { name: '「1. セッション」を折りたたむ', exact: true }).click();
     await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-lens-${name}-folding.png`) });
     await captureReadme('section-folding');
-    await frame.locator('#unfold-all').click();
+    await clickTool(frame, '#unfold-all');
     // Unified surface: type on highlighted content, review the local draft, and keep exact source access.
     const originalUnified = await readFile(join(workspace, 'design.md'), 'utf8');
     await expect(frame.locator('.ProseMirror')).toBeVisible();
@@ -144,11 +154,11 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('.inline-before[open]')).toContainText('30分');
     await captureReadme('inline-review');
     await captureReadme('view-controls', '.toolbar');
-    await frame.locator('#changes-only').click();
+    await clickTool(frame, '#changes-only');
     await expect(frame.locator('.inline-folded').first()).toBeHidden();
     await frame.locator('.inline-expand').first().click();
     await expect(frame.locator('.ProseMirror h1')).toBeVisible();
-    await frame.locator('#changes-only').click();
+    await clickTool(frame, '#changes-only');
     const unifiedParagraph = frame.locator('.ProseMirror > p').first();
     await unifiedParagraph.fill('統合画面で直接編集します。');
     await expect(frame.locator('.inline-review')).toHaveCount(4);
@@ -233,11 +243,11 @@ for (const [name, executable, port] of targets) {
     expect(await readFile(join(workspace, 'design.md'), 'utf8')).toBe(fileBeforeReview);
     await frame.locator('[data-review]').first().click();
     await expect(frame.locator('#counter')).toHaveText('未確認 2件');
-    await frame.locator('#changes-only').click();
+    await clickTool(frame, '#changes-only');
     await expect(frame.locator('.inline-folded').first()).toBeHidden();
     await frame.locator('.inline-expand').first().click();
     await expect(frame.locator('.ProseMirror h1')).toBeVisible();
-    await frame.locator('#changes-only').click();
+    await clickTool(frame, '#changes-only');
     await writeFile(join(workspace, 'design.md'), fileBeforeReview.replace('24時間', '48時間'));
     await expect(frame.locator('#counter')).toHaveText('未確認 3件');
     await frame.locator('.inline-review').first().locator('.inline-before > summary').click();
@@ -267,9 +277,9 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('#feedback')).toContainText('確認しました');
     await frame.locator('#mode-edit').click();
     await expect(frame.locator('.ProseMirror')).toBeVisible();
-    await frame.locator('#editor-wide').click();
+    await clickTool(frame, '#editor-wide');
     await expect(frame.locator('#editor')).toHaveClass(/editor-wide/);
-    await frame.locator('#editor-wide').click();
+    await clickTool(frame, '#editor-wide');
     const firstParagraph = frame.locator('.ProseMirror > p').first();
     await firstParagraph.fill('認証情報を安全に管理します。');
     await expect(frame.locator('#save-state')).toHaveText('● 編集中');
@@ -281,7 +291,7 @@ for (const [name, executable, port] of targets) {
       document.dispatchEvent(new Event('selectionchange'));
     });
     await expect.poll(() => frame.evaluate(() => window.getSelection()?.toString())).toBe('認証情報を安全に管理します。');
-    await frame.locator('[data-format="bold"]').click();
+    await clickTool(frame, '[data-format="bold"]');
     await expect(firstParagraph.locator('strong')).toHaveText('認証情報を安全に管理します。');
     await expect(frame.locator('.ProseMirror')).toContainText('認証情報を安全に管理します。');
     await expect(frame.locator('#save-state')).toContainText('編集中');
@@ -290,7 +300,7 @@ for (const [name, executable, port] of targets) {
     expect(await readFile(join(workspace, 'design.md'), 'utf8')).toContain('**認証情報を安全に管理します。**');
     await frame.locator('#mode-edit').click();
     await frame.locator('.ProseMirror td p').last().fill('少し待って再試行してください');
-    await frame.locator('#table-action').selectOption('addRow');
+    await (await revealTool(frame, '#table-action')).selectOption('addRow');
     await expect(frame.locator('.ProseMirror tr')).toHaveCount(4);
     await frame.locator('#save').click();
     await expect(frame.locator('#save-state')).toHaveText('保存済み');
@@ -337,7 +347,7 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('.ProseMirror .diagram-canvas')).toContainText('高速キャッシュ', { timeout: 15000 });
     await expect(frame.locator('.ProseMirror .inline-insert').filter({ hasText: '高速' })).toHaveCount(1);
     expect(await readFile(join(workspace, 'visual.md'), 'utf8')).toBe(visualOriginal);
-    await frame.locator('[data-format="undo"]').click();
+    await clickTool(frame, '[data-format="undo"]');
     await expect(codeEditor).not.toContainText('高速');
     await frame.locator('#toggle-source').click();
     await frame.locator('#source-text').fill(visualOriginal + '\n- [ ] レビューする\n');
@@ -388,14 +398,14 @@ for (const [name, executable, port] of targets) {
     await page.keyboard.press('Escape');
     await expect(frame.locator('.table-dialog')).toBeHidden();
     expect(await readFile(join(workspace, 'visual.md'), 'utf8')).toBe(tableFileBefore);
-    await frame.locator('#snapshot').click();
+    await clickTool(frame, '#snapshot');
     await expect(frame.locator('#feedback')).toContainText('スナップショットを保存');
     const captured = await readFile(join(workspace, 'visual.md'), 'utf8');
     await writeFile(join(workspace, 'visual.md'), captured.replace('60秒', '90秒'));
     await expect(frame.locator('.quick-table')).toContainText('90秒');
     await openTables();
     await expect(frame.locator('.changed-cell')).toContainText('90');
-    await frame.locator('#snapshots').click();
+    await clickTool(frame, '#snapshots');
     await page.locator('.quick-input-list .monaco-list-row').filter({ hasText: 'この時点と比較' }).click();
     await expect(frame.locator('#baseline')).toContainText('スナップショット');
     await openTables();
@@ -403,20 +413,20 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('.table-details')).toContainText('60');
     await expect(frame.locator('.changed-cell')).toContainText('90');
     await expect(frame.locator('#reviewed')).toBeDisabled();
-    await frame.locator('#snapshots').click();
+    await clickTool(frame, '#snapshots');
     await page.locator('.quick-input-list .monaco-list-row').filter({ hasText: '通常のレビューに戻る' }).click();
     await expect(frame.locator('#baseline')).toHaveText('確認済みの内容 → 現在');
     await openTables();
     await frame.locator('.changed-cell .table-cell').click();
     await expect(frame.locator('.table-details')).toContainText('30');
     await frame.getByRole('button', { name: '閉じる', exact: true }).click();
-    await frame.locator('#changes-only').click();
+    await clickTool(frame, '#changes-only');
     await page.setViewportSize({ width: 360, height: 800 });
     await expect.poll(() => frame.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
     await expect(frame.locator('#editor .rich-diagram-preview .diagram-modes')).toBeVisible();
     await frame.locator('body').screenshot({ caret: 'initial', path: join(output, `markdown-lens-${name}-visual-narrow.png`) });
     await page.setViewportSize({ width: 1280, height: 960 });
-    await frame.locator('#changes-only').click();
+    await clickTool(frame, '#changes-only');
     await frame.locator('.inline-review').filter({ has: frame.locator('[data-kind="diagram"]') }).locator('[data-revert]').click();
     await expect(frame.locator('#editor .rich-diagram-preview .diagram-canvas .node')).toHaveCount(2);
     await expect(frame.locator('#save-state')).toContainText('未保存');
@@ -499,7 +509,7 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('.ProseMirror tr').nth(2).locator('td').first()).toHaveText('2');
     await expect(frame.locator('.ProseMirror tr').nth(2).locator('td').nth(1)).toHaveText('999');
     expect(await readFile(tablePath, 'utf8')).toBe(numberedSource);
-    await frame.locator('[data-format="undo"]').click();
+    await clickTool(frame, '[data-format="undo"]');
     await expect(frame.locator('.ProseMirror tr')).toHaveCount(4);
     await expect(frame.locator('.ProseMirror tr').nth(2).locator('td').nth(2)).toHaveText('Beta');
     await frame.getByRole('button', { name: '選択した行を削除', exact: true }).click();
@@ -512,7 +522,7 @@ for (const [name, executable, port] of targets) {
     await frame.locator('.ProseMirror tr').nth(1).locator('td p').nth(2).click();
     await frame.getByRole('button', { name: '選択した列を削除', exact: true }).click();
     await expect(frame.locator('.ProseMirror th')).toHaveCount(2);
-    await frame.locator('[data-format="undo"]').click();
+    await clickTool(frame, '[data-format="undo"]');
     await expect(frame.locator('.ProseMirror th')).toHaveCount(3);
     // Color formatting uses the real selection, draft/save protocol and review baseline.
     await frame.locator('#toggle-source').click();
@@ -547,9 +557,9 @@ for (const [name, executable, port] of targets) {
     await expect(frame.locator('.ProseMirror mark')).toHaveText('24時間');
     await expect(frame.locator('.inline-review')).toHaveCount(1);
     expect(await readFile(tablePath,'utf8')).toBe(colorSource);
-    await frame.locator('[data-format="undo"]').click();
+    await clickTool(frame, '[data-format="undo"]');
     await expect(frame.locator('.ProseMirror mark')).toHaveCount(0);
-    await frame.locator('[data-format="redo"]').click();
+    await clickTool(frame, '[data-format="redo"]');
     await expect(frame.locator('.ProseMirror mark')).toHaveCount(1);
     await frame.locator('#save').click();
     await expect(frame.locator('#save-state')).toHaveText('保存済み');
@@ -582,7 +592,7 @@ for (const [name, executable, port] of targets) {
     const editingChecks = await checkEditing({ page, frame, workspace, path: tablePath, output: base });
     const productivityChecks = await checkProductivity({ page, workspace, path: tablePath, output: base });
     expect(errors).toEqual([]);
-    await writeFile(join(base, 'ui-result.json'), JSON.stringify({ host: name, passed: true, checks: [...editingChecks, ...productivityChecks, 'Selected text color and marker palettes in real Webview', 'Color changes stay drafts until saved as HTML in the same Markdown file', 'Color Undo/Redo, custom hex and independent removal', 'Color-only local comparison, source and revert preserve saved file', 'heading fold hides content and review cards', 'collapsed heading shows change count', 'next change reveals its enclosing section', 'collapse and expand all cover tables', 'fold state retained on unified Preview', 'folding never changes source or save state', 'unified editable diff by default', 'inline deletion disclosure', 'inline unchanged folding', 'typing retains selection and never saves implicitly', 'current source editing and read-only confirmed source', 'local draft confirmation and confirmation undo', 'inline revert without saving', 'WYSIWYG local image and Mermaid preview', 'live Mermaid source editing and Undo', 'task checkbox serializes Markdown', 'real webview rendering', 'dark and light themes', '600px and 360px layout without horizontal overflow', 'always visible per-change actions', 'icon buttons retain accessible names and keyboard tooltips', 'individual approval without saving or changing the file', 're-edits become unreviewed', 'keyboard focus after individual approval and completion', 'next and previous change', 'revert button', 'save button', 'review all button', 'WYSIWYG typing and bold', 'Preview and Markdown source switching', 'Markdown file save', 'table editing and row insertion', 'concurrent edits preserve drafts', 'explicit draft discard loads latest', 'no renderer errors', 'confirmation undo preserves file', 'unchanged section collapse and expansion', 'flowchart node and edge semantic markers', 'diagram before/diff/after switch', 'local SVG image preview', 'changed table cell marker', 'snapshot capture and comparison without changing confirmed baseline', 'narrow diagram controls', 'diagram revert preserves unsaved semantics', 'expanded table and changed-row filter leave file unchanged', 'cell before/after detail', 'external update closes stale expanded table', 'long table WYSIWYG edit and explicit save', 'wide editing mode', 'quick row and column movement in unified review', 'one-click insertion focuses an editable new cell', 'table quick actions remain drafts until explicit save', 'inline revert restores original table order and headers without saving', 'opt-in numbering compacts after row deletion and preserves IDs', 'row deletion and renumbering Undo together in real webview', 'renumbered Markdown saves to the same file', 'quick column deletion and Undo'] }, null, 2));
+    await writeFile(join(base, 'ui-result.json'), JSON.stringify({ host: name, passed: true, checks: [...contextualChecks, ...editingChecks, ...productivityChecks, 'Selected text color and marker palettes in real Webview', 'Color changes stay drafts until saved as HTML in the same Markdown file', 'Color Undo/Redo, custom hex and independent removal', 'Color-only local comparison, source and revert preserve saved file', 'heading fold hides content and review cards', 'collapsed heading shows change count', 'next change reveals its enclosing section', 'collapse and expand all cover tables', 'fold state retained on unified Preview', 'folding never changes source or save state', 'unified editable diff by default', 'inline deletion disclosure', 'inline unchanged folding', 'typing retains selection and never saves implicitly', 'current source editing and read-only confirmed source', 'local draft confirmation and confirmation undo', 'inline revert without saving', 'WYSIWYG local image and Mermaid preview', 'live Mermaid source editing and Undo', 'task checkbox serializes Markdown', 'real webview rendering', 'dark and light themes', '600px and 360px layout without horizontal overflow', 'contextual per-change actions accessible on hover and keyboard focus', 'icon buttons retain accessible names and keyboard tooltips', 'individual approval without saving or changing the file', 're-edits become unreviewed', 'keyboard focus after individual approval and completion', 'next and previous change', 'revert button', 'save button', 'review all button', 'WYSIWYG typing and bold', 'Preview and Markdown source switching', 'Markdown file save', 'table editing and row insertion', 'concurrent edits preserve drafts', 'explicit draft discard loads latest', 'no renderer errors', 'confirmation undo preserves file', 'unchanged section collapse and expansion', 'flowchart node and edge semantic markers', 'diagram before/diff/after switch', 'local SVG image preview', 'changed table cell marker', 'snapshot capture and comparison without changing confirmed baseline', 'narrow diagram controls', 'diagram revert preserves unsaved semantics', 'expanded table and changed-row filter leave file unchanged', 'cell before/after detail', 'external update closes stale expanded table', 'long table WYSIWYG edit and explicit save', 'wide editing mode', 'quick row and column movement in unified review', 'one-click insertion focuses an editable new cell', 'table quick actions remain drafts until explicit save', 'inline revert restores original table order and headers without saving', 'opt-in numbering compacts after row deletion and preserves IDs', 'row deletion and renumbering Undo together in real webview', 'renumbered Markdown saves to the same file', 'quick column deletion and Undo'] }, null, 2));
     console.log('MARKDOWN_REVIEW_UI_RESULT ' + name + ' passed');
   } catch (error) {
     for (const page of browser?.contexts().flatMap(context => context.pages()) ?? []) {

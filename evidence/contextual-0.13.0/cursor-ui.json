@@ -1,0 +1,7 @@
+{
+  "host": "Cursor",
+  "passed": false,
+  "status": "blocked-by-login",
+  "reason": "A fresh isolated Cursor profile shows Log In / Sign Up over the workbench and intercepts clicks. No login, forced clicks, or authentication state changes were performed.",
+  "extension_host_checks": 32
+}

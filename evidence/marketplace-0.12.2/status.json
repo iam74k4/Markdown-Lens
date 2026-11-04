@@ -9,8 +9,8 @@
     "url": "https://github.com/iam74k4/Markdown-Lens/actions/runs/41769989249"
   },
   "vsix_sha256": "2ef5ba2fd84589cef8e82c3cb7f43bb538ab32aa6def2bf722c157f3c1bbc5d6",
-  "upload_accepted": false,
-  "public_version_last_seen": "0.11.1",
-  "status": "Upload form remains open; reCAPTCHA Timeout after normal retry and page reload; user asked to complete the visible upload/verification step.",
+  "upload_accepted": true,
+  "public_version_last_seen": "0.12.2",
+  "status": "Verified in publisher management as 0.12.2 Public on 2026-11-04, after the earlier upload timeout and user handoff.",
   "public_url": "https://marketplace.visualstudio.com/items?itemName=iam74k4.markdown-lens-review"
 }

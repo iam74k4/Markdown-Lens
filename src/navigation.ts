@@ -51,11 +51,11 @@ export function navigation(getEditor: () => RichEditor | undefined, ready: () =>
   function toggleFind(show: boolean) {
     if (show && !enter()) return;
     $('find-panel').hidden = !show; $('toggle-find').setAttribute('aria-pressed', String(show));
-    if (show) { refresh(); $('find-query').focus(); } else { getEditor()?.highlightSearch([], 0); $('toggle-find').focus(); }
+    if (show) { refresh(); $('find-query').focus(); } else { getEditor()?.highlightSearch([], 0); $('more-tools').focus(); }
   }
   function toggleOutline(show: boolean) {
     $('outline-panel').hidden = !show; $('toggle-outline').setAttribute('aria-pressed', String(show));
-    if (show) { lastOutline = ''; refresh(); } else $('toggle-outline').focus();
+    if (show) { lastOutline = ''; refresh(); } else $('more-tools').focus();
   }
   $('toggle-find').addEventListener('click', () => toggleFind(!open()));
   $('find-close').addEventListener('click', () => toggleFind(false));

@@ -165,6 +165,10 @@ export class RichEditor {
     const owner = this.sections.find(s => this.collapsed.has(s.key) && (insideSection(s, selection.from, doc.content.size) || insideSection(s, selection.to, doc.content.size)));
     if (owner) this.view.dispatch(this.view.state.tr.setSelection(TextSelection.create(doc, owner.body - 1)).setMeta('addToHistory', false));
   }
+  get selectedChange(): string | undefined {
+    const { from, to } = this.view.state.selection;
+    return this.plan.find(change => change.blocks.some(block => from < block.to && to >= block.from))?.hunk.id;
+  }
   get composing(): boolean { return this.compositionLock || this.view.composing; }
   load(source: string, rules = this.numbering): void {
     this.closeColors();
@@ -330,6 +334,7 @@ export class RichEditor {
       const active = state.selection.empty ? schema.marks[mark].isInSet(state.storedMarks || state.selection.$from.marks()) : state.doc.rangeHasMark(state.selection.from, state.selection.to, schema.marks[mark]);
       document.querySelector(`[data-format="${name}"]`)?.setAttribute('aria-pressed', String(!!active));
     }
+    this.view.dom.dispatchEvent(new Event('editor-selection-change', { bubbles: true }));
     const parent = state.selection.$from.parent;
     const select = document.querySelector<HTMLSelectElement>('#block-type');
     if (select) select.value = parent.type === schema.nodes.heading ? `h${parent.attrs.level}` : parent.type === schema.nodes.code_block ? 'code' : 'paragraph';
