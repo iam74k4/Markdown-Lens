@@ -2,7 +2,7 @@
 
 ## 0.11.0
 
-- 公開用の表示名・コマンド名をMarkdown Lens、発行者IDをiam74k4に統一。
+- 公開用の表示名を「Markdown Lens — WYSIWYG & Review」、コマンド名をMarkdown Lens、発行者IDをiam74k4に設定。
 - Marketplace用アイコンとバナー、掲載情報、公開手順を整備。
 - プロジェクトをMITライセンスで公開。
 - 拡張IDは `iam74k4.markdown-lens-review`。旧ローカル版からの移行手順を追加。

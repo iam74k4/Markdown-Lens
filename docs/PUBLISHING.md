@@ -4,7 +4,7 @@
 
 | 項目 | 設定 |
 | --- | --- |
-| 表示名 | Markdown Lens |
+| 表示名 | Markdown Lens — WYSIWYG & Review |
 | 発行者ID | iam74k4 |
 | パッケージ名 | markdown-lens-review |
 | 拡張ID | iam74k4.markdown-lens-review |
@@ -14,7 +14,7 @@
 | リポジトリ | https://github.com/iam74k4/Markdown-Lens |
 | 問い合わせ | https://github.com/iam74k4/Markdown-Lens/issues |
 
-掲載本文はREADME.md、更新履歴はCHANGELOG.mdを使用します。表示名はMarkdown Lens、パッケージ名は `markdown-lens-review` です。旧候補 `markdown-review` はMarketplaceで名前の重複により拒否されたため使用しません。MarketplaceとOpen VSXで同じIDを使用します。
+掲載本文はREADME.md、更新履歴はCHANGELOG.mdを使用します。表示名は「Markdown Lens — WYSIWYG & Review」、パッケージ名は `markdown-lens-review` です。旧候補 `markdown-review` はMarketplaceで名前の重複により拒否されたため使用しません。MarketplaceとOpen VSXで同じIDを使用します。
 
 このガイドを用意した時点ではMarketplace／Open VSXへ未公開です。発行者登録、パッケージ生成、ストア掲載、各エディターでの検索・インストール確認は、それぞれ別の作業です。
 
@@ -48,7 +48,7 @@ VSIXにはビルド済みコード、PNGアイコン、README、画面例、MIT�
 
 ## 公開後の確認
 
-- 両エディターで発行者が `iam74k4`、表示名がMarkdown Lens、バージョンが0.11.0であること。
+- 両エディターで発行者が `iam74k4`、表示名が「Markdown Lens — WYSIWYG & Review」、バージョンが0.11.0であること。
 - Markdown LensのコマンドでPreviewを開き、Markdownソースの表示・編集・保存ができること。
 - 変更マーカー、確認／復元、表・画像・Mermaidが動作すること。
 - アイコン、READMEの画像・リンク、ライセンス・問い合わせ先がストア上でも表示されること。

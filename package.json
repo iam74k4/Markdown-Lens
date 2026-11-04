@@ -1,7 +1,7 @@
 {
   "name": "markdown-lens-review",
-  "displayName": "Markdown Lens",
-  "description": "差分が見えるMarkdownをそのまま編集。WYSIWYG・ソース・図・表を1画面で確認。",
+  "displayName": "Markdown Lens — WYSIWYG & Review",
+  "description": "Markdownを見たまま編集。AIの変更をマーカーで確認。表・画像・Mermaidにも対応。",
   "version": "0.11.0",
   "publisher": "iam74k4",
   "license": "MIT",
