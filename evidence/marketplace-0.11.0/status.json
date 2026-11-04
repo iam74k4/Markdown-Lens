@@ -15,7 +15,20 @@
       "displayName": "Markdown Lens",
       "result": "rejected",
       "reason": "This extension display name is taken. Please try a different one."
+    },
+    {
+      "name": "markdown-lens-review",
+      "displayName": "Markdown Lens — WYSIWYG & Review",
+      "result": "accepted",
+      "version": "0.11.0",
+      "availability": "Public",
+      "validation": "Verifying"
     }
   ],
-  "nextStep": "User selection of an alternative display name; repackage and retry authorized public upload."
+  "nextStep": "Wait for Marketplace validation and confirm public listing and installation.",
+  "displayName": "Markdown Lens — WYSIWYG & Review",
+  "extensionId": "iam74k4.markdown-lens-review",
+  "accepted": true,
+  "availability": "Public",
+  "validation": "Verifying"
 }

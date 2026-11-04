@@ -4,7 +4,8 @@
 
 - 内部名 `markdown-review` は名前重複で拒否されたため、`markdown-lens-review` へ変更。新しい拡張IDは `iam74k4.markdown-lens-review`。
 - 新IDで型チェック・ビルド、VS Code／Cursorの拡張ホスト各28項目に成功。mainのCIも成功。
-- 再アップロードは表示名「Markdown Lens」の重複で拒否。**Marketplaceには未掲載**です。代替表示名の選択後に、再パッケージ・アップロードを続行します。
+- 表示名「Markdown Lens」の重複で一度拒否され、承認された「Markdown Lens — WYSIWYG & Review」へ変更。0.11.0のアップロードを受理され、管理画面でPublic／Verifyingを確認。**公開ページ・インストールの確認はMarketplaceの検証完了待ち**です。
+- 受理された配布物は `submitted-package.json` に記録。先行試行の `package.json` とはハッシュが異なります。
 - 配布物のハッシュと登録結果は [evidence/marketplace-0.11.0](evidence/marketplace-0.11.0) に記録。以下の公開準備時のID・配布物ハッシュとは異なります。
 
 ---

@@ -16,7 +16,7 @@
 
 掲載本文はREADME.md、更新履歴はCHANGELOG.mdを使用します。表示名は「Markdown Lens — WYSIWYG & Review」、パッケージ名は `markdown-lens-review` です。旧候補 `markdown-review` はMarketplaceで名前の重複により拒否されたため使用しません。MarketplaceとOpen VSXで同じIDを使用します。
 
-このガイドを用意した時点ではMarketplace／Open VSXへ未公開です。発行者登録、パッケージ生成、ストア掲載、各エディターでの検索・インストール確認は、それぞれ別の作業です。
+2026-11-04にVisual Studio Marketplaceで0.11.0のアップロードが受理されました。管理画面はPublic／Verifyingで、公開ページとインストールの確認は検証完了待ちです。Open VSXは未公開です。発行者登録、パッケージ生成、ストア掲載、各エディターでの検索・インストール確認は、それぞれ別の作業です。
 
 ## 配布物の作成
 
