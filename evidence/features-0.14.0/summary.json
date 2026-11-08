@@ -5,28 +5,41 @@
     "environment": "Linux container, Node.js 22.23.4, Chromium 1243 (Playwright)",
     "typecheck": "passed",
     "unitTests": { "passed": 160, "failed": 0 },
-    "browser": ["test:rich passed", "test:tables passed", "test:diagrams passed", "test:webview passed (Japanese and English UI)"],
-    "notRun": ["test:host (VS Code download blocked by the container network)", "test:ui (macOS only)"]
+    "browser": [
+      "test:rich passed", "test:tables passed", "test:diagrams passed",
+      "test:webview passed: syntax rendering, review actions, Cmd/Ctrl+click links, broken links, menu commands, raw source editing, input rules, English UI",
+      "Japanese IME (Chromium Input.imeSetComposition) in the raw source form and next to math/footnotes",
+      "axe-core 4.10.3 WCAG 2 A/AA: document 23 rules, menu 26 rules, raw form 25 rules passed; no serious or critical violations"
+    ],
+    "notRun": ["test:host locally (VS Code download blocked by the container network; run in CI)", "test:ui (macOS only)"]
   },
   "ci": {
-    "run": "https://github.com/iam74k4/Markdown-Lens/actions/runs/42504994209",
-    "commit": "18855cf24d2c11c3cea716998ef9347d584ce4ab",
-    "jobs": { "check": "success", "host": "success", "platforms (windows-latest)": "success", "platforms (macos-latest)": "success" },
-    "host": {
-      "editor": "Visual Studio Code 1.145.2 (Linux, xvfb)",
-      "passed": 39,
-      "skipped": ["native editor Undo: interactive desktop unavailable"],
-      "newChecks": [
-        "files created after monitoring started are shown as added and unreviewed",
-        "renaming a file carries its baseline and keeps unreviewed changes",
-        "the reviewed baseline opens in VS Code's diff editor",
-        "the change summary lists unreviewed hunks as Markdown diffs",
-        "next-change navigation works in the text editor",
-        "missing link targets and anchors are reported as diagnostics",
-        "Markdown Lens opens as a custom editor via Open With",
-        "saving an edit writes exactly the edited Markdown"
-      ]
-    }
+    "run": "https://github.com/iam74k4/Markdown-Lens/actions/runs/42506046886",
+    "commit": "8464f05166e32d8fb1b73f3f70f43ca3d3af5875",
+    "jobs": { "check": "success", "host": "success", "host-cursor": "success", "platforms (windows-latest)": "success", "platforms (macos-latest)": "success" },
+    "host": [
+      { "editor": "Visual Studio Code 1.145.2 (Linux, xvfb)", "passed": 43, "skipped": [] },
+      { "editor": "Cursor 1.128.0 (Linux AppImage, xvfb)", "passed": 43, "skipped": [] }
+    ],
+    "newHostChecks": [
+      "Git HEAD comparison reads the committed file and never changes the confirmed baseline",
+      "resetting the baseline to Git HEAD or an empty document is applied and can be undone",
+      "initialBaseline = gitHead starts a new review from the last commit",
+      "files created after monitoring started are shown as added and unreviewed",
+      "renaming a file carries its baseline and keeps unreviewed changes",
+      "the reviewed baseline opens in VS Code's diff editor",
+      "the change summary lists unreviewed hunks as Markdown diffs",
+      "next-change navigation works in the text editor",
+      "missing link targets and anchors are reported as diagnostics",
+      "Markdown Lens opens as a custom editor via Open With",
+      "saving an edit writes exactly the edited Markdown"
+    ],
+    "runnerFix": "Cursor exits with code 0 when the test runner throws; the runner now requires results/host.json from every editor."
   },
-  "notVerified": ["Cursor extension host and screens", "Git comparison against a real repository in the extension host", "Japanese IME on the new raw inline editing form", "screen readers", "remote (SSH/WSL/containers) workspaces", "Marketplace / Open VSX publication"]
+  "notVerifiable": {
+    "screenReaders": "No screen reader is available in CI; covered by the automated axe-core audit only.",
+    "remoteWorkspaces": "SSH, WSL and Dev Containers need Microsoft's remote extensions and an interactive connection, which the test runner cannot drive.",
+    "cursorUiScreens": "Cursor's real UI tests (test:ui) are macOS-only and need a signed-in profile; Cursor's extension host is covered above."
+  },
+  "requiresOwner": ["Marketplace / Open VSX publication (publisher credentials)", "Pull request creation and merge"]
 }
