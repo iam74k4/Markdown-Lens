@@ -32,7 +32,7 @@
 - 画面・メッセージ・コマンド・設定を英語に対応。VS Codeの表示言語が日本語以外なら英語で表示します。
 - 未確認一覧は、編集したファイルだけを再計算（以前は1文字の入力ごとにワークスペース全体を走査）。件数はHTMLを生成せずに数えます。表示中のプレビューの再確認は、更新日時とサイズが変わったときだけ読み込みます。Markdownのないワークスペースでは起動しません。
 - 読み込みの直前にファイルが消えた場合（リモート環境で起こりやすい）、生のエラー（ENOENT）ではなく「ファイルが見つかりません」と案内。未確認一覧の走査中に再更新したとき、走査の完了を待つように修正。
-- CIにLinuxでのVS Code・Cursor・Remote - SSHの拡張ホストテスト、VS Codeの実Webviewテスト、macOSのVoiceOver読み上げテスト、Webview全体のブラウザーテスト、Windows・macOSでの単体テストを追加。
+- CIにVS Code・Cursor・Remote - SSH・Dev Containers・WSLの拡張ホストテスト、VS Codeの実Webviewテスト、VoiceOver（macOS）とNVDA（Windows）の読み上げテスト、Webview全体のブラウザーテスト、Windows・macOSでの単体テストを追加。所有者が手動で実行するMarketplace・Open VSXの公開用ワークフローを追加。
 
 ## 0.13.0
 
