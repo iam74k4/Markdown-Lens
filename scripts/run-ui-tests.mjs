@@ -1,6 +1,6 @@
 import { checkContextual } from './check-contextual.mjs';
 import { clickTool, revealTool } from './ui-tools.mjs';
-import { runTests } from '@vscode/test-electron';
+import { runTests, downloadAndUnzipVSCode } from '@vscode/test-electron';
 import { chromium, expect } from '@playwright/test';
 import { build } from 'esbuild';
 import { mkdir, writeFile, readFile, access } from 'node:fs/promises';
@@ -10,14 +10,20 @@ import { checkEditing } from './check-editing.mjs';
 const root = resolve('.');
 const output = process.env.MARKDOWN_REVIEW_OUTPUT ? resolve(process.env.MARKDOWN_REVIEW_OUTPUT) : join(root, 'test-results');
 await build({ entryPoints: ['test/ui-host.ts'], bundle: true, outfile: 'dist/test-ui.js', external: ['vscode'], platform: 'node', format: 'cjs', target: 'node20' });
-const targets = [
+// macOS uses the installed apps; on Linux (CI) VS Code is downloaded and Cursor comes from CURSOR_EXECUTABLE.
+const targets = process.platform === 'darwin' ? [
   ['vscode', '/Applications/Visual Studio Code.app/Contents/MacOS/Code', 9361],
   ['cursor', '/Applications/Cursor.app/Contents/MacOS/Cursor', 9362],
+] : [
+  ['vscode', undefined, 9361],
+  ['cursor', process.env.CURSOR_EXECUTABLE, 9362],
 ];
-for (const [name, executable, port] of targets) {
+for (const [name, configured, port] of targets) {
   // Cursor's fresh profiles can require interactive login. Default to VS Code;
   // the host suite covers both, and Cursor UI is also checked in a signed-in window.
   if ((process.env.MARKDOWN_REVIEW_TARGET ?? 'vscode') !== name) continue;
+  const executable = configured ?? (name === 'vscode' ? await downloadAndUnzipVSCode(process.env.VSCODE_TEST_VERSION ?? 'stable') : undefined);
+  if (!executable) throw new Error(`${name}: set CURSOR_EXECUTABLE to the Cursor executable`);
   const base = join(root, 'test-results', 'ui-' + name + '-' + Date.now());
   const workspace = join(base, 'workspace');
   const userData = resolve(root, '..', 'ui-' + name + '-' + Date.now().toString(36));
@@ -33,7 +39,7 @@ for (const [name, executable, port] of targets) {
   }));
   const running = runTests({ vscodeExecutablePath: executable, extensionDevelopmentPath: root, extensionTestsPath: join(root, 'dist', 'test-ui.js'),
     extensionTestsEnv: { MARKDOWN_REVIEW_REFRESH_TEST: process.env.MARKDOWN_REVIEW_FOCUS === 'external-refresh' ? '1' : '', MARKDOWN_LENS_LOCALE: process.env.MARKDOWN_LENS_LOCALE ?? 'ja' },
-    launchArgs: [workspace, '--user-data-dir=' + userData, '--extensions-dir=' + join(base, 'extensions'), '--disable-extensions', '--remote-debugging-port=' + port] });
+    launchArgs: [workspace, '--user-data-dir=' + userData, '--extensions-dir=' + join(base, 'extensions'), '--disable-extensions', '--remote-debugging-port=' + port, ...(process.platform === 'linux' ? ['--disable-gpu'] : [])] });
   // Attach a rejection handler immediately while waiting for the renderer.
   running.catch(() => {});
   let browser;
