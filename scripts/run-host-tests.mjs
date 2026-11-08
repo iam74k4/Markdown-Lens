@@ -1,6 +1,6 @@
 import { runTests } from '@vscode/test-electron';
 import { build } from 'esbuild';
-import { mkdir, writeFile, access } from 'node:fs/promises';
+import { mkdir, writeFile, access, readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { resolve, join } from 'node:path';
 const root = resolve('.');
@@ -45,4 +45,8 @@ for (const [name, executable] of targets) {
     launchArgs: [workspace, '--user-data-dir=' + userData, '--extensions-dir=' + join(base, 'extensions'), '--disable-extensions', '--disable-telemetry', ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu'] : [])],
     extensionTestsEnv: { MARKDOWN_REVIEW_HOST: name, MARKDOWN_REVIEW_SKIP_FOCUS_TESTS: process.env.MARKDOWN_REVIEW_SKIP_FOCUS_TESTS ?? '', MARKDOWN_LENS_LOCALE: process.env.MARKDOWN_LENS_LOCALE ?? 'ja', MARKDOWN_REVIEW_GIT: git },
   });
+  // Some editors exit with code 0 even when the test runner throws. Only a written
+  // report proves that every check ran to the end.
+  const report = JSON.parse(await readFile(join(workspace, 'results', 'host.json'), 'utf8').catch(() => { throw new Error(`${name}: the host checks did not finish (no results/host.json)`); }));
+  console.log(`${name} ${report.version}: ${report.passed} host checks passed${report.skipped.length ? `, skipped: ${report.skipped.join('; ')}` : ''}`);
 }

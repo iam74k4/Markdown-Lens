@@ -23,6 +23,8 @@ export async function featureChecks(api: FeatureApi, root: string, skipped: stri
   const settings = vscode.workspace.getConfiguration('markdownLens');
 
   // A file created after monitoring started is entirely unreviewed.
+  // Restore the profile's own value afterwards: later fixtures rely on it.
+  const newFiles = settings.inspect('newFiles')?.globalValue;
   await settings.update('newFiles', 'unreviewed', vscode.ConfigurationTarget.Global);
   try {
     await api.pendingFiles.refresh();
@@ -34,7 +36,8 @@ export async function featureChecks(api: FeatureApi, root: string, skipped: stri
     assert.equal(panel.inspect()?.confirmedMarkdown, '');
     panel.panel.dispose();
     evidence.push('files created after monitoring started are shown as added and unreviewed');
-  } finally { await settings.update('newFiles', undefined, vscode.ConfigurationTarget.Global); }
+  } finally { await settings.update('newFiles', newFiles, vscode.ConfigurationTarget.Global); }
+  await until(() => vscode.workspace.getConfiguration('markdownLens').get('newFiles') === (newFiles ?? 'unreviewed'), 'newFiles setting restored');
 
   // Renaming inside VS Code keeps the baseline, so pending changes stay visible.
   const original = vscode.Uri.file(join(root, '改名前.md')), renamed = vscode.Uri.file(join(root, '改名後.md'));
@@ -139,6 +142,7 @@ async function gitChecks(api: FeatureApi, root: string): Promise<string[]> {
 
   // With initialBaseline = gitHead, a file seen for the first time starts from its last commit.
   const first = vscode.Uri.file(join(root, 'Git初回.md'));
+  const initialBaseline = settings.inspect('initialBaseline')?.globalValue;
   await settings.update('initialBaseline', 'gitHead', vscode.ConfigurationTarget.Global);
   try {
     await api.store.remove(first.toString());
@@ -148,6 +152,6 @@ async function gitChecks(api: FeatureApi, root: string): Promise<string[]> {
     assert.equal(fresh.inspect()!.count, 1);
     fresh.panel.dispose();
     evidence.push('initialBaseline = gitHead starts a new review from the last commit');
-  } finally { await settings.update('initialBaseline', undefined, vscode.ConfigurationTarget.Global); }
+  } finally { await settings.update('initialBaseline', initialBaseline, vscode.ConfigurationTarget.Global); }
   return evidence;
 }
