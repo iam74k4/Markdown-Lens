@@ -114,9 +114,12 @@ export class ReviewPanel implements vscode.Disposable {
     });
   }
   private async document(): Promise<vscode.TextDocument> {
+    const missing = () => new Error(t('ファイルが見つかりません。移動・削除された場合は、対象ファイルからプレビューを開き直してください。'));
     try { await vscode.workspace.fs.stat(this.uri); }
-    catch { throw new Error(t('ファイルが見つかりません。移動・削除された場合は、対象ファイルからプレビューを開き直してください。')); }
-    return vscode.workspace.openTextDocument(this.uri);
+    catch { throw missing(); }
+    // The file can disappear between the check and the read, notably on remote file systems.
+    try { return await vscode.workspace.openTextDocument(this.uri); }
+    catch (error) { if (await vscode.workspace.fs.stat(this.uri).then(() => false, () => true)) throw missing(); throw error; }
   }
   private schedule(): void {
     clearTimeout(this.timer);
@@ -145,7 +148,10 @@ export class ReviewPanel implements vscode.Disposable {
     const stamp = await this.sourceStamp();
     if (onlyIfChanged && stamp && stamp === this.stamp && this.review && !this.state?.error) return;
     const doc = await this.document();
-    const text = await documentText(this.uri, doc);
+    const text = await documentText(this.uri, doc).catch(async error => {
+      if (await vscode.workspace.fs.stat(this.uri).then(() => false, () => true)) return this.document().then(() => { throw error; });
+      throw error;
+    });
     if (onlyIfChanged && this.review && text === this.current && doc.isDirty === this.state?.dirty && !this.state.error) { this.stamp = stamp ?? ''; return; }
     const feedback = notice ?? (text === this.current ? this.state?.notice : undefined);
     if (!this.review || text !== this.current) this.review = buildReview(this.snapshotBase?.text ?? this.baseline.text, text, { imageUri: this.imageUri });
