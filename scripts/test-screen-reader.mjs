@@ -1,12 +1,16 @@
-// What VoiceOver actually speaks for the review UI. macOS only; CI prepares VoiceOver with
-// `npx @guidepup/setup --ci`. The complete webview runs against a simulated extension host.
+// What a real screen reader speaks for the review UI: VoiceOver on macOS, NVDA on Windows.
+// CI prepares it with `npx @guidepup/setup setup --ci`. The complete webview runs against a
+// simulated extension host.
 import { build } from 'esbuild';
 import { chromium } from '@playwright/test';
-import { voiceOver, macOSActivate } from '@guidepup/guidepup';
+import { voiceOver, nvda, macOSActivate, windowsActivate } from '@guidepup/guidepup';
 import { mkdir, writeFile, copyFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+const windows = process.platform === 'win32';
+if (!windows && process.platform !== 'darwin') throw new Error('Run the screen reader check on macOS (VoiceOver) or Windows (NVDA)');
+const reader = windows ? nvda : voiceOver, readerName = windows ? 'NVDA' : 'VoiceOver';
 const folder = resolve('test-results/screen-reader'); await mkdir(folder, { recursive: true });
 await build({ stdin: { contents: `export { buildReview } from './src/core'; export { shellHtml } from './src/shell'; export { setLocale } from './src/i18n';`, resolveDir: resolve('.'), loader: 'ts' },
   bundle: true, platform: 'node', format: 'esm', outfile: join(folder, 'host.mjs'), logLevel: 'error' });
@@ -25,7 +29,7 @@ const review = host.buildReview(before, after);
 const state = { uri: 'file:///work/doc.md', name: 'doc.md', html: review.html, revision: review.revision, count: review.hunks.length, hunks: review.hunks,
   baselineMarkdown: before, confirmedMarkdown: before, updatedAt: new Date().toISOString(), dirty: false, markdown: after, settings: { math: true, maxBytes: 524288 } };
 
-// Chrome exposes its web content to VoiceOver only once accessibility is enabled for it.
+// Chrome exposes its web content to screen readers only once accessibility is enabled for it.
 const browser = await chromium.launch({ headless: false, args: ['--force-renderer-accessibility'] });
 const log = [];
 try {
@@ -34,44 +38,61 @@ try {
   await page.waitForFunction(() => window.__posted.some(m => m.type === 'ready'));
   await page.evaluate(s => window.postMessage({ type: 'update', state: s }, '*'), state);
   await page.locator('.ProseMirror .katex').first().waitFor();
-  await voiceOver.start();
-  // VoiceOver reads the frontmost application: bring Playwright's browser to the front.
-  for (const app of ['Google Chrome for Testing', 'Chromium']) { try { await macOSActivate(app); break; } catch { /* try the next name */ } }
+  await reader.start();
+  // The screen reader reads the foreground window: bring Playwright's browser to the front.
+  // The page title, "Markdown Lens", is the window title the activation looks for.
+  if (windows) await windowsActivate(chromium.executablePath(), 'Markdown Lens').catch(() => {});
+  else for (const app of ['Google Chrome for Testing', 'Chromium']) { try { await macOSActivate(app); break; } catch { /* try the next name */ } }
   await page.bringToFront();
   await page.waitForTimeout(3000);
   const record = async name => {
     await page.waitForTimeout(700);
-    const phrase = (await voiceOver.lastSpokenPhrase().catch(() => '')) || (await voiceOver.itemText().catch(() => ''));
+    const phrase = (await reader.lastSpokenPhrase().catch(() => '')) || (await reader.itemText().catch(() => ''));
     log.push(`${name}: ${phrase}`);
     return phrase;
   };
-  // The VoiceOver cursor follows keyboard focus: start at the first toolbar control.
+  // The screen reader follows keyboard focus: start at the first toolbar control.
   const top = async () => { await page.locator('#mode-edit').focus(); await record('focus top'); };
-  // 1. Every control, as VoiceOver's "next control" (VO-Command-J) announces it.
+  // 1. Every control: VoiceOver's "next control" (VO-Command-J); NVDA's browse mode "next button" (B)
+  //    and "next edit field" (E).
+  const step = async (command, name, limit) => {
+    for (let i = 0, last = ''; i < limit; i++) {
+      await reader.perform(command);
+      const phrase = await record(name);
+      if (phrase && phrase === last) break;
+      last = phrase;
+    }
+  };
   await top();
-  for (let i = 0, last = ''; i < 40; i++) {
-    await voiceOver.perform(voiceOver.keyboardCommands.findNextControl);
-    const phrase = await record('control');
-    if (phrase && phrase === last) break;
-    last = phrase;
-  }
-  // 2. The rest of the page in reading order with the VoiceOver cursor (VO-Right).
+  if (windows) {
+    await step(nvda.keyboardCommands.moveToNextButton, 'button', 20);
+    await top();
+    await step(nvda.keyboardCommands.moveToNextEditField, 'edit field', 3);
+  } else await step(voiceOver.keyboardCommands.findNextControl, 'control', 40);
+  // 2. The page in reading order (VoiceOver: VO-Right; NVDA: down arrow in browse mode).
   await top();
   for (let i = 0, repeats = 0, last = ''; i < 80 && repeats < 4; i++) {
-    await voiceOver.next();
+    await reader.next();
     const phrase = await record('next');
     repeats = phrase === last ? repeats + 1 : 0; last = phrase;
     if (/end of footer/i.test(phrase)) break;
   }
-  for (const phrase of await voiceOver.spokenPhraseLog().catch(() => [])) if (phrase) log.push(`log: ${phrase}`);
+  for (const phrase of await reader.spokenPhraseLog().catch(() => [])) if (phrase) log.push(`log: ${phrase}`);
 } finally {
-  await voiceOver.stop().catch(() => {});
+  await reader.stop().catch(() => {});
   await browser.close();
-  await writeFile(join(folder, 'voiceover.json'), JSON.stringify({ log }, null, 2));
+  await writeFile(join(folder, readerName.toLowerCase() + '.json'), JSON.stringify({ reader: readerName, log }, null, 2));
 }
 const text = log.join('\n').toLowerCase();
-console.log(JSON.stringify({ log }, null, 2));
-const expectations = {
+console.log(JSON.stringify({ reader: readerName, log }, null, 2));
+const expectations = windows ? {
+  // NVDA speaks the name, then the role and state.
+  'review buttons are announced by name and role': [/revert change 1\s+button/, /mark change 1 as reviewed\s+button/, /mark all as reviewed\s+button/],
+  'the More actions menu button is announced with its collapsed state': [/more actions\s+button\s+collapsed/],
+  'the editor is announced as a named edit field': [/edit markdown directly\s+edit/],
+  'front matter is read with its label, key and value': [/metadata/, /title/, /design/],
+  'GitHub alert label and text are read': [/warning/, /check the new settings/],
+} : {
   'review buttons are announced by name and role': [/revert change 1 button/, /mark change 1 as reviewed button/, /mark all as reviewed button/],
   'the More actions menu button is announced with its collapsed state': [/more actions collapsed button/],
   'the editor is announced as a named edit text': [/edit markdown directly edit text/],
@@ -81,5 +102,5 @@ const expectations = {
   'inline math is read as math': [/superscript/, /\bmath\b/],
 };
 const failed = Object.entries(expectations).filter(([, patterns]) => !patterns.every(p => p.test(text)));
-if (failed.length) { console.error('VoiceOver did not announce: ' + failed.map(([name]) => name).join('; ')); process.exit(1); }
-console.log('VoiceOver checks passed: ' + Object.keys(expectations).join('; '));
+if (failed.length) { console.error(readerName + ' did not announce: ' + failed.map(([name]) => name).join('; ')); process.exit(1); }
+console.log(readerName + ' checks passed: ' + Object.keys(expectations).join('; '));

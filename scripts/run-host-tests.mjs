@@ -5,10 +5,16 @@ import { execFileSync } from 'node:child_process';
 import { resolve, join } from 'node:path';
 const root = resolve('.');
 await build({ entryPoints: ['test/host.ts'], bundle: true, outfile: 'dist/test-host.js', external: ['vscode'], platform: 'node', format: 'cjs', target: 'node20' });
-// MARKDOWN_REVIEW_REMOTE_AUTHORITY (e.g. ssh-remote+lens-remote) runs the same checks in a
-// remote extension host through Remote - SSH. The remote host must see this checkout at the
-// same path and needs MARKDOWN_LENS_LOCALE / MARKDOWN_REVIEW_GIT in its own environment.
-const remote = process.env.MARKDOWN_REVIEW_REMOTE_AUTHORITY;
+// The same checks also run in a remote extension host (the remote must see this checkout):
+// - MARKDOWN_REVIEW_REMOTE_AUTHORITY=ssh-remote+<host>: Remote - SSH. The remote host needs this
+//   checkout at the same path and MARKDOWN_LENS_LOCALE / MARKDOWN_REVIEW_GIT in its own environment.
+// - MARKDOWN_REVIEW_REMOTE=dev-container: Dev Containers (Docker), with this checkout mounted at the same path.
+// - MARKDOWN_REVIEW_REMOTE=wsl and MARKDOWN_REVIEW_WSL_DISTRO=<name>: WSL on Windows, through /mnt/<drive>.
+const remoteKind = process.env.MARKDOWN_REVIEW_REMOTE ?? (process.env.MARKDOWN_REVIEW_REMOTE_AUTHORITY ? 'ssh' : undefined);
+const remoteExtension = { ssh: 'ms-vscode-remote.remote-ssh', 'dev-container': 'ms-vscode-remote.remote-containers', wsl: 'ms-vscode-remote.remote-wsl' }[remoteKind];
+if (remoteKind && !remoteExtension) throw new Error(`Unknown MARKDOWN_REVIEW_REMOTE: ${remoteKind}`);
+const remote = !!remoteKind;
+const locale = process.env.MARKDOWN_LENS_LOCALE ?? 'ja';
 // macOS uses the installed apps; elsewhere (CI) a stable VS Code is downloaded.
 const targets = remote ? [['vscode-remote', undefined]] : process.platform === 'darwin' ? [
   ['vscode', '/Applications/Visual Studio Code.app/Contents/MacOS/Code'],
@@ -32,15 +38,34 @@ for (const [name, configured] of targets) {
     git = '1';
   } catch (error) { console.log('Git is unavailable; Git checks will be reported as skipped: ' + String(error).split('\n')[0]); }
   let executable = configured;
+  let authority, remotePath = path => path;
   if (remote) {
-    // Remote - SSH is the only extension installed; the extension under test runs remotely.
+    // The remote extension is the only one installed; the extension under test runs remotely.
     executable = await downloadAndUnzipVSCode(process.env.VSCODE_TEST_VERSION ?? 'stable');
-    execFileSync(resolveCliPathFromVSCodeExecutablePath(executable), ['--install-extension', 'ms-vscode-remote.remote-ssh', '--extensions-dir', extensions], { stdio: 'inherit' });
+    const cli = resolveCliPathFromVSCodeExecutablePath(executable);
+    execFileSync(cli, ['--install-extension', remoteExtension, '--extensions-dir', extensions], { stdio: 'inherit', shell: process.platform === 'win32' });
+    if (remoteKind === 'ssh') authority = process.env.MARKDOWN_REVIEW_REMOTE_AUTHORITY;
+    if (remoteKind === 'dev-container') {
+      // The container mounts this checkout at the same path and receives the test environment.
+      await mkdir(join(workspace, '.devcontainer'), { recursive: true });
+      await writeFile(join(workspace, '.devcontainer', 'devcontainer.json'), JSON.stringify({
+        name: 'Markdown Lens host checks', image: process.env.MARKDOWN_REVIEW_DEV_CONTAINER_IMAGE ?? 'mcr.microsoft.com/devcontainers/javascript-node:22',
+        workspaceMount: `source=${root},target=${root},type=bind`, workspaceFolder: workspace,
+        remoteEnv: { MARKDOWN_LENS_LOCALE: locale, MARKDOWN_REVIEW_GIT: git },
+      }, null, 2));
+      authority = 'dev-container+' + Buffer.from(workspace).toString('hex');
+    }
+    if (remoteKind === 'wsl') {
+      const distro = process.env.MARKDOWN_REVIEW_WSL_DISTRO;
+      if (!distro) throw new Error('Set MARKDOWN_REVIEW_WSL_DISTRO to the WSL distribution name');
+      authority = 'wsl+' + distro;
+      remotePath = path => '/mnt/' + path[0].toLowerCase() + path.slice(2).replace(/\\/g, '/');
+    }
   }
   // macOS Unix-domain sockets require a short --user-data-dir path.
   const userData = resolve(root, '..', name + '-' + Date.now().toString(36));
   await mkdir(join(userData, 'User'), { recursive: true });
-  const host = remote?.replace(/^ssh-remote\+/, '');
+  const host = remoteKind === 'ssh' ? authority.replace(/^ssh-remote\+/, '') : undefined;
   await writeFile(join(userData, 'User', 'settings.json'), JSON.stringify({
     'chat.disableAIFeatures': true, 'workbench.secondarySideBar.defaultVisibility': 'hidden',
     'workbench.startupEditor': 'none', 'window.restoreWindows': 'none',
@@ -52,12 +77,14 @@ for (const [name, configured] of targets) {
     ...(host ? { 'remote.SSH.remotePlatform': { [host]: 'linux' }, 'remote.SSH.connectTimeout': 120, 'remote.SSH.showLoginTerminal': true, 'remote.SSH.useLocalServer': false } : {}),
   }));
   console.log(`Testing ${name} in an isolated profile: ${base}`);
-  const at = path => remote ? `vscode-remote://${remote}${path}` : path;
+  const at = path => remote ? `vscode-remote://${authority}${encodeURI(remotePath(path))}` : path;
   await runTests({
     ...(executable ? { vscodeExecutablePath: executable } : { version: process.env.VSCODE_TEST_VERSION ?? 'stable' }), extensionDevelopmentPath: at(root),
     extensionTestsPath: at(join(root, 'dist', 'test-host.js')),
     launchArgs: [...(remote ? ['--folder-uri', at(workspace)] : [workspace, '--disable-extensions']), '--user-data-dir=' + userData, '--extensions-dir=' + extensions, '--disable-telemetry', ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu'] : [])],
-    extensionTestsEnv: { MARKDOWN_REVIEW_HOST: name, MARKDOWN_REVIEW_SKIP_FOCUS_TESTS: process.env.MARKDOWN_REVIEW_SKIP_FOCUS_TESTS ?? '', MARKDOWN_LENS_LOCALE: process.env.MARKDOWN_LENS_LOCALE ?? 'ja', MARKDOWN_REVIEW_GIT: git },
+    extensionTestsEnv: { MARKDOWN_REVIEW_HOST: name, MARKDOWN_REVIEW_SKIP_FOCUS_TESTS: process.env.MARKDOWN_REVIEW_SKIP_FOCUS_TESTS ?? '', MARKDOWN_LENS_LOCALE: locale, MARKDOWN_REVIEW_GIT: git,
+      // wsl.exe passes only the variables listed here into the distribution.
+      ...(remoteKind === 'wsl' ? { WSLENV: [process.env.WSLENV, 'MARKDOWN_LENS_LOCALE/u', 'MARKDOWN_REVIEW_GIT/u', 'MARKDOWN_REVIEW_HOST/u', 'MARKDOWN_REVIEW_SKIP_FOCUS_TESTS/u'].filter(Boolean).join(':') } : {}) },
   });
   // Some editors exit with code 0 even when the test runner throws. Only a written
   // report proves that every check ran to the end.

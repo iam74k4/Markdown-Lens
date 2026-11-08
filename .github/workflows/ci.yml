@@ -104,6 +104,46 @@ jobs:
       - run: xvfb-run -a npm run test:host
         env:
           MARKDOWN_REVIEW_REMOTE_AUTHORITY: ssh-remote+lens-remote
+  # The same host checks in a Dev Container (Docker on this runner, checkout mounted at the same path).
+  host-dev-container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: docker version
+      - run: xvfb-run -a npm run test:host
+        env:
+          MARKDOWN_REVIEW_REMOTE: dev-container
+  # The same host checks in WSL from VS Code on Windows.
+  host-wsl:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: Vampire/setup-wsl@v6
+        with:
+          distribution: Ubuntu-24.04
+          additional-packages: git ca-certificates wget curl
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:host
+        env:
+          MARKDOWN_REVIEW_REMOTE: wsl
+          MARKDOWN_REVIEW_WSL_DISTRO: Ubuntu-24.04
   # The real Webview inside VS Code, driven through the renderer's DevTools protocol.
   # Cursor is not in the matrix: a fresh profile stops at a mandatory sign-in screen.
   ui:
@@ -145,7 +185,7 @@ jobs:
           name: ui-${{ matrix.target }}
           path: test-results/
           retention-days: 7
-  # What a real screen reader (VoiceOver) announces for the review UI.
+  # What a real screen reader announces for the review UI: VoiceOver on macOS.
   screen-reader:
     # macOS 26 (macos-latest) rejects Guidepup's VoiceOver start request.
     runs-on: macos-15
@@ -168,6 +208,28 @@ jobs:
         with:
           name: screen-reader
           path: test-results/screen-reader/voiceover.json
+          retention-days: 7
+  # The same screen reader check with NVDA on Windows.
+  screen-reader-nvda:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - run: npx --yes @guidepup/setup@0.29.3 setup --ci
+      - run: node scripts/test-screen-reader.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screen-reader-nvda
+          path: test-results/screen-reader/nvda.json
           retention-days: 7
   # Paths, line endings and file system behaviour differ by platform.
   platforms:
