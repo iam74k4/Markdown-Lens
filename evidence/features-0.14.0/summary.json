@@ -4,23 +4,72 @@
   "local": {
     "environment": "Linux container, Node.js 22.23.4, Chromium 1243 (Playwright)",
     "typecheck": "passed",
-    "unitTests": { "passed": 160, "failed": 0 },
+    "unitTests": {
+      "passed": 160,
+      "failed": 0
+    },
     "browser": [
-      "test:rich passed", "test:tables passed", "test:diagrams passed",
+      "test:rich passed",
+      "test:tables passed",
+      "test:diagrams passed",
       "test:webview passed: syntax rendering, review actions, Cmd/Ctrl+click links, broken links, menu commands, raw source editing, input rules, English UI",
       "Japanese IME (Chromium Input.imeSetComposition) in the raw source form and next to math/footnotes",
       "axe-core 4.10.3 WCAG 2 A/AA: document 23 rules, menu 26 rules, raw form 25 rules passed; no serious or critical violations"
     ],
-    "notRun": ["test:host locally (VS Code download blocked by the container network; run in CI)", "test:ui (macOS only)"]
+    "notRun": [
+      "test:host and test:ui locally (VS Code download blocked by the container network; run in CI)",
+      "test:screen-reader (macOS only; run in CI)"
+    ]
   },
   "ci": {
-    "run": "https://github.com/iam74k4/Markdown-Lens/actions/runs/42506046886",
-    "commit": "8464f05166e32d8fb1b73f3f70f43ca3d3af5875",
-    "jobs": { "check": "success", "host": "success", "host-cursor": "success", "platforms (windows-latest)": "success", "platforms (macos-latest)": "success" },
+    "run": "https://github.com/iam74k4/Markdown-Lens/actions/runs/42512089687",
+    "commit": "38ed5ab5093a3fb19acc79562adfddc22af8c54a",
+    "jobs": {
+      "check": "success",
+      "host": "success",
+      "host-cursor": "success",
+      "host-remote-ssh": "success",
+      "ui (vscode)": "success",
+      "screen-reader": "success",
+      "platforms (windows-latest)": "success",
+      "platforms (macos-latest)": "success"
+    },
     "host": [
-      { "editor": "Visual Studio Code 1.145.2 (Linux, xvfb)", "passed": 43, "skipped": [] },
-      { "editor": "Cursor 1.128.0 (Linux AppImage, xvfb)", "passed": 43, "skipped": [] }
+      {
+        "editor": "Visual Studio Code 1.145.2 (Linux, xvfb)",
+        "remote": null,
+        "passed": 43,
+        "skipped": []
+      },
+      {
+        "editor": "Cursor 1.128.0 (Linux AppImage, xvfb)",
+        "remote": null,
+        "passed": 43,
+        "skipped": []
+      },
+      {
+        "editor": "Visual Studio Code 1.145.2 with Remote - SSH to the same runner",
+        "remote": "ssh-remote",
+        "passed": 43,
+        "skipped": []
+      }
     ],
+    "ui": "VS Code 1.145.2 real Webview UI suite (test:ui) passed on Linux under xvfb",
+    "screenReader": {
+      "tool": "VoiceOver on macOS 15, driven by @guidepup/guidepup 0.40.0 (English UI, Chrome for Testing)",
+      "announced": [
+        "Revert change 1 button",
+        "Mark change 1 as reviewed button",
+        "Mark all as reviewed button",
+        "More actions collapsed button",
+        "Edit Markdown directly edit text",
+        "Metadata title Design",
+        "Warning",
+        "Check the new settings.",
+        "𝑒, superscript 𝑖 𝜋, + 1 = 0 math"
+      ],
+      "note": "Inside the edit text, VoiceOver's table navigation does not find the front matter table; it is read as text."
+    },
     "newHostChecks": [
       "Git HEAD comparison reads the committed file and never changes the confirmed baseline",
       "resetting the baseline to Git HEAD or an empty document is applied and can be undone",
@@ -34,12 +83,20 @@
       "Markdown Lens opens as a custom editor via Open With",
       "saving an edit writes exactly the edited Markdown"
     ],
-    "runnerFix": "Cursor exits with code 0 when the test runner throws; the runner now requires results/host.json from every editor."
+    "fixesFoundDuringValidation": [
+      "Cursor exits with code 0 when the test runner throws; the runner now requires results/host.json from every editor.",
+      "A file deleted between the existence check and the read (seen over Remote - SSH) showed a raw ENOENT; it now shows the missing-file message.",
+      "Refreshing the pending list during a scan returned before the scan finished; it now waits for it.",
+      "Host checks that inject draft and view messages detach the mounted webview so its own messages cannot race them."
+    ]
   },
   "notVerifiable": {
-    "screenReaders": "No screen reader is available in CI; covered by the automated axe-core audit only.",
-    "remoteWorkspaces": "SSH, WSL and Dev Containers need Microsoft's remote extensions and an interactive connection, which the test runner cannot drive.",
-    "cursorUiScreens": "Cursor's real UI tests (test:ui) are macOS-only and need a signed-in profile; Cursor's extension host is covered above."
+    "remoteWorkspaces": "WSL, Dev Containers and VS Code for the Web are not covered; Remote - SSH is covered above.",
+    "otherScreenReaders": "NVDA and JAWS (Windows) are not covered; VoiceOver is covered above.",
+    "cursorUiScreens": "A fresh Cursor profile stops at a mandatory sign-in screen, so the real UI suite needs a signed-in Cursor; Cursor's extension host is covered above."
   },
-  "requiresOwner": ["Marketplace / Open VSX publication (publisher credentials)", "Pull request creation and merge"]
+  "requiresOwner": [
+    "Marketplace / Open VSX publication (publisher credentials)",
+    "Pull request creation and merge"
+  ]
 }

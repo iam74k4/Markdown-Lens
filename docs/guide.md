@@ -252,7 +252,7 @@ VS Code / Cursorでリポジトリのルートフォルダを開き、F5で拡�
 
 `npm run test:ui` はVS Codeの実際のWebviewでボタン操作・ダーク/ライトテーマ・狭い幅の表示を検証します（Linuxでは `xvfb-run -a npm run test:ui`）。`MARKDOWN_REVIEW_TARGET=cursor npm run test:ui` も用意していますが、Cursorの新規プロファイルはログイン必須の画面で止まるため、ログイン済みのCursorが必要です。
 
-`npm run test:screen-reader` はmacOSのVoiceOverで、確認ボタン・メニュー・本文・メタデータ・アラートの読み上げを検証します（事前に `npx @guidepup/setup setup` でVoiceOverの自動操作を許可します）。
+`npm run test:screen-reader` はmacOSのVoiceOverで、確認ボタン・メニュー・本文・メタデータ・アラート・数式の読み上げを検証します（事前に `npx @guidepup/setup setup` でVoiceOverの自動操作を許可します）。
 
 配布用VSIXは `npx vsce package --no-dependencies --out markdown-lens-0.14.0.vsix` で生成できます。公開時にはpublisherを登録し、VS Code Marketplace / Open VSX向けの配布情報を設定してください。
 
