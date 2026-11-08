@@ -1,0 +1,32 @@
+{
+  "version": "0.14.0",
+  "date": "2026-11-08",
+  "local": {
+    "environment": "Linux container, Node.js 22.23.4, Chromium 1243 (Playwright)",
+    "typecheck": "passed",
+    "unitTests": { "passed": 160, "failed": 0 },
+    "browser": ["test:rich passed", "test:tables passed", "test:diagrams passed", "test:webview passed (Japanese and English UI)"],
+    "notRun": ["test:host (VS Code download blocked by the container network)", "test:ui (macOS only)"]
+  },
+  "ci": {
+    "run": "https://github.com/iam74k4/Markdown-Lens/actions/runs/42504994209",
+    "commit": "18855cf24d2c11c3cea716998ef9347d584ce4ab",
+    "jobs": { "check": "success", "host": "success", "platforms (windows-latest)": "success", "platforms (macos-latest)": "success" },
+    "host": {
+      "editor": "Visual Studio Code 1.145.2 (Linux, xvfb)",
+      "passed": 39,
+      "skipped": ["native editor Undo: interactive desktop unavailable"],
+      "newChecks": [
+        "files created after monitoring started are shown as added and unreviewed",
+        "renaming a file carries its baseline and keeps unreviewed changes",
+        "the reviewed baseline opens in VS Code's diff editor",
+        "the change summary lists unreviewed hunks as Markdown diffs",
+        "next-change navigation works in the text editor",
+        "missing link targets and anchors are reported as diagnostics",
+        "Markdown Lens opens as a custom editor via Open With",
+        "saving an edit writes exactly the edited Markdown"
+      ]
+    }
+  },
+  "notVerified": ["Cursor extension host and screens", "Git comparison against a real repository in the extension host", "Japanese IME on the new raw inline editing form", "screen readers", "remote (SSH/WSL/containers) workspaces", "Marketplace / Open VSX publication"]
+}
