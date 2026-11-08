@@ -1,14 +1,16 @@
 {
   "name": "markdown-lens-review",
-  "displayName": "Markdown Lens — WYSIWYG & Review",
-  "description": "Markdownを見たまま編集。AIの変更をマーカーで確認。表・画像・Mermaidにも対応。",
-  "version": "0.13.0",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.14.0",
   "publisher": "iam74k4",
   "license": "MIT",
   "engines": {
     "vscode": "^1.96.0"
   },
   "categories": [
+    "Visualization",
+    "Formatters",
     "Other"
   ],
   "keywords": [
@@ -16,12 +18,19 @@
     "wysiwyg",
     "diff",
     "review",
-    "mermaid"
+    "mermaid",
+    "ai",
+    "math",
+    "katex",
+    "frontmatter",
+    "preview",
+    "japanese"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
     "onWebviewPanel:markdownReview.preview",
-    "onStartupFinished"
+    "onLanguage:markdown",
+    "workspaceContains:**/*.{md,markdown,mdown}"
   ],
   "extensionKind": [
     "workspace"
@@ -38,22 +47,70 @@
     "commands": [
       {
         "command": "markdownReview.open",
-        "title": "変更プレビューを開く",
+        "title": "%command.open%",
         "category": "Markdown Lens",
         "icon": "$(diff)"
       },
       {
         "command": "markdownReview.refresh",
-        "title": "未確認ファイルを更新",
+        "title": "%command.refresh%",
         "category": "Markdown Lens",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "markdownReview.nextChange",
+        "title": "%command.nextChange%",
+        "category": "Markdown Lens",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "markdownReview.previousChange",
+        "title": "%command.previousChange%",
+        "category": "Markdown Lens",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "markdownReview.reviewAll",
+        "title": "%command.reviewAll%",
+        "category": "Markdown Lens",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "markdownReview.textDiff",
+        "title": "%command.textDiff%",
+        "category": "Markdown Lens",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "markdownReview.resetBaseline",
+        "title": "%command.resetBaseline%",
+        "category": "Markdown Lens",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "markdownReview.compareGit",
+        "title": "%command.compareGit%",
+        "category": "Markdown Lens",
+        "icon": "$(git-commit)"
+      },
+      {
+        "command": "markdownReview.exportSummary",
+        "title": "%command.exportSummary%",
+        "category": "Markdown Lens",
+        "icon": "$(export)"
+      },
+      {
+        "command": "markdownReview.cleanStorage",
+        "title": "%command.cleanStorage%",
+        "category": "Markdown Lens",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
       "editor/title": [
         {
           "command": "markdownReview.open",
-          "when": "editorLangId == markdown && resourceScheme != untitled",
+          "when": "editorLangId == markdown && resourceScheme != untitled && activeEditor != markdownReview.editor",
           "group": "navigation"
         }
       ],
@@ -62,6 +119,11 @@
           "command": "markdownReview.open",
           "when": "resourceExtname =~ /\\.(md|markdown|mdown)$/i",
           "group": "navigation@20"
+        },
+        {
+          "command": "markdownReview.textDiff",
+          "when": "resourceExtname =~ /\\.(md|markdown|mdown)$/i",
+          "group": "navigation@21"
         }
       ],
       "view/title": [
@@ -69,6 +131,52 @@
           "command": "markdownReview.refresh",
           "when": "view == markdownReview.pending",
           "group": "navigation"
+        },
+        {
+          "command": "markdownReview.exportSummary",
+          "when": "view == markdownReview.pending",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "markdownReview.textDiff",
+          "when": "view == markdownReview.pending && viewItem == markdownLensPending",
+          "group": "inline"
+        },
+        {
+          "command": "markdownReview.resetBaseline",
+          "when": "view == markdownReview.pending && viewItem == markdownLensPending"
+        },
+        {
+          "command": "markdownReview.exportSummary",
+          "when": "view == markdownReview.pending && viewItem == markdownLensPending"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "markdownReview.nextChange",
+          "when": "editorLangId == markdown || activeWebviewPanelId == markdownReview.preview || activeCustomEditorId == markdownReview.editor"
+        },
+        {
+          "command": "markdownReview.previousChange",
+          "when": "editorLangId == markdown || activeWebviewPanelId == markdownReview.preview || activeCustomEditorId == markdownReview.editor"
+        },
+        {
+          "command": "markdownReview.reviewAll",
+          "when": "editorLangId == markdown || activeWebviewPanelId == markdownReview.preview || activeCustomEditorId == markdownReview.editor"
+        },
+        {
+          "command": "markdownReview.textDiff",
+          "when": "editorLangId == markdown || activeWebviewPanelId == markdownReview.preview || activeCustomEditorId == markdownReview.editor"
+        },
+        {
+          "command": "markdownReview.resetBaseline",
+          "when": "editorLangId == markdown || activeWebviewPanelId == markdownReview.preview || activeCustomEditorId == markdownReview.editor"
+        },
+        {
+          "command": "markdownReview.compareGit",
+          "when": "editorLangId == markdown || activeWebviewPanelId == markdownReview.preview || activeCustomEditorId == markdownReview.editor"
         }
       ]
     },
@@ -76,32 +184,169 @@
       "explorer": [
         {
           "id": "markdownReview.pending",
-          "name": "Markdown Lens · 未確認"
+          "name": "%view.pending%"
         }
       ]
     },
     "viewsWelcome": [
       {
         "view": "markdownReview.pending",
-        "contents": "未確認の変更はありません。\n初回読み込みで比較元を保存し、以降の変更を表示します。"
+        "contents": "%view.pending.welcome%"
       }
-    ]
+    ],
+    "keybindings": [
+      {
+        "command": "markdownReview.open",
+        "key": "ctrl+k alt+r",
+        "mac": "cmd+k alt+r",
+        "when": "editorLangId == markdown && !inDiffEditor"
+      },
+      {
+        "command": "markdownReview.nextChange",
+        "key": "alt+f3",
+        "when": "editorTextFocus && editorLangId == markdown"
+      },
+      {
+        "command": "markdownReview.previousChange",
+        "key": "shift+alt+f3",
+        "when": "editorTextFocus && editorLangId == markdown"
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "markdownReview.editor",
+        "displayName": "%customEditor.displayName%",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
+          },
+          {
+            "filenamePattern": "*.markdown"
+          },
+          {
+            "filenamePattern": "*.mdown"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "configuration": {
+      "title": "Markdown Lens",
+      "properties": {
+        "markdownLens.initialBaseline": {
+          "type": "string",
+          "enum": [
+            "content",
+            "gitHead"
+          ],
+          "enumDescriptions": [
+            "%config.initialBaseline.content%",
+            "%config.initialBaseline.gitHead%"
+          ],
+          "default": "content",
+          "markdownDescription": "%config.initialBaseline%"
+        },
+        "markdownLens.newFiles": {
+          "type": "string",
+          "enum": [
+            "unreviewed",
+            "reviewed"
+          ],
+          "enumDescriptions": [
+            "%config.newFiles.unreviewed%",
+            "%config.newFiles.reviewed%"
+          ],
+          "default": "unreviewed",
+          "markdownDescription": "%config.newFiles%"
+        },
+        "markdownLens.excludeFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "node_modules",
+            ".git",
+            "dist",
+            "build",
+            ".next",
+            "vendor"
+          ],
+          "markdownDescription": "%config.excludeFolders%"
+        },
+        "markdownLens.maxFiles": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 1,
+          "maximum": 20000,
+          "markdownDescription": "%config.maxFiles%"
+        },
+        "markdownLens.maxFileSizeKB": {
+          "type": "number",
+          "default": 512,
+          "minimum": 128,
+          "maximum": 4096,
+          "markdownDescription": "%config.maxFileSizeKB%"
+        },
+        "markdownLens.imageFolder": {
+          "type": "string",
+          "default": ".markdown-lens-images",
+          "markdownDescription": "%config.imageFolder%"
+        },
+        "markdownLens.pollInterval": {
+          "type": "number",
+          "default": 1500,
+          "minimum": 0,
+          "maximum": 60000,
+          "markdownDescription": "%config.pollInterval%"
+        },
+        "markdownLens.editorDecorations": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.editorDecorations%"
+        },
+        "markdownLens.statusBar": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.statusBar%"
+        },
+        "markdownLens.validateLinks": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.validateLinks%"
+        },
+        "markdownLens.math": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.math%"
+        },
+        "markdownLens.storageRetentionDays": {
+          "type": "number",
+          "default": 14,
+          "minimum": 0,
+          "maximum": 3650,
+          "markdownDescription": "%config.storageRetentionDays%"
+        }
+      }
+    }
   },
   "scripts": {
     "build": "node scripts/build.mjs",
     "check": "tsc --noEmit",
-    "test": "tsx --test test/core.test.ts test/store.test.ts test/rich.test.ts test/features.test.ts test/inline-review.test.ts test/quick-table.test.ts test/section-folding.test.ts test/colors.test.ts test/productivity.test.ts",
+    "test": "tsx --test test/syntax.test.ts test/core.test.ts test/store.test.ts test/rich.test.ts test/features.test.ts test/inline-review.test.ts test/quick-table.test.ts test/section-folding.test.ts test/colors.test.ts test/productivity.test.ts test/host-logic.test.ts",
     "test:host": "node scripts/run-host-tests.mjs",
     "test:ui": "node scripts/run-ui-tests.mjs",
     "vscode:prepublish": "npm run check && npm run build && node scripts/notices.mjs",
     "package": "vsce package --no-dependencies",
     "test:diagrams": "node scripts/test-diagrams.mjs",
     "test:tables": "node scripts/test-tables.mjs",
-    "test:rich": "node scripts/test-rich-editor.mjs"
+    "test:rich": "node scripts/test-rich-editor.mjs",
+    "test:webview": "node scripts/test-webview.mjs"
   },
   "dependencies": {
     "diff": "9.0.0",
     "iconv-lite": "0.6.3",
+    "katex": "0.18.2",
     "markdown-it": "14.3.3",
     "mermaid": "11.17.2",
     "prosemirror-commands": "^1.7.2",

@@ -5,6 +5,7 @@ dist/
 test-results/
 media/webview.js
 media/webview.css
+media/fonts/
 
 .DS_Store
 .env

@@ -33,6 +33,14 @@ const paths = {
   bullet: '<path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
   number: '<path d="M10 6h11M10 12h11M10 18h11M3 3h1v6M3 9h3M3 14c0-2 4-2 4 0s-4 2-4 6h4"/>',
   code: '<path d="m7 7-5 5 5 5m10-10 5 5-5 5m-3-13-4 20"/>',
+  sigma: '<path d="M18 5H6l6 7-6 7h12"/>',
+  footnote: '<path d="M4 7h10M4 12h10M4 17h6"/><path d="M18 4v6M16 6l2-2"/>',
+  meta: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h4M7 13h10M7 17h7"/>',
+  git: '<circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 8v8M18 11c0 4-6 3-10 6"/>',
+  reset: '<path d="M4 4v6h6M4 10a8 8 0 1 1 2 6"/>',
+  export: '<path d="M12 3v12M7 8l5-5 5 5M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/>',
+  textDiff: '<path d="M4 4h7v16H4zM13 4h7v16h-7M6 9h3M15 9h3M15 13h3M6 13h3"/>',
+  warning: '<path d="M12 3 2 20h20L12 3zM12 10v4M12 17v.5"/>',
   save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z"/><path d="M7 3v6h9V3M7 21v-7h10v7"/>',
 } as const;
 

@@ -24,6 +24,9 @@ function visibleText(nodes: { node: PMNode; pos: number }[]) {
     node.descendants((child, offset) => {
       if (child.isText) {
         for (let i = 0; i < child.text!.length; i++) { text += child.text![i]; positions.push(pos + 1 + offset + i); }
+      } else if (child.isLeaf && child.type.spec.leafText) {
+        // Raw syntax and soft breaks compare by their visible text but cannot be highlighted inside.
+        const leaf = child.type.spec.leafText(child); text += leaf; for (let i = 0; i < leaf.length; i++) positions.push(-1);
       } else if (child.isLeaf || child.isTextblock) { text += '\n'; positions.push(-1); }
     });
     text += '\n'; positions.push(-1);

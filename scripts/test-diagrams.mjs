@@ -7,7 +7,7 @@ const folder = resolve('test-results/diagram-browser');
 await mkdir(folder, { recursive: true });
 await build({ stdin: { contents: `import { renderDiagrams, refreshDiagramThemes } from './src/diagrams'; window.renderDiagrams=renderDiagrams; window.refreshDiagramThemes=refreshDiagramThemes;`, resolveDir: resolve('.') }, bundle: true, platform: 'browser', outfile: join(folder, 'diagrams.js') });
 await writeFile(join(folder, 'index.html'), '<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'self\'; style-src \'unsafe-inline\'; img-src \'none\'"><body class="vscode-light"><main id="fixtures"></main><script src="diagrams.js"></script>');
-const browser = await chromium.launch(process.env.CI ? { headless: true } : { headless: true, channel: 'chrome' });
+const browser = await chromium.launch(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ? { headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } : process.env.CI ? { headless: true } : { headless: true, channel: 'chrome' });
 try {
   const page = await browser.newPage();
   const requests = [], errors = [];
