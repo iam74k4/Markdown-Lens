@@ -27,7 +27,6 @@ const state = { uri: 'file:///work/doc.md', name: 'doc.md', html: review.html, r
 
 // Chrome exposes its web content to VoiceOver only once accessibility is enabled for it.
 const browser = await chromium.launch({ headless: false, args: ['--force-renderer-accessibility'] });
-const spoken = {};
 const log = [];
 try {
   const page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
@@ -56,20 +55,7 @@ try {
     if (phrase && phrase === last) break;
     last = phrase;
   }
-  // 2. Tables (front matter), and the cells inside the first one.
-  await top();
-  await voiceOver.perform(voiceOver.keyboardCommands.findNextTable);
-  spoken.table = await record('table');
-  await voiceOver.interact().catch(() => {});
-  for (let i = 0; i < 6; i++) { await voiceOver.next(); await record('table cell'); }
-  await voiceOver.stopInteracting().catch(() => {});
-  // 3. The editor, line by line with the caret, as a screen reader user reads a text area.
-  await page.locator('.ProseMirror').focus();
-  spoken.editor = await record('editor');
-  await page.keyboard.press('Meta+ArrowUp');
-  await record('editor start');
-  for (let i = 0; i < 14; i++) { await page.keyboard.press('ArrowDown'); await record('editor line'); }
-  // 4. The page read in order from the top with the VoiceOver cursor.
+  // 2. The rest of the page in reading order with the VoiceOver cursor (VO-Right).
   await top();
   for (let i = 0, repeats = 0, last = ''; i < 80 && repeats < 4; i++) {
     await voiceOver.next();
@@ -81,16 +67,18 @@ try {
 } finally {
   await voiceOver.stop().catch(() => {});
   await browser.close();
-  await writeFile(join(folder, 'voiceover.json'), JSON.stringify({ spoken, log }, null, 2));
+  await writeFile(join(folder, 'voiceover.json'), JSON.stringify({ log }, null, 2));
 }
-const text = [...Object.values(spoken), ...log].join('\n').toLowerCase();
-console.log(JSON.stringify({ spoken, log }, null, 2));
+const text = log.join('\n').toLowerCase();
+console.log(JSON.stringify({ log }, null, 2));
 const expectations = {
-  'review buttons are announced by name': [/revert change 1/, /mark change 1 as reviewed/],
-  'the More actions menu button is announced': [/more actions/],
-  'the editor is an editable text area with a name': [/edit markdown directly/],
-  'front matter is read as a metadata table': [/metadata/, /design/],
+  'review buttons are announced by name and role': [/revert change 1 button/, /mark change 1 as reviewed button/, /mark all as reviewed button/],
+  'the More actions menu button is announced with its collapsed state': [/more actions collapsed button/],
+  'the editor is announced as a named edit text': [/edit markdown directly edit text/],
+  // Inside the edit text, VoiceOver reads the front matter preview as text, not as a navigable table.
+  'front matter is read with its label, key and value': [/metadata\s+title\s+design/],
   'GitHub alert label and text are read': [/warning/, /check the new settings/],
+  'inline math is read as math': [/superscript/, /\bmath\b/],
 };
 const failed = Object.entries(expectations).filter(([, patterns]) => !patterns.every(p => p.test(text)));
 if (failed.length) { console.error('VoiceOver did not announce: ' + failed.map(([name]) => name).join('; ')); process.exit(1); }
