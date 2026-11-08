@@ -92,7 +92,8 @@ const expectations = windows ? {
   'review buttons are announced by name and role': [/revert change 1, button/, /mark change 1 as reviewed, button/, /mark all as reviewed, button/],
   'the More actions menu button is announced with its collapsed state': [/more actions, button, collapsed/],
   'the editor is announced as a named multi line edit field': [/edit markdown directly, edit, multi line/],
-  'front matter is read with its label, key and value': [/metadata/, /title/, /design/],
+  // NVDA reads the front matter preview as a table inside the edit field.
+  'front matter is read as a metadata table': [/multi line, metadata/, /table, with 1 row and 2 columns, row 1, column 1, title/, /column 2, design/],
   'GitHub alert label and text are read': [/block quote, warning, check the new settings/],
   'inline math is read as math': [/raised to the/, /pi power/],
 } : {
