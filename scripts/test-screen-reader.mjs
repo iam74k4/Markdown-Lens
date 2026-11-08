@@ -44,14 +44,18 @@ try {
     await page.waitForTimeout(1500);
     spoken[name] = (await voiceOver.lastSpokenPhrase()) || (await voiceOver.itemText());
   };
-  await speak('revert', '.inline-review .revert');
-  await speak('review', '.inline-review .confirm-change');
-  await speak('menu', '#more-tools');
   await speak('editor', '.ProseMirror');
-  // Read the document from the top with the VoiceOver cursor.
+  // Read the whole page from the top with the VoiceOver cursor, as a screen reader user would.
+  await voiceOver.interact().catch(() => {});
+  await voiceOver.perform(voiceOver.keyboardCommands.jumpToTopEdge).catch(() => {});
+  await voiceOver.perform(voiceOver.keyboardCommands.moveToFirst).catch(() => {});
   await voiceOver.clearSpokenPhraseLog();
-  for (let i = 0; i < 40; i++) await voiceOver.next();
-  log = await voiceOver.spokenPhraseLog();
+  for (let i = 0; i < 90; i++) {
+    await voiceOver.next();
+    const phrase = await voiceOver.lastSpokenPhrase();
+    if (/end of footer/i.test(phrase)) break;
+  }
+  log = (await voiceOver.spokenPhraseLog()).filter(Boolean);
 } finally {
   await voiceOver.stop().catch(() => {});
   await browser.close();
