@@ -58,6 +58,18 @@ for (const [name, configured, port] of targets) {
     page.setDefaultTimeout(12000);
     if (name === 'cursor') {
       await page.screenshot({ caret: 'initial', path: join(base, 'cursor-start.png') });
+      // A fresh Cursor profile opens first-run screens over the whole window. Report what they
+      // say and leave them through their own skip/close buttons, never by editing Cursor's DOM.
+      for (let i = 0; i < 8; i++) {
+        const overlay = page.locator('div.flex.h-full.w-full.items-center.justify-center').filter({ visible: true }).first();
+        if (!await overlay.count()) break;
+        console.log('Cursor first-run screen:', (await overlay.innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 400));
+        const leave = overlay.getByRole('button', { name: /skip|continue|not now|later|close|dismiss|got it|start|no thanks/i }).first();
+        if (await leave.count()) { console.log('Cursor first-run: pressing', await leave.innerText().catch(() => '?')); await leave.click({ timeout: 3000 }).catch(() => {}); }
+        else await page.keyboard.press('Escape');
+        await page.waitForTimeout(1000);
+      }
+      await page.screenshot({ caret: 'initial', path: join(base, 'cursor-ready.png') });
     }
     // Optional README assets: capture real Webview pixels without changing document content or CSS.
     const screenshots = process.env.MARKDOWN_REVIEW_SCREENSHOTS ? resolve(process.env.MARKDOWN_REVIEW_SCREENSHOTS) : undefined;

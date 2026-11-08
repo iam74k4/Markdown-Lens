@@ -144,6 +144,28 @@ jobs:
           name: ui-${{ matrix.target }}
           path: test-results/
           retention-days: 7
+  # What a real screen reader (VoiceOver) announces for the review UI.
+  screen-reader:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - run: npx --yes @guidepup/setup@0.29.3 --ci
+      - run: node scripts/test-screen-reader.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screen-reader
+          path: test-results/screen-reader/voiceover.json
+          retention-days: 7
   # Paths, line endings and file system behaviour differ by platform.
   platforms:
     strategy:

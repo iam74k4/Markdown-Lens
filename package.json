@@ -341,7 +341,8 @@
     "test:diagrams": "node scripts/test-diagrams.mjs",
     "test:tables": "node scripts/test-tables.mjs",
     "test:rich": "node scripts/test-rich-editor.mjs",
-    "test:webview": "node scripts/test-webview.mjs"
+    "test:webview": "node scripts/test-webview.mjs",
+    "test:screen-reader": "node scripts/test-screen-reader.mjs"
   },
   "dependencies": {
     "diff": "9.0.0",
@@ -362,6 +363,7 @@
     "prosemirror-view": "^1.42.9"
   },
   "devDependencies": {
+    "@guidepup/guidepup": "0.40.0",
     "@playwright/test": "^1.64.1",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^22.0.0",
