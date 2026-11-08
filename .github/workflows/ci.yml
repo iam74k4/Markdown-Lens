@@ -160,6 +160,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install chromium
       - run: npx --yes @guidepup/setup@0.29.3 setup --ci
+      - run: npx --yes @guidepup/setup@0.29.3 install --ci
       - run: node scripts/test-screen-reader.mjs
       - uses: actions/upload-artifact@v4
         if: always()
