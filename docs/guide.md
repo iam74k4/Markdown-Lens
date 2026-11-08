@@ -215,7 +215,7 @@ Markdown標準には文字色・マーカーの指定がないため、GitHubや
 - ファイルの移動・名前変更では比較元を引き継ぎます（外部ツールによる移動は内容の一致で判定）。
 - 外部画像の読み込みとHTMLの実行には対応しません。リンクは⌘/Ctrl+クリックで明示的に開いたときだけ遷移します。ローカル画像・Mermaid・数式は本文と各変更の比較欄でプレビューできます。Mermaidの編集はコードブロック内で行います。
 - UIは日本語と英語です（VS Codeの表示言語に従います）。VS Codeのテーマ、狭いウィンドウ、キーボード操作に対応します。
-- デスクトップ版が対象です。リモート環境はRemote - SSHの拡張ホストで検証しています（WSL・Dev Containers・ブラウザ版は未検証）。
+- デスクトップ版が対象です。リモート環境はRemote - SSH・Dev Containers・WSLの拡張ホストで検証しています。拡張はNode.js上で動くため、ブラウザーだけで動くVS Code for the Web（vscode.dev・github.dev）では使えません。
 
 ## データの保存
 
@@ -248,11 +248,15 @@ VS Code / Cursorでリポジトリのルートフォルダを開き、F5で拡�
 
 `npm run test:host` は独立したテスト用プロファイルで実際の拡張ホストを起動し、外部編集検知・部分的な復元・Undo・保存・比較元の保持、新規ファイル・名前変更・テキスト差分・要約・リンク診断・カスタムエディターを検証します。macOSではインストール済みのVS Code / Cursorを使い、それ以外ではVS Code安定版をダウンロードします（Linuxでは `xvfb-run -a npm run test:host`）。Linuxで `CURSOR_EXECUTABLE` を指定するとCursorでも実行します。メッセージの言語は `MARKDOWN_LENS_LOCALE`（既定 `ja`）で固定します。
 
-`MARKDOWN_REVIEW_REMOTE_AUTHORITY=ssh-remote+<ホスト>` を指定すると、同じ検証をRemote - SSHのリモート拡張ホストで実行します。リモート側からも同じパスでこのリポジトリが見え、`MARKDOWN_LENS_LOCALE` と `MARKDOWN_REVIEW_GIT` がSSHセッションの環境に設定されている必要があります。
+同じ検証をリモート拡張ホストでも実行できます。
+
+- `MARKDOWN_REVIEW_REMOTE_AUTHORITY=ssh-remote+<ホスト>`: Remote - SSH。リモート側からも同じパスでこのリポジトリが見え、`MARKDOWN_LENS_LOCALE` と `MARKDOWN_REVIEW_GIT` がSSHセッションの環境に設定されている必要があります。
+- `MARKDOWN_REVIEW_REMOTE=dev-container`: Dev Containers（Docker）。リポジトリを同じパスにマウントしたコンテナーを作ります（`MARKDOWN_REVIEW_DEV_CONTAINER_IMAGE` でイメージを変更可）。
+- `MARKDOWN_REVIEW_REMOTE=wsl` と `MARKDOWN_REVIEW_WSL_DISTRO=<名前>`: WindowsからWSL。`/mnt/<ドライブ>` 経由でリポジトリを開きます。
 
 `npm run test:ui` はVS Codeの実際のWebviewでボタン操作・ダーク/ライトテーマ・狭い幅の表示を検証します（Linuxでは `xvfb-run -a npm run test:ui`）。`MARKDOWN_REVIEW_TARGET=cursor npm run test:ui` も用意していますが、Cursorの新規プロファイルはログイン必須の画面で止まるため、ログイン済みのCursorが必要です。
 
-`npm run test:screen-reader` はmacOSのVoiceOverで、確認ボタン・メニュー・本文・メタデータ・アラート・数式の読み上げを検証します（事前に `npx @guidepup/setup setup` でVoiceOverの自動操作を許可します）。
+`npm run test:screen-reader` はmacOSのVoiceOver、WindowsのNVDAで、確認ボタン・メニュー・本文・メタデータ・アラートなどの読み上げを検証します（事前に `npx @guidepup/setup setup` と `npx @guidepup/setup install` で自動操作の許可と読み上げソフトの準備をします）。
 
 配布用VSIXは `npx vsce package --no-dependencies --out markdown-lens-0.14.0.vsix` で生成できます。公開時にはpublisherを登録し、VS Code Marketplace / Open VSX向けの配布情報を設定してください。
 
@@ -260,4 +264,4 @@ VS Code / Cursorでリポジトリのルートフォルダを開き、F5で拡�
 
 ## 継続的なチェック
 
-GitHub Actionsでmainへのpushとプルリクエストに対し、型チェック・ユニットテスト・表／Mermaid／RichEditor／Webview全体のブラウザーテスト・VSIXの生成、LinuxでのVS Code・Cursor・Remote - SSH（同じランナーへのSSH接続）の拡張ホストテスト、VS Codeの実Webviewテスト、macOSのVoiceOver読み上げテスト、Windows・macOSでのユニットテストを実行します。Cursorの実画面（`MARKDOWN_REVIEW_TARGET=cursor npm run test:ui`）はログイン済みのプロファイルで別途実行します。
+GitHub Actionsでmainへのpushとプルリクエストに対し、型チェック・ユニットテスト・表／Mermaid／RichEditor／Webview全体のブラウザーテスト・VSIXの生成、LinuxでのVS Code・Cursor・Remote - SSH（同じランナーへのSSH接続）・Dev Containers、WindowsからWSLの拡張ホストテスト、VS Codeの実Webviewテスト、macOSのVoiceOverとWindowsのNVDAの読み上げテスト、Windows・macOSでのユニットテストを実行します。Cursorの実画面（`MARKDOWN_REVIEW_TARGET=cursor npm run test:ui`）はログイン済みのプロファイルで別途実行します。
