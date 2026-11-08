@@ -121,6 +121,53 @@ try {
   await send(p, { type: 'command', name: 'next' });
   expect(errors).toEqual([]);
 
+  // Japanese IME: composing in the raw source form never submits it early, and composing
+  // next to math and footnotes keeps those raw nodes byte for byte.
+  const cdp = await p.context().newCDPSession(p);
+  const compose = text => cdp.send('Input.imeSetComposition', { text, selectionStart: text.length, selectionEnd: text.length });
+  const commit = text => cdp.send('Input.insertText', { text });
+  await send(p, { type: 'update', state: state(before, after) });
+  await p.locator('.ProseMirror sup.raw-footnote').dblclick();
+  await expect(p.locator('#raw-form')).toBeVisible();
+  await p.locator('#raw-source').fill('');
+  await compose('ちゅう'); await expect(p.locator('#raw-form')).toBeVisible();
+  await compose('注'); await commit('注');
+  await expect(p.locator('#raw-form')).toBeVisible();
+  await expect(p.locator('#raw-source')).toHaveValue('注');
+  await p.locator('#raw-source').fill('[^1]注');
+  await p.locator('#raw-source').press('Enter');
+  await expect(p.locator('#raw-form')).toBeHidden();
+  await expect.poll(() => posted(p).then(m => m.filter(x => x.type === 'draft').at(-1)?.text ?? '')).toContain('a note[^1]注. Press');
+  const mathParagraph = p.locator('.ProseMirror p', { hasText: 'Euler' });
+  await mathParagraph.click(); await p.keyboard.press('End');
+  await compose('すうしき'); await compose('数式'); await commit('数式');
+  await expect.poll(() => posted(p).then(m => m.filter(x => x.type === 'draft').at(-1)?.text ?? '')).toContain('Euler $a_1 * b_2$ and a note[^1]注. Press <kbd>K</kbd>.数式\n');
+  expect(errors).toEqual([]);
+
+  // Automated accessibility audit of the new controls and rendered syntax (axe-core, WCAG 2 A/AA).
+  const audit = await browser.newContext({ bypassCSP: true, viewport: { width: 1100, height: 900 } });
+  const a11y = await audit.newPage();
+  await a11y.goto(await page('ja'));
+  await expect.poll(() => posted(a11y).then(m => m.some(x => x.type === 'ready'))).toBe(true);
+  await send(a11y, { type: 'update', state: state(before, after) });
+  await send(a11y, { type: 'links', broken: { './guide.md': 'missing' } });
+  await expect(a11y.locator('.ProseMirror .katex')).toHaveCount(2);
+  await a11y.addScriptTag({ path: resolve('node_modules/axe-core/axe.min.js') });
+  const scan = async (label) => {
+    const { violations, passed } = await a11y.evaluate(async () => {
+      const run = await window.axe.run(document, { runOnly: ['wcag2a', 'wcag2aa'] });
+      return { passed: run.passes.length, violations: run.violations.filter(v => v.impact === 'serious' || v.impact === 'critical').map(v => ({ id: v.id, nodes: v.nodes.map(n => n.target.join(' ')).slice(0, 5) })) };
+    });
+    expect(passed, label).toBeGreaterThan(10);
+    expect(violations, label).toEqual([]);
+    console.log(`axe: ${label} — ${passed} rules passed, no serious or critical violations`);
+  };
+  await scan('document with front matter, math, alerts, footnotes, HTML and links');
+  await a11y.locator('#more-tools').click(); await scan('⋯ menu with Git, diff, reset and summary commands');
+  await a11y.keyboard.press('Escape');
+  await a11y.locator('.ProseMirror .raw-math .katex-html').first().dblclick(); await scan('raw source form');
+  await audit.close();
+
   // English UI.
   const en = await browser.newPage({ viewport: { width: 900, height: 700 } });
   const enErrors = []; en.on('pageerror', e => enErrors.push(e.message));

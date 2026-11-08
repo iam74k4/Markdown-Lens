@@ -48,6 +48,35 @@ jobs:
       - run: xvfb-run -a npm run test:host
         env:
           MARKDOWN_REVIEW_SKIP_FOCUS_TESTS: '1'
+  # The same host checks in Cursor's Linux build.
+  host-cursor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Download Cursor
+        run: |
+          info=$(curl -fsSL "https://www.cursor.com/api/download?platform=linux-x64&releaseTrack=stable")
+          echo "$info"
+          url=$(node -e "console.log(JSON.parse(process.argv[1]).downloadUrl)" "$info")
+          curl -fsSL "$url" -o "$RUNNER_TEMP/cursor.AppImage"
+          chmod +x "$RUNNER_TEMP/cursor.AppImage"
+          (cd "$RUNNER_TEMP" && ./cursor.AppImage --appimage-extract > /dev/null)
+          exe=$(find "$RUNNER_TEMP/squashfs-root" -path '*/share/cursor/cursor' -type f | head -n 1)
+          test -n "$exe"
+          echo "CURSOR_EXECUTABLE=$exe" >> "$GITHUB_ENV"
+      - run: xvfb-run -a npm run test:host
+        env:
+          MARKDOWN_REVIEW_HOST_TARGETS: cursor
+          MARKDOWN_REVIEW_SKIP_FOCUS_TESTS: '1'
   # Paths, line endings and file system behaviour differ by platform.
   platforms:
     strategy:

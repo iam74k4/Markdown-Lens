@@ -330,7 +330,7 @@ export async function run(): Promise<void> {
   moved.panel.dispose();
   evidence.push('paragraph move restores both positions as one native unsaved edit');
 
-  evidence.push(...await featureChecks(api as unknown as FeatureApi, root));
+  evidence.push(...await featureChecks(api as unknown as FeatureApi, root, skipped));
   const report = { host: vscode.env.appName, version: vscode.version, checks: evidence, passed: evidence.length, skipped };
   await mkdir(join(root, 'results'), { recursive: true });
   await writeFile(join(root, 'results', 'host.json'), JSON.stringify(report, null, 2));

@@ -16,8 +16,10 @@ async function until(predicate: () => boolean | Promise<boolean>, label: string,
 }
 
 /** Features of 0.14.0 exercised through the real extension host and its commands. */
-export async function featureChecks(api: FeatureApi, root: string): Promise<string[]> {
+export async function featureChecks(api: FeatureApi, root: string, skipped: string[]): Promise<string[]> {
   const evidence: string[] = [];
+  if (process.env.MARKDOWN_REVIEW_GIT === '1') evidence.push(...await gitChecks(api, root));
+  else skipped.push('Git comparison: git was unavailable when the workspace was prepared');
   const settings = vscode.workspace.getConfiguration('markdownLens');
 
   // A file created after monitoring started is entirely unreviewed.
@@ -97,5 +99,55 @@ export async function featureChecks(api: FeatureApi, root: string): Promise<stri
   assert.equal(await readFile(preserved.fsPath, 'utf8'), source.replace('one', 'ONE'));
   keep.panel.dispose();
   evidence.push('saving an edit writes exactly the edited Markdown');
+  return evidence;
+}
+
+/** The built-in Git extension against a real repository prepared by the test runner. */
+async function gitChecks(api: FeatureApi, root: string): Promise<string[]> {
+  const evidence: string[] = [];
+  const settings = vscode.workspace.getConfiguration('markdownLens');
+  const tracked = vscode.Uri.file(join(root, 'Git比較.md'));
+  const committed = '# Git\n\ncommitted text\n';
+  const panel = await api.open(tracked);
+  await writeFile(tracked.fsPath, '# Git\n\nworking text\n');
+  await until(() => panel.inspect()?.markdown.includes('working text') ?? false, 'working copy loaded');
+  const reviewed = panel.inspect()!.confirmedMarkdown;
+
+  // Read-only comparison with HEAD keeps the confirmed baseline.
+  await vscode.commands.executeCommand('markdownReview.compareGit', tracked, 'HEAD');
+  await until(() => panel.inspect()?.comparisonLabel === 'Git HEAD', 'Git HEAD comparison', 20000);
+  assert.equal(panel.inspect()!.baselineMarkdown, committed);
+  assert.equal(panel.inspect()!.confirmedMarkdown, reviewed);
+  assert.equal(panel.inspect()!.count, 1);
+  assert.match(panel.inspect()!.html, /<del>committed<\/del><ins>working<\/ins>/);
+  await panel.receive({ type: 'reviewHunk', revision: panel.inspect()!.revision, id: panel.inspect()!.hunks[0].id });
+  assert.match(panel.inspect()!.notice ?? '', /確認済みの内容に戻して/);
+  evidence.push('Git HEAD comparison reads the committed file and never changes the confirmed baseline');
+
+  // Resetting the baseline to empty and then to HEAD replaces what counts as reviewed.
+  await vscode.commands.executeCommand('markdownReview.resetBaseline', tracked, 'empty');
+  await until(() => panel.inspect()?.confirmedMarkdown === '' && !panel.inspect()?.comparison, 'baseline reset to empty');
+  assert.equal(panel.inspect()!.count, 2);
+  await vscode.commands.executeCommand('markdownReview.resetBaseline', tracked, 'HEAD');
+  await until(() => panel.inspect()?.confirmedMarkdown === committed, 'baseline reset to HEAD');
+  assert.equal(panel.inspect()!.count, 1);
+  const undo = panel.inspect()!.undoId;
+  await panel.receive({ type: 'undoReview', id: undo });
+  assert.equal(panel.inspect()!.confirmedMarkdown, '');
+  panel.panel.dispose();
+  evidence.push('resetting the baseline to Git HEAD or an empty document is applied and can be undone');
+
+  // With initialBaseline = gitHead, a file seen for the first time starts from its last commit.
+  const first = vscode.Uri.file(join(root, 'Git初回.md'));
+  await settings.update('initialBaseline', 'gitHead', vscode.ConfigurationTarget.Global);
+  try {
+    await api.store.remove(first.toString());
+    await writeFile(first.fsPath, '# First\n\nuncommitted first\n');
+    const fresh = await api.open(first);
+    assert.equal(fresh.inspect()!.confirmedMarkdown, '# First\n\ncommitted first\n');
+    assert.equal(fresh.inspect()!.count, 1);
+    fresh.panel.dispose();
+    evidence.push('initialBaseline = gitHead starts a new review from the last commit');
+  } finally { await settings.update('initialBaseline', undefined, vscode.ConfigurationTarget.Global); }
   return evidence;
 }

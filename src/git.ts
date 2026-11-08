@@ -33,7 +33,19 @@ async function git(): Promise<GitAPI | undefined> {
 async function repository(uri: vscode.Uri): Promise<Repository | undefined> {
   if (uri.scheme !== 'file') return;
   const gitApi = await git();
-  return gitApi?.getRepository(uri) ?? undefined;
+  if (!gitApi) return;
+  const known = gitApi.getRepository(uri);
+  if (known || !gitApi.openRepository) return known ?? undefined;
+  // A repository created or cloned after VS Code scanned the workspace is opened on demand,
+  // but only inside a workspace folder: parent repositories stay the user's choice.
+  const folder = vscode.workspace.getWorkspaceFolder(uri);
+  if (!folder) return;
+  for (let dir = vscode.Uri.joinPath(uri, '..'); dir.path.length >= folder.uri.path.length; dir = vscode.Uri.joinPath(dir, '..')) {
+    try { await vscode.workspace.fs.stat(vscode.Uri.joinPath(dir, '.git')); return await gitApi.openRepository(dir) ?? undefined; }
+    catch { /* keep looking upwards */ }
+    if (dir.path === folder.uri.path) break;
+  }
+  return;
 }
 
 /** File content at a Git revision: a string, `null` when the file is not in that revision, `undefined` without Git. */

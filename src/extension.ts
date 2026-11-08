@@ -395,23 +395,34 @@ export class ReviewPanel implements vscode.Disposable {
     } else if (picked) this.snapshotBase = items.find(item => item.id === picked.id);
     this.review = undefined; await this.refresh();
   }
-  /** Replace the confirmed baseline: with the current text, a Git revision, or nothing at all. */
-  async resetBaseline(): Promise<void> {
-    const picked = await vscode.window.showQuickPick([
+  /** Compare with a Git revision without changing the confirmed baseline. */
+  async compareGit(ref: string): Promise<void> {
+    await this.serial(async () => {
+      const text = await gitText(this.uri, ref);
+      if (text === undefined) throw new Error(t('このファイルはGitリポジトリにありません。Git拡張機能が有効か確認してください。'));
+      validateSize(text ?? '');
+      this.snapshotBase = { id: 'git:' + ref, text: text ?? '', createdAt: new Date().toISOString(), label: `Git ${ref.length === 40 ? ref.slice(0, 8) : ref}${text === null ? t('（未追跡）') : ''}` };
+      this.review = undefined; await this.refresh();
+    });
+  }
+  /** Replace the confirmed baseline: with the current text, a Git revision, or nothing at all.
+   * `choice` skips the picker: 'current', 'empty', 'HEAD' or any Git revision. */
+  async resetBaseline(choice?: string): Promise<void> {
+    const picked = typeof choice === 'string' && choice ? { id: choice === 'current' || choice === 'empty' ? choice : 'ref', ref: choice } : await vscode.window.showQuickPick([
       { label: `$(check-all) ${t('現在の内容')}`, description: t('すべて確認済みにする'), id: 'current' },
       { label: `$(git-commit) ${t('Git HEAD')}`, description: t('コミット以降の変更を未確認にする'), id: 'HEAD' },
       { label: `$(git-branch) ${t('Gitのブランチ・コミット…')}`, description: '', id: 'choose' },
       { label: `$(circle-slash) ${t('空の文書')}`, description: t('全文を未確認にする'), id: 'empty' },
-    ], { title: t('確認済みの内容（比較元）をリセット'), placeHolder: t('直後なら「取り消す」で元に戻せます') });
+    ], { title: t('確認済みの内容（比較元）をリセット'), placeHolder: t('直後なら「取り消す」で元に戻せます') }).then(item => item && { id: item.id, ref: item.id });
     if (!picked) return;
     await this.serial(async () => {
       let text: string;
       if (picked.id === 'current') text = this.current;
       else if (picked.id === 'empty') text = '';
       else {
-        const choice = picked.id === 'HEAD' ? { ref: 'HEAD' } : await chooseGitRevision(this.uri);
-        if (!choice) return;
-        const value = await gitText(this.uri, choice.ref);
+        const revision = picked.id === 'choose' ? await chooseGitRevision(this.uri) : { ref: picked.ref };
+        if (!revision) return;
+        const value = await gitText(this.uri, revision.ref);
         if (value === undefined) { void vscode.window.showWarningMessage(t('このファイルはGitリポジトリにありません。Git拡張機能が有効か確認してください。')); return; }
         text = value ?? '';
       }
@@ -561,14 +572,15 @@ export function activate(context: vscode.ExtensionContext) {
     panel?.command('reviewAll');
   });
   command('markdownReview.textDiff', async (resource?: unknown) => { const uri = resourceOf(resource); if (uri && isMarkdown(uri)) await editorReview.openTextDiff(uri); });
-  command('markdownReview.resetBaseline', async (resource?: unknown) => {
+  // Optional second arguments let keybindings and automation skip the pickers.
+  command('markdownReview.resetBaseline', async (resource?: unknown, choice?: unknown) => {
     const uri = resourceOf(resource); if (!uri || !isMarkdown(uri)) return;
-    await (controllers.get(uri.toString()) ?? await open(uri)).resetBaseline();
+    await (controllers.get(uri.toString()) ?? await open(uri)).resetBaseline(typeof choice === 'string' ? choice : undefined);
   });
-  command('markdownReview.compareGit', async (resource?: unknown) => {
+  command('markdownReview.compareGit', async (resource?: unknown, ref?: unknown) => {
     const uri = resourceOf(resource); if (!uri || !isMarkdown(uri)) return;
     const panel = controllers.get(uri.toString()) ?? await open(uri);
-    await panel.receive({ type: 'chooseSnapshot' });
+    if (typeof ref === 'string' && ref) await panel.compareGit(ref); else await panel.receive({ type: 'chooseSnapshot' });
   });
   command('markdownReview.exportSummary', async (resource?: unknown) => {
     const uri = resourceOf(resource);
