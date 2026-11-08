@@ -60,6 +60,8 @@ export class ReviewPanel implements vscode.Disposable {
   private disposed = false;
   private disposables: vscode.Disposable[] = [];
   private readonly store: BaselineStore;
+  /** Messages from the mounted UI. Callers that send the UI's messages themselves can detach it. */
+  private readonly uiMessages: vscode.Disposable;
 
   constructor(readonly uri: vscode.Uri, readonly panel: vscode.WebviewPanel,
     private readonly services: Services, extensionUri: vscode.Uri, private readonly onClose: () => void) {
@@ -67,9 +69,10 @@ export class ReviewPanel implements vscode.Disposable {
     panel.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media'), ...(vscode.workspace.workspaceFolders?.map(f => f.uri) ?? [vscode.Uri.file(dirname(uri.fsPath))])] };
     panel.webview.html = shell(panel.webview, extensionUri);
     this.disposables.push(panel.onDidDispose(() => this.dispose()));
-    this.disposables.push(panel.webview.onDidReceiveMessage((message: unknown) => {
+    this.uiMessages = panel.webview.onDidReceiveMessage((message: unknown) => {
       void this.receive(message).catch(error => this.sendError(error));
-    }));
+    });
+    this.disposables.push(this.uiMessages);
     this.disposables.push(vscode.workspace.onDidChangeTextDocument(e => {
       if (e.document.uri.toString() === uri.toString()) this.schedule();
     }));

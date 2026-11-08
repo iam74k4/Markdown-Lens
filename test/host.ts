@@ -15,6 +15,13 @@ async function until(predicate: () => boolean, label: string, timeout = 10000) {
   }
 }
 
+/** These checks send the UI's draft and view messages themselves, and the last one received wins.
+ * Detach the mounted UI so its own updates (a restored draft, a re-rendered position) cannot race them. */
+function detachUi(controller: ReviewPanel): ReviewPanel {
+  (controller as unknown as { uiMessages: vscode.Disposable }).uiMessages.dispose();
+  return controller;
+}
+
 export async function run(): Promise<void> {
   const root = vscode.workspace.workspaceFolders![0].uri.fsPath;
   const evidence: string[] = [];
@@ -181,7 +188,7 @@ export async function run(): Promise<void> {
   const richUri = vscode.Uri.file(join(root, '編集.md'));
   const original = '# 設計\n\n最初の本文\n';
   await writeFile(richUri.fsPath, original);
-  let rich = await api.open(richUri);
+  let rich = detachUi(await api.open(richUri));
   const draft = '# 設計\n\n**編集した本文**\n';
   assert.equal(rich.inspect()?.baselineMarkdown, original);
   assert.equal(rich.inspect()?.confirmedMarkdown, original);
@@ -193,7 +200,7 @@ export async function run(): Promise<void> {
   evidence.push('rapid draft updates keep the newest draft without mutating current or confirmed source');
 
   await rich.receive({ type: 'draft', text: draft, baseText: original });
-  rich.panel.dispose(); rich = await api.open(richUri);
+  rich.panel.dispose(); rich = detachUi(await api.open(richUri));
   assert.deepEqual(rich.inspect()?.draft, { text: draft, baseText: original });
   evidence.push('WYSIWYG draft survives closing and reopening the tab');
   await rich.receive({ type: 'edit', id: 'apply-1', revision: rich.inspect()!.revision, text: draft });
@@ -219,7 +226,7 @@ export async function run(): Promise<void> {
   await rich.receive({ type: 'edit', id: 'conflict', revision: oldRevision, text: '自分の下書き\n', save: true });
   assert.equal(rich.inspect()?.editResult?.accepted, false);
   assert.ok(rich.inspect()?.markdown.startsWith('外部更新'));
-  rich.panel.dispose(); rich = await api.open(richUri);
+  rich.panel.dispose(); rich = detachUi(await api.open(richUri));
   assert.equal(rich.inspect()?.draft?.text, '自分の下書き\n');
   evidence.push('concurrent external edits reject WYSIWYG overwrite and preserve the draft');
   const unchanged = rich.inspect()!.markdown;
@@ -262,7 +269,7 @@ export async function run(): Promise<void> {
   const cellUri = vscode.Uri.file(join(root, 'セル確認.md'));
   const cellBefore = '| 項目 | 値 |\n| --- | --- |\n| A | 10 |\n| B | 20 |\n';
   const cellAfter = cellBefore.replace('10', '100').replace('20', '200');
-  await writeFile(cellUri.fsPath, cellBefore); let cells = await api.open(cellUri);
+  await writeFile(cellUri.fsPath, cellBefore); let cells = detachUi(await api.open(cellUri));
   await writeFile(cellUri.fsPath, cellAfter); await until(() => !!cells.inspect()?.hunks[0]?.cells?.length, 'cell changes available');
   let cellState = cells.inspect()!;
   await cells.receive({ type: 'reviewCell', revision: cellState.revision, id: cellState.hunks[0].id, row: 1, column: 1 });
