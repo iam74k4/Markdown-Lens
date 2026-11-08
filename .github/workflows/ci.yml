@@ -104,12 +104,13 @@ jobs:
       - run: xvfb-run -a npm run test:host
         env:
           MARKDOWN_REVIEW_REMOTE_AUTHORITY: ssh-remote+lens-remote
-  # The real Webview inside VS Code and Cursor, driven through the renderer's DevTools protocol.
+  # The real Webview inside VS Code, driven through the renderer's DevTools protocol.
+  # Cursor is not in the matrix: a fresh profile stops at a mandatory sign-in screen.
   ui:
     strategy:
       fail-fast: false
       matrix:
-        target: [vscode, cursor]
+        target: [vscode]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -158,7 +159,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install chromium
-      - run: npx --yes @guidepup/setup@0.29.3 --ci
+      - run: npx --yes @guidepup/setup@0.29.3 setup --ci
       - run: node scripts/test-screen-reader.mjs
       - uses: actions/upload-artifact@v4
         if: always()

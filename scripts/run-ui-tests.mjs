@@ -64,6 +64,9 @@ for (const [name, configured, port] of targets) {
         const overlay = page.locator('div.flex.h-full.w-full.items-center.justify-center').filter({ visible: true }).first();
         if (!await overlay.count()) break;
         console.log('Cursor first-run screen:', (await overlay.innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 400));
+        // The sign-in screen has no way past it without a Cursor account.
+        if (await overlay.getByText(/require you to be logged in/i).count() && !await overlay.getByRole('button', { name: /skip|not now|later|continue without/i }).count())
+          throw new Error('Cursor shows its sign-in screen in this profile (no skip). Sign in once in this profile, or run test:ui against VS Code; the extension host checks (test:host) cover Cursor without signing in.');
         const leave = overlay.getByRole('button', { name: /skip|continue|not now|later|close|dismiss|got it|start|no thanks/i }).first();
         if (await leave.count()) { console.log('Cursor first-run: pressing', await leave.innerText().catch(() => '?')); await leave.click({ timeout: 3000 }).catch(() => {}); }
         else await page.keyboard.press('Escape');
