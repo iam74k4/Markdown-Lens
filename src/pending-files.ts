@@ -29,7 +29,7 @@ export class PendingFiles implements vscode.TreeDataProvider<Entry>, vscode.Disp
   private total = 0;
   private fullTimer?: ReturnType<typeof setTimeout>;
   private fileTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  private running = false;
+  private pass?: Promise<void>;
   private again = false;
   private disposed = false;
   private subscriptions: vscode.Disposable[] = [];
@@ -76,7 +76,7 @@ export class PendingFiles implements vscode.TreeDataProvider<Entry>, vscode.Disp
   }
   /** Recompute a single file without scanning the workspace. */
   private async refreshFile(uri: vscode.Uri) {
-    if (this.disposed || this.running || !this.scanned) { if (this.scanned) this.scheduleFile(uri); return; }
+    if (this.disposed || this.pass || !this.scanned) { if (this.scanned) this.scheduleFile(uri); return; }
     const key = uri.toString();
     if (!this.known.has(key)) { this.scheduleFull(); return; }
     this.cache.delete(key);
@@ -119,9 +119,13 @@ export class PendingFiles implements vscode.TreeDataProvider<Entry>, vscode.Disp
       this.deleted.delete(best.key); this.created.delete(uri.toString());
     }
   }
-  async refresh() {
-    if (this.running) { this.again = true; return; }
-    this.running = true;
+  /** Rescan the workspace. While a scan runs, callers wait for it and for one more pass. */
+  refresh(): Promise<void> {
+    if (this.pass) { this.again = true; return this.pass; }
+    this.pass = this.scan().finally(() => { this.pass = undefined; });
+    return this.pass;
+  }
+  private async scan() {
     try {
       do {
         this.again = false;
@@ -146,7 +150,7 @@ export class PendingFiles implements vscode.TreeDataProvider<Entry>, vscode.Disp
       } while (this.again && !this.disposed);
     } catch (error) {
       if (this.view) this.view.message = t('一覧を読み込めません: {0}', String(error));
-    } finally { this.running = false; }
+    }
   }
   private publish(limited?: number) {
     if (this.view) {

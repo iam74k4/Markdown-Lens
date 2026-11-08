@@ -166,6 +166,21 @@ try {
   await a11y.locator('#more-tools').click(); await scan('⋯ menu with Git, diff, reset and summary commands');
   await a11y.keyboard.press('Escape');
   await a11y.locator('.ProseMirror .raw-math .katex-html').first().dblclick(); await scan('raw source form');
+  await a11y.keyboard.press('Escape'); await a11y.locator('#raw-cancel').click();
+  // What assistive technology receives: the accessibility tree built by Chromium.
+  const tree = await a11y.locator('body').ariaSnapshot();
+  for (const expected of [
+    /row "title Design"/,                     // front matter is a real table
+    /math/,                                   // KaTeX exposes MathML, not only drawn glyphs
+    /button "変更 1 を戻す"/, /button "変更 1 を確認済みにする"/,
+    /textbox "Markdownを直接編集"/,
+    /button "その他の操作"/,
+  ]) expect(tree, 'accessibility tree').toMatch(expected);
+  const alert = await a11y.locator('.ProseMirror blockquote').ariaSnapshot();
+  expect(alert).toContain('警告'); expect(alert).toContain('Check the new settings.');
+  const status = await a11y.locator('#link-status').evaluate(el => ({ text: el.textContent, title: el.title }));
+  expect(status).toEqual({ text: '⚠ リンク切れ 1件', title: 'missing: ./guide.md' });
+  console.log('accessibility tree: tables, MathML, review buttons, editor textbox and alerts are exposed with names');
   await audit.close();
 
   // English UI.
