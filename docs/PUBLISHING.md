@@ -58,8 +58,14 @@ VSIXにはビルド済みコード、PNGアイコン、README、画面例、MIT�
 
 ## 更新の自動化
 
-現在のCIは検証とVSIX生成までで、Release作成による自動公開は設定していません。初回掲載を確認した後、[MarketplaceのTrusted Publishing](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#publish-with-github-actions-and-trusted-publishing)を設定すると、GitHub ActionsからPATを保存せずに公開できます。
+`.github/workflows/publish.yml` は、所有者がGitHubの「Actions → Publish → Run workflow」から手動で実行する公開用ワークフローです。pushでは動かず、`main` 以外から実行した場合は何も公開しません。型チェック・単体テスト・ビルドの後にVSIXを作り（SHA-256をログに記録）、同じVSIXをMarketplaceとOpen VSXへ送ります。どちらか片方だけの公開も選べます。
 
-信頼ポリシーには所有者 `iam74k4`、リポジトリ `Markdown-Lens`、実際に用意したワークフロー名を登録します。公開ジョブだけに `id-token: write` を与え、検証済みVSIXを `npx vsce publish --oidc --packagePath <VSIX>` で送信する構成にします。公開用ワークフローと信頼ポリシーの設定は、今回の準備では未実施です。
+初回の実行前に、所有者が次を設定します。
+
+1. **Marketplace（Trusted Publishing）:** Marketplaceの発行者 `iam74k4` の管理画面で、リポジトリ `iam74k4/Markdown-Lens`、ワークフロー `publish.yml`、環境 `marketplace` の信頼ポリシーを作成します。PATは保存しません。公開ジョブだけが `id-token: write` を持ち、`npx vsce publish --oidc --packagePath <VSIX>` で送信します。
+2. **Open VSX:** Open VSXのアクセストークンを、リポジトリの環境 `openvsx` のシークレット `OVSX_PAT` に保存します。
+3. **承認:** 環境 `marketplace` と `openvsx` に必須レビュアー（所有者）を設定すると、公開のたびに承認が必要になります。
+
+公開後は「公開後の確認」を実施し、記録を更新します。
 
 公式資料: [VS Code公開手順](https://code.visualstudio.com/api/working-with-extensions/publishing-extension)、[拡張マニフェスト](https://code.visualstudio.com/api/references/extension-manifest)、[Cursorの拡張配布](https://cursor.com/help/customization/extensions)。
