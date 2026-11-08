@@ -31,6 +31,6 @@ for (const [name, executable] of targets) {
     ...(executable ? { vscodeExecutablePath: executable } : { version: process.env.VSCODE_TEST_VERSION ?? 'stable' }), extensionDevelopmentPath: root,
     extensionTestsPath: join(root, 'dist', 'test-host.js'),
     launchArgs: [workspace, '--user-data-dir=' + userData, '--extensions-dir=' + join(base, 'extensions'), '--disable-extensions', '--disable-telemetry'],
-    extensionTestsEnv: { MARKDOWN_REVIEW_HOST: name, MARKDOWN_REVIEW_SKIP_FOCUS_TESTS: process.env.MARKDOWN_REVIEW_SKIP_FOCUS_TESTS ?? '' },
+    extensionTestsEnv: { MARKDOWN_REVIEW_HOST: name, MARKDOWN_REVIEW_SKIP_FOCUS_TESTS: process.env.MARKDOWN_REVIEW_SKIP_FOCUS_TESTS ?? '', MARKDOWN_LENS_LOCALE: process.env.MARKDOWN_LENS_LOCALE ?? 'ja' },
   });
 }

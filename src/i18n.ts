@@ -26,9 +26,10 @@ export function t(text: string, ...args: (string | number)[]): string {
 function detect(): string | undefined {
   try {
     if (typeof document !== 'undefined') return document.documentElement.lang || undefined;
+    // An explicit override (used by tests) wins over VS Code's display language.
+    if (typeof process !== 'undefined' && process.env.MARKDOWN_LENS_LOCALE) return process.env.MARKDOWN_LENS_LOCALE;
     const config = typeof process !== 'undefined' ? process.env.VSCODE_NLS_CONFIG : undefined;
     if (config) return (JSON.parse(config) as { locale?: string }).locale;
-    if (typeof process !== 'undefined' && process.env.MARKDOWN_LENS_LOCALE) return process.env.MARKDOWN_LENS_LOCALE;
   } catch { /* Keep the default language. */ }
   return undefined;
 }

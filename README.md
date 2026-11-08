@@ -8,7 +8,7 @@
 
 **緑のマーカーで変更を見つける → 必要ならその場で編集 → ↶ 戻す / ✓ 確認済み。**
 
-> このREADMEは **0.13.0** の機能を紹介しています。新しい操作画面は0.13.0、その他の機能画像は0.9.0〜0.12.0のサンプル文書を使って **VS Codeの実際の拡張画面** を撮影したものです。ストア表示名は **Markdown Lens — WYSIWYG & Review**、コマンド名は **Markdown Lens** です。画像内には旧表示名が含まれます。
+> このREADMEは **0.14.0** の機能を紹介しています。操作画面は0.13.0、その他の機能画像は0.9.0〜0.12.0のサンプル文書を使って **VS Codeの実際の拡張画面** を撮影したものです。0.14.0の記法表示の画像は、同じWebviewを検証用ブラウザーで表示したものです。ストア表示名は **Markdown Lens — WYSIWYG & Review**、コマンド名は **Markdown Lens** です。画像内には旧表示名が含まれます。
 
 上部の **Preview** で見たまま編集し、**MD** で元のソースへ切り替えます。編集・差分確認・戻す・確認済みを、ひとつのPreviewで行えます。変更前は各変更の「変更前・差分を見る」で開きます。
 
@@ -39,18 +39,23 @@
 | 図の変更も確認したい | [Mermaidの変更前・差分・変更後を表示](#mermaid) |
 | 長い設計書を見渡したい | [目次で移動](#find)、[見出しで折りたたみ](#folding)。未確認件数も表示 |
 | 作業を区切って確認したい | 未確認ファイル一覧、確認の取り消し、スナップショット比較 |
+| frontmatter・数式・HTMLを崩したくない | [編集しても原文の記法を保持](#syntax)。数式・アラート・脚注も表示 |
+| コミットとの差分を見たい | [Gitと比較、比較元をGit HEADにする](#git) |
+| リンク切れを見つけたい | [相対リンク・画像・見出しアンカーを確認](#links) |
+| 変更をまとめて共有したい | [変更の要約をMarkdownで書き出す](#git) |
+| 英語で使いたい | VS Codeの表示言語が日本語以外なら英語で表示（[English](#english)） |
 
 ## まず使ってみる
 
 ### インストール
 
-0.13.0では本文中心の画面に整理し、文字・表を選んだときに必要なツールを表示します。外部AI編集の自動反映やコピー＆ペーストの修正も含みます。Marketplaceの掲載バージョンが0.13.0未満の場合は、VSIXから更新できます。
+0.14.0では、編集してもMarkdownの記法（折り返し・HTML・frontmatter・数式など）を変えないようにし、Git連携・リンク確認・英語表示を追加しました。Marketplaceの掲載バージョンが0.14.0未満の場合は、VSIXから更新できます。
 
 **VS Code:** 拡張機能パネルで `@id:iam74k4.markdown-lens-review` を検索してインストールします。発行者は **iam74k4** です。
 
-**Cursor / VSIXでのインストール:** コマンドパレットで **Extensions: Install from VSIX...** を実行し、`markdown-lens-0.13.0.vsix` を選びます。更新後、古い画面が残る場合はウィンドウを再読み込みしてください。
+**Cursor / VSIXでのインストール:** コマンドパレットで **Extensions: Install from VSIX...** を実行し、`markdown-lens-0.14.0.vsix` を選びます。更新後、古い画面が残る場合はウィンドウを再読み込みしてください。
 
-Cursor向けOpen VSXは公開準備中です。VS Codeで検索にまだ反映されていない場合も、VSIXからインストールできます。0.13.0のVSIXが手元にない場合は、以下の手順でこのリポジトリから作成できます。
+Cursor向けOpen VSXは公開準備中です。VS Codeで検索にまだ反映されていない場合も、VSIXからインストールできます。0.14.0のVSIXが手元にない場合は、以下の手順でこのリポジトリから作成できます。
 
 <details>
 <summary>VSIXの作り方（Node.js 22.12以降）</summary>
@@ -59,7 +64,7 @@ Cursor向けOpen VSXは公開準備中です。VS Codeで検索にまだ反映�
 
 ```sh
 npm ci
-npm run package -- --out markdown-lens-0.13.0.vsix
+npm run package -- --out markdown-lens-0.14.0.vsix
 ```
 
 拡張を使う側にはNode.jsは不要です。
@@ -70,7 +75,7 @@ npm run package -- --out markdown-lens-0.13.0.vsix
 
 ### レビューの流れ
 
-1. **AIに修正を頼む前に**作業フォルダーを開き、エクスプローラーの **Markdown Lens · 未確認** が「監視中」になるのを待ちます。
+1. **AIに修正を頼む前に**作業フォルダーを開き、エクスプローラーの **Markdown Lens · 未確認** が「監視中」になるのを待ちます。Gitで管理している場合は、設定 `markdownLens.initialBaseline` を `gitHead` にすると、最後のコミットからの変更をすぐに確認できます。
 2. Markdownファイルを開き、**Markdown Lens: 変更プレビューを開く** を実行します。
 3. Claude Code・Codex・Cursor・手動で同じファイルを編集すると、差分が自動で更新されます。
 4. マーカーを確認し、**↶ 戻す** または **✓ 確認済み** を選びます。本文を直接直すこともできます。
@@ -155,6 +160,63 @@ Mermaidソースを直接編集すると、図も更新されます。複雑な�
 
 折りたたみ中も**変更件数**を表示。「次の変更」で移動すると、対象の節を自動で開きます。**変更箇所だけ表示**と併用できます。
 
+<a id="syntax"></a>
+## 編集しても、Markdownの書き方はそのまま（0.14.0）
+
+Previewで段落を1文字直しても、その段落の書き方は変わりません。編集していない段落は従来どおり1バイトも変えません。
+
+![frontmatterを表、アラートを色付きの注記、数式をKaTeX、脚注を番号、kbdタグをそのまま表示](docs/images/syntax-preview.png)
+
+| 記法 | 表示 | 編集後の保存 |
+| --- | --- | --- |
+| 折り返した段落・日本語の改行 | 1つの段落として表示 | 改行の位置と字下げを保持 |
+| frontmatter（`---` / `+++`） | メタデータの表 | 原文どおり。「ソースを編集」で直接編集 |
+| `> [!NOTE]` などのアラート | 色付きの注記 | 原文どおり |
+| 脚注 `[^1]` | 番号。⌘/Ctrl+クリックで定義へ移動 | 原文どおり |
+| 数式 `$…$` / `$$…$$` | KaTeXで表示 | 原文どおり。ダブルクリックで編集 |
+| HTML・HTMLコメント | ソースとして表示。`<kbd>` `<sub>` `<sup>` などは表示 | 原文どおり |
+| Wikiリンク `[[Page]]` | リンク。⌘/Ctrl+クリックで開く | 原文どおり |
+| `-` `+` の箇条書き、`1)`、`_斜体_`、`~~~`、Setext見出し | 通常どおり | 記号を保持 |
+| 表 | 通常どおり | 編集していない行と、セルの余白を保持 |
+
+数式・HTML・脚注などは、ダブルクリック（または選択してEnter）で1行のMarkdownとして直接編集できます。見出しの改行など、Previewで安全に編集できない構造は、内容を失わないようMD画面での編集に切り替えます。
+
+入力中に `**太字**`、`*斜体*`、`` `コード` ``、`~~取り消し~~` と打つと書式になり、行頭の ```` ``` ```` はコードブロック、`---` は区切り線になります。
+
+<a id="links"></a>
+## リンクを開く・リンク切れを見つける
+
+**⌘/Ctrl+クリック**でリンクを開きます。Markdownは変更プレビューで、`#見出し` は文書内の見出しへ、Wikiリンクはワークスペースから探して開きます。外部のURLは確認してからブラウザーで開きます。
+
+相対リンク・画像・見出しアンカー・Wikiリンクの行き先が見つからない場合は、波線と「⚠ リンク切れ」、VS Codeの「問題」パネルに表示します。外部URLにはアクセスしません。
+
+<a id="git"></a>
+## Git・テキストエディターと連携
+
+- **Gitと比較** — 「⋯ → スナップショット・Gitと比較」でHEAD・ブランチ・このファイルのコミットと比較します。確認済みの状態は変わりません。
+- **比較元をリセット** — 確認済みの内容を、Git HEAD・任意のリビジョン・現在の内容・空の文書に置き換えます。初回読み込みより前の変更も確認できます。直後なら「取り消す」で戻せます。
+- **新しいファイル** — 監視を始めた後に作成されたMarkdownは、全文を「追加」として未確認にします（`markdownLens.newFiles`）。
+- **名前変更** — VS Codeでの名前変更・フォルダー移動や、AIツールによる移動でも、比較元・下書き・スナップショットを引き継ぎます。
+- **変更の要約** — 「変更の要約を書き出す」で、未確認の変更を見出しの位置付きの差分一覧にします。PRの説明やレビュー依頼に使えます。
+- **テキストエディター** — 行番号の横と概要ルーラーに未確認の変更を表示し、ステータスバーに件数を表示します。`Alt+F3` / `Shift+Alt+F3` で前後の変更へ移動し、「確認済みの内容とのテキスト差分を開く」でVS Codeの差分エディターを開きます。
+- **別のエディターで開く** — 「別のエディターで開く… → Markdown Lens」で、Markdownファイルを直接Markdown Lensで開けます。既定のエディターにも設定できます。
+
+## 設定
+
+| 設定 | 既定値 | 内容 |
+| --- | --- | --- |
+| `markdownLens.initialBaseline` | `content` | 初めて読み込んだファイルの比較元。`gitHead` で最後のコミット |
+| `markdownLens.newFiles` | `unreviewed` | 監視開始後に作成されたファイルを未確認にする（`reviewed` で確認済み） |
+| `markdownLens.excludeFolders` | `node_modules` など | 監視しないフォルダー名 |
+| `markdownLens.maxFiles` | `1000` | 監視するファイル数の上限 |
+| `markdownLens.maxFileSizeKB` | `512` | 比較・編集できるファイルサイズ（128〜4096） |
+| `markdownLens.imageFolder` | `.markdown-lens-images` | 貼り付けた画像の保存先（Markdownからの相対パス） |
+| `markdownLens.pollInterval` | `1500` | 表示中のプレビューがファイルを再確認する間隔（ミリ秒、`0`で無効） |
+| `markdownLens.editorDecorations` / `statusBar` | `true` | テキストエディターの表示・ステータスバーの件数 |
+| `markdownLens.validateLinks` | `true` | リンク切れの確認 |
+| `markdownLens.math` | `true` | 数式をKaTeXで表示（オフでもソースは保持） |
+| `markdownLens.storageRetentionDays` | `14` | 削除されたファイルの保存データを自動で消すまでの日数（`0`で保持） |
+
 ## レビューを続けやすくする機能
 
 - **未確認一覧** — エクスプローラーにファイル名と変更件数を表示。レビュータブを閉じても監視を続けます。
@@ -164,11 +226,12 @@ Mermaidソースを直接編集すると、図も更新されます。複雑な�
 
 ## 知っておきたいこと
 
-- 初回読み込み前の変更は復元できません。**AI編集前に監視を開始**してください。
+- 初回読み込み前の変更は、Gitで管理していればGitの比較元で確認できます。Gitがない場合は **AI編集前に監視を開始**してください。
 - 比較元・下書き・スナップショットは拡張専用ストレージに保存します。ネットワーク送信・AI呼び出し・テレメトリーはありません。
 - 確認・復元は段落などのブロック単位。表はセル単位にも対応し、行列の構成が変わった場合は表全体が対象です。
 - 見出しの折りたたみは文書ごとに保存します。自動採番の列指定はレビュータブ内で保持し、新しく開いたタブでは再設定してください。
-- Mermaidの図形ドラッグ編集、結合セル、文字色・マーカー以外の任意HTMLや数式のWYSIWYG編集には対応していません。
+- Mermaidの図形ドラッグ編集、結合セルには対応していません。HTMLと数式は表示し、原文（Markdown）として編集します。
+- 参照リンク `[text][ref]` を含む段落を編集すると、その段落のリンクは `[text](URL)` の形で保存されます（定義は残ります）。
 - これは **Markdown Lensの変更プレビュー** の機能です。Cursor標準のMarkdownプレビューを置き換えるものではありません。
 
 [詳しい操作・対応範囲・保存データ・開発手順](docs/guide.md) · [変更履歴](CHANGELOG.md) · [0.8.0時点の全機能レビュー](MAIN_REVIEW.md) · [最新版の検証記録](VALIDATION.md)
@@ -195,6 +258,16 @@ MARKDOWN_REVIEW_SCREENSHOTS=docs/images npm run test:ui
 VS Code / Cursorの拡張ホスト検証は `npm run test:host`。日本語変換はChromiumの入力イベントとCursor上のmacOS実キー入力で検証しています。Cursor実画面では下書き復元・保存・Undo／Redo・折りたたみも追試しました。候補一覧UIや全UI操作など、未検証の範囲は[最新版の検証記録](VALIDATION.md)を参照してください。
 
 </details>
+
+<a id="english"></a>
+## English
+
+Markdown Lens shows the changes an AI (or anyone) made to a Markdown file as inline markers on the rendered document. You can edit the document as rendered, and revert or mark each change as reviewed. The UI follows VS Code's display language: Japanese for `ja`, English otherwise.
+
+- **Review** — Open *Markdown Lens: Open Change Preview*. Each change has **Revert** and **Mark as reviewed**; tables can be reviewed per cell. Compare with snapshots or Git revisions, reset the baseline to Git HEAD, and export a Markdown change summary.
+- **Edit without reformatting** — Editing a paragraph keeps its line breaks, inline HTML, front matter, GitHub alerts, footnotes, math, wiki links, list markers and table padding exactly as written.
+- **Navigate** — ⌘/Ctrl+click opens links; broken relative links, images and anchors are reported. Unreviewed changes appear in the gutter of text editors and in the status bar.
+- **Private** — Everything runs locally. No account, API key, network request or telemetry.
 
 ## ライセンス
 

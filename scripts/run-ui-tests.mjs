@@ -32,7 +32,7 @@ for (const [name, executable, port] of targets) {
     'markdownLens.newFiles': 'reviewed',
   }));
   const running = runTests({ vscodeExecutablePath: executable, extensionDevelopmentPath: root, extensionTestsPath: join(root, 'dist', 'test-ui.js'),
-    extensionTestsEnv: { MARKDOWN_REVIEW_REFRESH_TEST: process.env.MARKDOWN_REVIEW_FOCUS === 'external-refresh' ? '1' : '' },
+    extensionTestsEnv: { MARKDOWN_REVIEW_REFRESH_TEST: process.env.MARKDOWN_REVIEW_FOCUS === 'external-refresh' ? '1' : '', MARKDOWN_LENS_LOCALE: process.env.MARKDOWN_LENS_LOCALE ?? 'ja' },
     launchArgs: [workspace, '--user-data-dir=' + userData, '--extensions-dir=' + join(base, 'extensions'), '--disable-extensions', '--remote-debugging-port=' + port] });
   // Attach a rejection handler immediately while waiting for the renderer.
   running.catch(() => {});

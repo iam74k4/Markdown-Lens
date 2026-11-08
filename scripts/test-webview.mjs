@@ -133,9 +133,13 @@ try {
   await expect(en.locator('html')).toHaveAttribute('lang', 'en');
   expect(enErrors).toEqual([]);
   if (process.env.MARKDOWN_REVIEW_SCREENSHOTS) {
-    await send(p, { type: 'update', state: state(before, after) });
-    await p.locator('.ProseMirror').evaluate(el => el.scrollIntoView());
-    await p.screenshot({ path: join(process.env.MARKDOWN_REVIEW_SCREENSHOTS, 'syntax-preview.png'), fullPage: false });
+    const shot = await browser.newPage({ viewport: { width: 900, height: 820 }, deviceScaleFactor: 2 });
+    await shot.goto(await page('ja'));
+    await expect.poll(() => posted(shot).then(m => m.some(x => x.type === 'ready'))).toBe(true);
+    await send(shot, { type: 'update', state: state(before, after) });
+    await expect(shot.locator('.ProseMirror .katex')).toHaveCount(2);
+    await shot.waitForTimeout(500);
+    await shot.screenshot({ path: join(process.env.MARKDOWN_REVIEW_SCREENSHOTS, 'syntax-preview.png') });
   }
   console.log('Webview browser checks passed');
 } finally { await browser.close(); }
