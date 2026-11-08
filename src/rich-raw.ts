@@ -27,7 +27,6 @@ export function renderMathIn(container: HTMLElement): void {
   });
 }
 
-const alertNames: Record<string, string> = { note: '注記', tip: 'ヒント', important: '重要', warning: '警告', caution: '注意' };
 export const rawLabel = (kind: string) => ({ frontmatter: t('メタデータ'), math: t('数式'), html: 'HTML', comment: t('HTMLコメント') } as Record<string, string>)[kind] ?? kind;
 
 function inlineContent(node: PMNode): HTMLElement {
@@ -47,7 +46,7 @@ function inlineContent(node: PMNode): HTMLElement {
     }
     case 'alert': {
       const alert = /\[!(\w+)\]/.exec(source)?.[1]?.toLowerCase() ?? 'note';
-      element.dataset.alert = alert; element.textContent = t(alertNames[alert] ?? alert); break;
+      element.dataset.alert = alert; element.textContent = ({ note: t('注記'), tip: t('ヒント'), important: t('重要'), warning: t('警告'), caution: t('注意') } as Record<string, string>)[alert] ?? alert; break;
     }
     case 'entity': case 'escape': element.textContent = text ?? source; element.title = source; break;
     default: element.textContent = source;

@@ -112,3 +112,17 @@ test('every translated string keeps its placeholders', () => {
   } finally { setLocale('ja'); }
   assert.equal(t('未確認 {0}件', 3), '未確認 3件');
 });
+
+test('every string passed to t() has an English translation', async () => {
+  const { readdir, readFile } = await import('node:fs/promises');
+  const files = (await readdir('src', { recursive: true })).filter(f => String(f).endsWith('.ts') && !String(f).includes('locales'));
+  const missing: string[] = [];
+  for (const file of files) {
+    const source = await readFile(join('src', String(file)), 'utf8');
+    for (const match of source.matchAll(/\bt\('((?:[^'\\\n]|\\.)*)'/g)) {
+      const key = match[1].replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+      if (!(key in en)) missing.push(`${file}: ${key}`);
+    }
+  }
+  assert.deepEqual(missing, []);
+});

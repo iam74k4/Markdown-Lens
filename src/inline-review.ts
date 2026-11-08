@@ -6,6 +6,7 @@ import { parseRichMarkdown } from './rich-markdown';
 import type { Hunk } from './core';
 import { icon } from './icons';
 import { comparisonDetails, disposeComparison } from './inline-comparison';
+import { t } from './i18n';
 
 export const inlineReviewKey = new PluginKey<DecorationSet>('inlineReview');
 export const inlineReviewPlugin = new Plugin({
@@ -37,7 +38,7 @@ function visibleText(nodes: { node: PMNode; pos: number }[]) {
 export function inlineChanges(source: string, doc: PMNode, hunks: Hunk[]): InlineChange[] {
   const parsed = parseRichMarkdown(source);
   const nodes: { node: PMNode; pos: number; start: number; end: number }[] = [];
-  if (doc.childCount !== parsed.blocks.length) throw new Error('本文の構造が変わりました。ソースで確認してください。');
+  if (doc.childCount !== parsed.blocks.length) throw new Error(t('本文の構造が変わりました。ソースで確認してください。'));
   doc.forEach((node, pos, index) => nodes.push({ node, pos, ...parsed.blocks[index] }));
   return hunks.map(hunk => {
     const parts = hunk.moveParts ?? [hunk];
@@ -86,10 +87,11 @@ export function reviewDecorations(doc: PMNode, plan: InlineChange[], changesOnly
         decorations.push(Decoration.node(cellPos, cellPos + cell.nodeSize, { class: 'cell-unreviewed' }));
         decorations.push(Decoration.widget(cellPos + cell.nodeSize - 2, () => {
           const controls = document.createElement('span'); controls.className = 'cell-review-controls'; controls.contentEditable = 'false';
-          for (const [action, label, svg] of [['revertCell', '戻す', 'undo'], ['reviewCell', '確認済みにする', 'check']] as const) {
+          const where = r === 0 ? t('見出し · {0}列目', c + 1) : t('{0}行目 · {1}列目', r, c + 1);
+          for (const [action, title, label, svg] of [['revertCell', t('このセルを戻す'), t('{0}のセルを戻す', where), 'undo'], ['reviewCell', t('このセルを確認済みにする'), t('{0}のセルを確認済みにする', where), 'check']] as const) {
             const button = document.createElement('button'); button.type = 'button'; button.innerHTML = icon(svg);
             button.dataset.cellAction = action; button.dataset.cellHunk = hunk.id; button.dataset.row = String(r); button.dataset.column = String(c);
-            button.title = `このセルを${label}`; button.setAttribute('aria-label', `${r === 0 ? '見出し' : r + '行目'}・${c + 1}列目のセルを${label}`);
+            button.title = title; button.setAttribute('aria-label', label);
             button.addEventListener('mousedown', e => e.preventDefault()); controls.append(button);
           }
           return controls;
@@ -99,14 +101,14 @@ export function reviewDecorations(doc: PMNode, plan: InlineChange[], changesOnly
     for (const span of inserted) decorations.push(Decoration.inline(span.from, span.to, { class: 'inline-insert', 'data-change': hunk.id }));
     decorations.push(Decoration.widget(position, () => {
       const card = document.createElement('div'); card.className = 'inline-review change' + (hidden(position) ? ' section-hidden' : ''); card.dataset.hunk = hunk.id; card.contentEditable = 'false'; card.tabIndex = -1;
-      const label = hunk.eol ? '改行コードの変更' : hunk.moveParts ? '移動した内容' : !hunk.after ? '− 削除された内容' : !hunk.before ? '＋ 追加した内容' : '変更した内容';
+      const label = hunk.eol ? t('改行コードの変更') : hunk.moveParts ? t('移動した内容') : !hunk.after ? t('− 削除された内容') : !hunk.before ? t('＋ 追加した内容') : t('変更した内容');
       const row = document.createElement('div'); row.className = 'inline-review-row';
       const title = document.createElement('span'); title.textContent = label; row.append(title);
       const actions = document.createElement('div'); actions.className = 'change-actions';
-      for (const [type, text, svg] of [['revert', '戻す', 'undo'], ['review', '確認済みにする', 'check']] as const) {
+      for (const [type, text, label, svg] of [['revert', t('戻す'), t('変更 {0} を戻す', index + 1), 'undo'], ['review', t('確認済みにする'), t('変更 {0} を確認済みにする', index + 1), 'check']] as const) {
         const button = document.createElement('button'); button.type = 'button'; button.dataset[type] = hunk.id;
         button.className = (type === 'review' ? 'confirm-change' : 'revert') + ' has-tooltip'; button.title = text; button.dataset.tooltip = text;
-        button.setAttribute('aria-label', `変更 ${index + 1} を${text}`); button.innerHTML = icon(svg);
+        button.setAttribute('aria-label', label); button.innerHTML = icon(svg);
         button.addEventListener('mousedown', event => event.preventDefault()); actions.append(button);
       }
       row.append(actions); card.append(row);
@@ -119,7 +121,7 @@ export function reviewDecorations(doc: PMNode, plan: InlineChange[], changesOnly
     decorations.push(Decoration.node(pos, pos + node.nodeSize, { class: 'inline-folded' }));
     decorations.push(Decoration.widget(pos, () => {
       const button = document.createElement('button'); button.className = 'inline-expand'; button.type = 'button'; button.contentEditable = 'false';
-      button.textContent = '⋯ 変更のない段落を表示'; button.addEventListener('click', () => expand(pos)); return button;
+      button.textContent = t('⋯ 変更のない段落を表示'); button.addEventListener('click', () => expand(pos)); return button;
     }, { side: -1, key: `fold:${pos}`, stopEvent: () => true }));
   });
   return DecorationSet.create(doc, decorations);

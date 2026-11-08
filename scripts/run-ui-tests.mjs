@@ -29,6 +29,7 @@ for (const [name, executable, port] of targets) {
     'update.mode': 'none', 'extensions.autoUpdate': false, 'files.hotExit': 'off',
     'workbench.colorTheme': 'Default Dark Modern', 'window.newWindowDimensions': 'maximized',
     'chat.disableAIFeatures': true, 'workbench.secondarySideBar.defaultVisibility': 'hidden',
+    'markdownLens.newFiles': 'reviewed',
   }));
   const running = runTests({ vscodeExecutablePath: executable, extensionDevelopmentPath: root, extensionTestsPath: join(root, 'dist', 'test-ui.js'),
     extensionTestsEnv: { MARKDOWN_REVIEW_REFRESH_TEST: process.env.MARKDOWN_REVIEW_FOCUS === 'external-refresh' ? '1' : '' },

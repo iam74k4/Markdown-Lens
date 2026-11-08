@@ -3,19 +3,20 @@ import type { Node } from 'prosemirror-model';
 import type { Selection } from 'prosemirror-state';
 import { colorLabels, colorPresets, normalizeColor, selectionColor, setSelectionColor, type ColorKind } from './text-colors';
 import { icon } from './icons';
+import { t } from './i18n';
 
 export function colorToolbar(): string {
   return `<div id="color-controls" class="color-controls">
-    <button id="text-color" data-color-control aria-label="文字色" title="文字を選択して色を変更" aria-haspopup="dialog" aria-expanded="false" aria-controls="color-palette"><span class="text-color-icon" aria-hidden="true">A</span></button>
-    <button id="text-highlight" data-color-control aria-label="マーカー" title="文字を選択してマーカーを付ける" aria-haspopup="dialog" aria-expanded="false" aria-controls="color-palette">${icon('highlight')}</button>
+    <button id="text-color" data-color-control aria-label="${t('文字色')}" title="${t('文字を選択して色を変更')}" aria-haspopup="dialog" aria-expanded="false" aria-controls="color-palette"><span class="text-color-icon" aria-hidden="true">A</span></button>
+    <button id="text-highlight" data-color-control aria-label="${t('マーカー')}" title="${t('文字を選択してマーカーを付ける')}" aria-haspopup="dialog" aria-expanded="false" aria-controls="color-palette">${icon('highlight')}</button>
     <div id="color-palette" class="color-palette" role="dialog" aria-labelledby="color-title" hidden>
-      <div class="color-heading"><strong id="color-title">文字色</strong><button type="button" data-color-control id="color-close" aria-label="色のパレットを閉じる">${icon('close')}</button></div>
-      <div id="color-swatches" class="color-swatches" role="group" aria-label="おすすめの色"></div>
-      <form id="color-custom" class="color-custom"><input id="color-picker" type="color" aria-label="カスタム色を選ぶ"><input id="color-hex" aria-label="カラーコード" placeholder="#RRGGBB" maxlength="7" pattern="#[0-9a-fA-F]{6}" required autocomplete="off" spellcheck="false"><button data-color-control type="submit">適用</button></form>
-      <p id="color-error" role="alert" hidden>色は #RRGGBB 形式で指定してください。</p>
-      <div id="color-sample" class="color-sample" aria-label="色のプレビュー"><span></span></div>
-      <button type="button" data-color-control id="color-clear" class="color-clear">色を解除</button>
-      <p class="color-help">選択した文字に適用 · HTMLタグで保存</p>
+      <div class="color-heading"><strong id="color-title">${t('文字色')}</strong><button type="button" data-color-control id="color-close" aria-label="${t('色のパレットを閉じる')}">${icon('close')}</button></div>
+      <div id="color-swatches" class="color-swatches" role="group" aria-label="${t('おすすめの色')}"></div>
+      <form id="color-custom" class="color-custom"><input id="color-picker" type="color" aria-label="${t('カスタム色を選ぶ')}"><input id="color-hex" aria-label="${t('カラーコード')}" placeholder="#RRGGBB" maxlength="7" pattern="#[0-9a-fA-F]{6}" required autocomplete="off" spellcheck="false"><button data-color-control type="submit">${t('適用')}</button></form>
+      <p id="color-error" role="alert" hidden>${t('色は #RRGGBB 形式で指定してください。')}</p>
+      <div id="color-sample" class="color-sample" aria-label="${t('色のプレビュー')}"><span></span></div>
+      <button type="button" data-color-control id="color-clear" class="color-clear">${t('色を解除')}</button>
+      <p class="color-help">${t('選択した文字に適用 · HTMLタグで保存')}</p>
     </div>
   </div>`;
 }
@@ -59,13 +60,13 @@ export class ColorPalette {
     if (!this.enabled() || this.view.composing || !setSelectionColor(kind, null)(this.view.state)) return;
     this.kind = kind; this.openedDoc = this.view.state.doc; this.openedSelection = this.view.state.selection;
     this.element('color-title').textContent = colorLabels[kind];
-    this.element('color-clear').textContent = kind === 'textColor' ? '文字色を解除' : 'マーカーを解除';
+    this.element('color-clear').textContent = kind === 'textColor' ? t('文字色を解除') : t('マーカーを解除');
     const selected = selectionColor(this.view.state, kind);
     const swatches = this.element('color-swatches'); swatches.replaceChildren();
     for (const [name, value] of colorPresets[kind]) {
       const button = document.createElement('button'); button.type = 'button';
       button.dataset.colorControl = ''; button.className = 'color-swatch'; button.style.setProperty('--swatch', value);
-      button.title = `${name} ${value}`; button.setAttribute('aria-label', `${colorLabels[kind]}：${name}`);
+      button.title = `${name} ${value}`; button.setAttribute('aria-label', t('{0}：{1}', colorLabels[kind], name));
       button.setAttribute('aria-pressed', String(value === selected));
       button.innerHTML = icon('check');
       button.addEventListener('click', () => this.apply(value)); swatches.append(button);

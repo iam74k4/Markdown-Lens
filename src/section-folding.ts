@@ -1,6 +1,7 @@
 import type { Node as PMNode } from 'prosemirror-model';
 import { Decoration } from 'prosemirror-view';
 import { icon } from './icons';
+import { t } from './i18n';
 
 export interface HeadingSection { key: string; title: string; level: number; from: number; body: number; end: number }
 /** A path and sibling occurrence distinguish repeated headings without writing IDs to Markdown. */
@@ -30,11 +31,11 @@ export function insideSection(section: HeadingSection, position: number, size: n
 export function foldButton(title: string, collapsed: boolean, count: number, toggle: () => void): HTMLButtonElement {
   const button = document.createElement('button'); button.type = 'button'; button.className = 'section-toggle'; button.contentEditable = 'false';
   button.setAttribute('aria-expanded', String(!collapsed));
-  button.setAttribute('aria-label', `「${title || '見出し'}」を${collapsed ? '展開' : '折りたたむ'}`);
-  button.title = `${button.getAttribute('aria-label')}${count ? `（変更 ${count}件）` : ''}`;
+  button.setAttribute('aria-label', collapsed ? t('「{0}」を展開', title || t('見出し')) : t('「{0}」を折りたたむ', title || t('見出し')));
+  button.title = `${button.getAttribute('aria-label')}${count ? t('（変更 {0}件）', count) : ''}`;
   button.innerHTML = icon(collapsed ? 'right' : 'down');
   if (collapsed) {
-    const badge = document.createElement('span'); badge.className = 'section-fold-count'; badge.textContent = count ? `${count}件` : '…'; button.append(badge);
+    const badge = document.createElement('span'); badge.className = 'section-fold-count'; badge.textContent = count ? t('{0}件', count) : '…'; button.append(badge);
   }
   button.addEventListener('mousedown', e => e.preventDefault());
   button.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); toggle(); });

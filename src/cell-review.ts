@@ -1,4 +1,5 @@
 import MarkdownIt from 'markdown-it';
+import { t } from './i18n';
 const md = new MarkdownIt({ html: false });
 export interface CellSpan { start: number; end: number; text: string }
 export interface CellChange { row: number; column: number; before: CellSpan; after: CellSpan }
@@ -51,6 +52,6 @@ export function changedCells(before: string, after: string): CellChange[] | unde
   return a.flatMap((row, r) => row.flatMap((cell, c) => cell.text !== b[r][c].text ? [{ row: r, column: c, before: cell, after: b[r][c] }] : []));
 }
 export function applyCell(source: string, start: number, end: number, expected: string, replacement: string): string {
-  if (source.slice(start, end) !== expected) throw new Error('セルが更新されました。最新の差分でもう一度お試しください。');
+  if (source.slice(start, end) !== expected) throw new Error(t('セルが更新されました。最新の差分でもう一度お試しください。'));
   return source.slice(0, start) + replacement + source.slice(end);
 }

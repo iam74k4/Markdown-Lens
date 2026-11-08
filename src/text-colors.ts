@@ -3,19 +3,20 @@ import Token from 'markdown-it/lib/token.mjs';
 import type { MarkSpec } from 'prosemirror-model';
 import type { Command, EditorState } from 'prosemirror-state';
 import { closeHistory } from 'prosemirror-history';
+import { t } from './i18n';
 
 export type ColorKind = 'textColor' | 'highlight';
-export const colorLabels: Record<ColorKind, string> = { textColor: '文字色', highlight: 'マーカー' };
+export const colorLabels: Record<ColorKind, string> = { textColor: t('文字色'), highlight: t('マーカー') };
 export const colorPresets: Record<ColorKind, readonly (readonly [string, string])[]> = {
-  textColor: [['赤', '#e05252'], ['オレンジ', '#c77724'], ['黄', '#a88a16'], ['緑', '#32855a'], ['青', '#3984d5'], ['紫', '#9b6bd3'], ['黒', '#202124'], ['白', '#ffffff']],
-  highlight: [['黄', '#fff2a8'], ['緑', '#c8efc4'], ['水色', '#bfe8f5'], ['青', '#ccdfff'], ['紫', '#e4d3f5'], ['ピンク', '#ffd5e5'], ['オレンジ', '#ffdfb6'], ['グレー', '#e2e5e9']],
+  textColor: [[t('赤'), '#e05252'], [t('オレンジ'), '#c77724'], [t('黄'), '#a88a16'], [t('緑'), '#32855a'], [t('青'), '#3984d5'], [t('紫'), '#9b6bd3'], [t('黒'), '#202124'], [t('白'), '#ffffff']],
+  highlight: [[t('黄'), '#fff2a8'], [t('緑'), '#c8efc4'], [t('水色'), '#bfe8f5'], [t('青'), '#ccdfff'], [t('紫'), '#e4d3f5'], [t('ピンク'), '#ffd5e5'], [t('オレンジ'), '#ffdfb6'], [t('グレー'), '#e2e5e9']],
 };
 export const normalizeColor = (value: unknown): string | null => typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : null;
 const property = (kind: ColorKind) => kind === 'textColor' ? 'color' : 'background-color';
 const tag = (kind: ColorKind) => kind === 'textColor' ? 'span' : 'mark';
 export function colorOpen(kind: ColorKind, value: unknown): string {
   const color = normalizeColor(value);
-  if (!color) throw new Error('色は #RRGGBB 形式で指定してください。');
+  if (!color) throw new Error(t('色は #RRGGBB 形式で指定してください。'));
   return `<${tag(kind)} style="${property(kind)}:${color}">`;
 }
 export const colorClose = (kind: ColorKind) => `</${tag(kind)}>`;

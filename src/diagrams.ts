@@ -1,6 +1,7 @@
 import mermaid from 'mermaid';
 import type { FlowDB } from 'mermaid/dist/diagrams/flowchart/flowDb';
 import { flowDifference, FlowGraph, FlowDiff } from './flow-diff';
+import { t } from './i18n';
 
 let sequence = 0;
 let queue = Promise.resolve();
@@ -14,9 +15,11 @@ function initialize() {
     // Document directives cannot override renderer security or host presentation.
     secure: ['securityLevel', 'startOnLoad', 'maxTextSize', 'maxEdges', 'suppressErrorRendering', 'theme', 'themeCSS', 'flowchart', 'htmlLabels'], htmlLabels: false });
 }
+/** Errors whose message is safe and useful to show next to the diagram. */
+class DiagramLimit extends Error {}
 function validate(source: string) {
-  if (source.length > 30000) throw new Error('図が大きすぎます（30,000文字まで）。');
-  if (/%%\s*\{|^\s*---/.test(source)) throw new Error('設定ディレクティブを含む図はソースで確認してください。');
+  if (source.length > 30000) throw new DiagramLimit(t('図が大きすぎます（30,000文字まで）。'));
+  if (/%%\s*\{|^\s*---/.test(source)) throw new DiagramLimit(t('設定ディレクティブを含む図はソースで確認してください。'));
 }
 async function graph(source: string): Promise<FlowGraph | undefined> {
   const diagram = await mermaid.mermaidAPI.getDiagramFromText(source);
@@ -64,7 +67,7 @@ async function draw(block: HTMLElement, mode: string) {
     if (mode === 'diff' && before && after && !diff) {
       const a = await svg(before), b = await svg(after);
       if (!block.isConnected || modes.get(block) !== mode) return;
-      canvas.innerHTML = `<div class="diagram-pair"><div><span class="change-label">変更前</span>${a}</div><div><span class="change-label">変更後</span>${b}</div></div><p class="diagram-note">この図は変更前後で比較します。</p>`;
+      canvas.innerHTML = `<div class="diagram-pair"><div><span class="change-label">${t('変更前')}</span>${a}</div><div><span class="change-label">${t('変更後')}</span>${b}</div></div><p class="diagram-note">${t('この図は変更前後で比較します。')}</p>`;
     } else {
       const rendered = await svg(diff?.source ?? ((mode === 'before' ? before : after) || before));
       if (!block.isConnected || modes.get(block) !== mode) return;
@@ -80,10 +83,10 @@ async function draw(block: HTMLElement, mode: string) {
       const width = element.viewBox.baseVal.width;
       if (width > 0) { element.style.width = `${width}px`; element.style.maxWidth = 'none'; }
     });
-    canvas.setAttribute('aria-label', diff ? `Mermaidの差分: ${diff.summary}` : 'Mermaidのプレビュー');
+    canvas.setAttribute('aria-label', diff ? t('Mermaidの差分: {0}', diff.summary) : t('Mermaidのプレビュー'));
     block.querySelectorAll<HTMLButtonElement>('[data-diagram-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.diagramMode === mode)));
   } catch (error) {
-    canvas.textContent = `図を表示できません。Mermaidソースを確認してください。${error instanceof Error && /30,000|設定ディレクティブ/.test(error.message) ? error.message : ''}`;
+    canvas.textContent = t('図を表示できません。Mermaidソースを確認してください。') + (error instanceof DiagramLimit ? error.message : '');
     block.querySelector<HTMLDetailsElement>('.diagram-source')!.open = true;
   }
 }

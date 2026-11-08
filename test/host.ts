@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { PendingFiles } from '../src/pending-files';
 import type { ReviewPanel } from '../src/extension';
 import { externalRefreshChecks } from './external-refresh';
+import { featureChecks, type FeatureApi } from './host-features';
 
 async function until(predicate: () => boolean, label: string, timeout = 10000) {
   const start = Date.now();
@@ -329,6 +330,7 @@ export async function run(): Promise<void> {
   moved.panel.dispose();
   evidence.push('paragraph move restores both positions as one native unsaved edit');
 
+  evidence.push(...await featureChecks(api as unknown as FeatureApi, root));
   const report = { host: vscode.env.appName, version: vscode.version, checks: evidence, passed: evidence.length, skipped };
   await mkdir(join(root, 'results'), { recursive: true });
   await writeFile(join(root, 'results', 'host.json'), JSON.stringify(report, null, 2));

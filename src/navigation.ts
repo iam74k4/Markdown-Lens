@@ -1,5 +1,6 @@
 import type { RichEditor } from './rich-editor';
 import type { Match } from './search';
+import { t } from './i18n';
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T;
 export function navigation(getEditor: () => RichEditor | undefined, ready: () => boolean, enter: () => boolean, feedback: (text: string, error?: boolean) => void) {
   let matches: Match[] = [], active = 0, truncated = false, timer: ReturnType<typeof setTimeout> | undefined;
@@ -29,11 +30,11 @@ export function navigation(getEditor: () => RichEditor | undefined, ready: () =>
         const outline = editor.outline, signature = JSON.stringify(outline.map(s => [s.key,s.count,s.from]));
         if (signature !== lastOutline) {
           lastOutline = signature; const root = $('outline-items'); root.replaceChildren();
-          if (!outline.length) root.textContent = '見出しがありません。';
+          if (!outline.length) root.textContent = t('見出しがありません。');
           for (const section of outline) {
             const button = document.createElement('button'); button.type = 'button'; button.className = 'outline-item'; button.style.paddingLeft = `${10 + (section.level - 1) * 14}px`;
-            const title = document.createElement('span'); title.textContent = section.title || '（空の見出し）'; button.append(title);
-            if (section.count) { const badge = document.createElement('span'); badge.className = 'outline-count'; badge.textContent = String(section.count); badge.setAttribute('aria-label', `未確認 ${section.count}件`); button.append(badge); }
+            const title = document.createElement('span'); title.textContent = section.title || t('（空の見出し）'); button.append(title);
+            if (section.count) { const badge = document.createElement('span'); badge.className = 'outline-count'; badge.textContent = String(section.count); badge.setAttribute('aria-label', t('未確認 {0}件', section.count)); button.append(badge); }
             button.addEventListener('click', () => { if (ready() && enter()) { editor.revealPosition(section.from); if (innerWidth < 700) toggleOutline(false); } }); root.append(button);
           }
         }
@@ -66,7 +67,7 @@ export function navigation(getEditor: () => RichEditor | undefined, ready: () =>
   for (const [id, all] of [['replace-one',false],['replace-all',true]] as const) $(id).addEventListener('click', () => {
     refresh(); if (!ready() || !matches.length || (all && truncated)) return;
     const selected = all ? matches : [matches[active]];
-    try { if (getEditor()!.replaceMatches(selected, $<HTMLInputElement>('replace-text').value)) { feedback(`${selected.length}件を置換しました。Undoで取り消せます。`); refresh(); } }
+    try { if (getEditor()!.replaceMatches(selected, $<HTMLInputElement>('replace-text').value)) { feedback(t('{0}件を置換しました。Undoで取り消せます。', selected.length)); refresh(); } }
     catch (error) { feedback(String(error), true); }
   });
   $('find-panel').addEventListener('keydown', event => {
