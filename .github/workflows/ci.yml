@@ -46,8 +46,6 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: xvfb-run -a npm run test:host
-        env:
-          MARKDOWN_REVIEW_SKIP_FOCUS_TESTS: '1'
   # The same host checks in Cursor's Linux build.
   host-cursor:
     runs-on: ubuntu-latest
@@ -76,7 +74,6 @@ jobs:
       - run: xvfb-run -a npm run test:host
         env:
           MARKDOWN_REVIEW_HOST_TARGETS: cursor
-          MARKDOWN_REVIEW_SKIP_FOCUS_TESTS: '1'
   # Paths, line endings and file system behaviour differ by platform.
   platforms:
     strategy:
