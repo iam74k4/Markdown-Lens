@@ -331,7 +331,7 @@ export async function run(): Promise<void> {
   evidence.push('paragraph move restores both positions as one native unsaved edit');
 
   evidence.push(...await featureChecks(api as unknown as FeatureApi, root, skipped));
-  const report = { host: vscode.env.appName, version: vscode.version, checks: evidence, passed: evidence.length, skipped };
+  const report = { host: vscode.env.appName, version: vscode.version, remote: vscode.env.remoteName ?? null, checks: evidence, passed: evidence.length, skipped };
   await mkdir(join(root, 'results'), { recursive: true });
   await writeFile(join(root, 'results', 'host.json'), JSON.stringify(report, null, 2));
   console.log('MARKDOWN_REVIEW_HOST_RESULT ' + JSON.stringify(report));
