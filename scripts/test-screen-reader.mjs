@@ -2,7 +2,7 @@
 // `npx @guidepup/setup --ci`. The complete webview runs against a simulated extension host.
 import { build } from 'esbuild';
 import { chromium } from '@playwright/test';
-import { voiceOver } from '@guidepup/guidepup';
+import { voiceOver, macOSActivate } from '@guidepup/guidepup';
 import { mkdir, writeFile, copyFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -34,12 +34,15 @@ try {
   await page.waitForFunction(() => window.__posted.some(m => m.type === 'ready'));
   await page.evaluate(s => window.postMessage({ type: 'update', state: s }, '*'), state);
   await page.locator('.ProseMirror .katex').first().waitFor();
-  await page.bringToFront();
   await voiceOver.start();
+  // VoiceOver reads the frontmost application: bring Playwright's browser to the front.
+  for (const app of ['Google Chrome for Testing', 'Chromium']) { try { await macOSActivate(app); break; } catch { /* try the next name */ } }
+  await page.bringToFront();
+  await page.waitForTimeout(2000);
   const speak = async (name, selector) => {
     await page.locator(selector).first().focus();
-    await page.waitForTimeout(1200);
-    spoken[name] = await voiceOver.lastSpokenPhrase();
+    await page.waitForTimeout(1500);
+    spoken[name] = (await voiceOver.lastSpokenPhrase()) || (await voiceOver.itemText());
   };
   await speak('revert', '.inline-review .revert');
   await speak('review', '.inline-review .confirm-change');
