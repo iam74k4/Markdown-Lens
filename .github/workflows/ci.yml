@@ -12,7 +12,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -25,7 +25,230 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npx playwright install --with-deps chromium
+      - run: npm run build
       - run: npm run test:tables
       - run: npm run test:diagrams
       - run: npm run test:rich
+      - run: npm run test:webview
       - run: npm run package -- --out markdown-review.vsix
+  # The real extension host: commands, watchers, renames, diagnostics and custom editors.
+  host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: xvfb-run -a npm run test:host
+  # The same host checks in Cursor's Linux build.
+  host-cursor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Download Cursor
+        run: |
+          info=$(curl -fsSL "https://www.cursor.com/api/download?platform=linux-x64&releaseTrack=stable")
+          echo "$info"
+          url=$(node -e "console.log(JSON.parse(process.argv[1]).downloadUrl)" "$info")
+          curl -fsSL "$url" -o "$RUNNER_TEMP/cursor.AppImage"
+          chmod +x "$RUNNER_TEMP/cursor.AppImage"
+          (cd "$RUNNER_TEMP" && ./cursor.AppImage --appimage-extract > /dev/null)
+          exe=$(find "$RUNNER_TEMP/squashfs-root" -path '*/share/cursor/cursor' -type f | head -n 1)
+          test -n "$exe"
+          echo "CURSOR_EXECUTABLE=$exe" >> "$GITHUB_ENV"
+      - run: xvfb-run -a npm run test:host
+        env:
+          MARKDOWN_REVIEW_HOST_TARGETS: cursor
+  # The same host checks in a remote extension host (Remote - SSH to this runner).
+  host-remote-ssh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Start an SSH server on localhost
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq openssh-server
+          chmod go-w "$HOME"
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          ssh-keygen -q -t ed25519 -N '' -f ~/.ssh/id_ed25519
+          cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+          printf 'Host lens-remote\n  HostName 127.0.0.1\n  User %s\n  IdentityFile ~/.ssh/id_ed25519\n  StrictHostKeyChecking accept-new\n' "$USER" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
+          sudo service ssh start || sudo systemctl start ssh
+          # The remote extension host takes its environment from the SSH session.
+          printf 'MARKDOWN_LENS_LOCALE=ja\nMARKDOWN_REVIEW_GIT=1\n' | sudo tee -a /etc/environment
+          ssh lens-remote 'echo "connected as $(whoami)"; env | grep ^MARKDOWN_'
+      - run: xvfb-run -a npm run test:host
+        env:
+          MARKDOWN_REVIEW_REMOTE_AUTHORITY: ssh-remote+lens-remote
+  # The same host checks in a Dev Container (Docker on this runner, checkout mounted at the same path).
+  host-dev-container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: docker version
+      - run: xvfb-run -a npm run test:host
+        env:
+          MARKDOWN_REVIEW_REMOTE: dev-container
+  # The same host checks in WSL from VS Code on Windows.
+  host-wsl:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: Vampire/setup-wsl@v6
+        with:
+          distribution: Ubuntu-24.04
+          additional-packages: git ca-certificates wget curl
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:host
+        env:
+          MARKDOWN_REVIEW_REMOTE: wsl
+          MARKDOWN_REVIEW_WSL_DISTRO: Ubuntu-24.04
+  # The real Webview inside VS Code, driven through the renderer's DevTools protocol.
+  # Cursor is not in the matrix: a fresh profile stops at a mandatory sign-in screen.
+  ui:
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [vscode]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Download Cursor
+        if: matrix.target == 'cursor'
+        run: |
+          info=$(curl -fsSL "https://www.cursor.com/api/download?platform=linux-x64&releaseTrack=stable")
+          url=$(node -e "console.log(JSON.parse(process.argv[1]).downloadUrl)" "$info")
+          curl -fsSL "$url" -o "$RUNNER_TEMP/cursor.AppImage"
+          chmod +x "$RUNNER_TEMP/cursor.AppImage"
+          (cd "$RUNNER_TEMP" && ./cursor.AppImage --appimage-extract > /dev/null)
+          exe=$(find "$RUNNER_TEMP/squashfs-root" -path '*/share/cursor/cursor' -type f | head -n 1)
+          test -n "$exe"
+          echo "CURSOR_EXECUTABLE=$exe" >> "$GITHUB_ENV"
+      - run: xvfb-run -a -s "-screen 0 1440x1000x24" npm run test:ui
+        env:
+          MARKDOWN_REVIEW_TARGET: ${{ matrix.target }}
+          MARKDOWN_REVIEW_OUTPUT: test-results/ui
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-${{ matrix.target }}
+          path: test-results/
+          retention-days: 7
+  # What a real screen reader announces for the review UI: VoiceOver on macOS.
+  screen-reader:
+    # macOS 26 (macos-latest) rejects Guidepup's VoiceOver start request.
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - run: npx --yes @guidepup/setup@0.29.3 setup --ci
+      - run: npx --yes @guidepup/setup@0.29.3 install
+      - run: node scripts/test-screen-reader.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screen-reader
+          path: test-results/screen-reader/voiceover.json
+          retention-days: 7
+  # The same screen reader check with NVDA on Windows.
+  screen-reader-nvda:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium
+      - run: npx --yes @guidepup/setup@0.29.3 setup --ci
+      - run: npx --yes @guidepup/setup@0.29.3 install
+      - run: node scripts/test-screen-reader.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screen-reader-nvda
+          path: test-results/screen-reader/nvda.json
+          retention-days: 7
+  # Paths, line endings and file system behaviour differ by platform.
+  platforms:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build

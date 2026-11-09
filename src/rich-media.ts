@@ -1,6 +1,7 @@
 import { Node as PMNode } from 'prosemirror-model';
 import { EditorView, NodeViewConstructor } from 'prosemirror-view';
 import { renderDiagrams } from './diagrams';
+import { t } from './i18n';
 
 /** Only host-approved local URLs are used. Node views never fetch a source URL directly. */
 export function mediaNodeViews(images: () => Map<string, string>, before: () => Map<string, string>): Record<string, NodeViewConstructor> {
@@ -14,8 +15,8 @@ export function mediaNodeViews(images: () => Map<string, string>, before: () => 
         const caption = document.createElement('span'); caption.textContent = current.attrs.alt || current.attrs.src; caption.className = 'image-caption';
         if (safe) {
           const img = document.createElement('img'); img.className = 'markdown-image'; img.src = safe; img.alt = current.attrs.alt ?? '';
-          img.addEventListener('error', () => { img.hidden = true; caption.textContent = `画像を読み込めません: ${current.attrs.src}`; }); dom.append(img);
-        } else { dom.classList.add('image-placeholder'); caption.textContent = `画像: ${current.attrs.alt || ''} (${current.attrs.src})`; }
+          img.addEventListener('error', () => { img.hidden = true; caption.textContent = `${t('画像を読み込めません')}: ${current.attrs.src}`; }); dom.append(img);
+        } else { dom.classList.add('image-placeholder'); caption.textContent = `${t('画像')}: ${current.attrs.alt || ''} (${current.attrs.src})`; }
         dom.classList.toggle('image-placeholder', !safe); dom.append(caption);
       };
       paint(); view.dom.addEventListener('media-refresh', paint);
@@ -26,12 +27,12 @@ export function mediaNodeViews(images: () => Map<string, string>, before: () => 
       let current = node, timer: ReturnType<typeof setTimeout> | undefined, key = '';
       const dom = document.createElement('div'); dom.className = 'rich-code';
       const tools = document.createElement('div'); tools.className = 'code-tools'; tools.contentEditable = 'false';
-      const label = document.createElement('label'); label.textContent = '言語 ';
-      const language = document.createElement('input'); language.setAttribute('aria-label', 'コードブロックの言語'); language.placeholder = 'text / mermaid'; language.value = node.attrs.params || '';
+      const label = document.createElement('label'); label.textContent = t('言語 ');
+      const language = document.createElement('input'); language.setAttribute('aria-label', t('コードブロックの言語')); language.placeholder = 'text / mermaid'; language.value = node.attrs.params || '';
       label.append(language); tools.append(label);
       const preview = document.createElement('div'); preview.contentEditable = 'false'; preview.className = 'rich-diagram-preview';
       const details = document.createElement('details'); details.className = 'rich-code-source';
-      const summary = document.createElement('summary'); summary.contentEditable = 'false'; summary.textContent = 'Mermaidソースを編集';
+      const summary = document.createElement('summary'); summary.contentEditable = 'false'; summary.textContent = t('Mermaidソースを編集');
       const pre = document.createElement('pre'), code = document.createElement('code'); pre.append(code); details.append(summary, pre); dom.append(tools, preview, details);
       const paint = () => {
         const mermaid = (current.attrs.params || '').trim() === 'mermaid';
@@ -45,13 +46,13 @@ export function mediaNodeViews(images: () => Map<string, string>, before: () => 
         const bar = document.createElement('div'); bar.className = 'diagram-tools'; bar.textContent = 'Mermaid';
         if (previous && previous.trim() !== source.trim()) {
           const modes = document.createElement('div'); modes.className = 'diagram-modes';
-          for (const [mode, text] of [['before', '変更前'], ['diff', '差分'], ['after', '変更後']]) {
+          for (const [mode, text] of [['before', t('変更前')], ['diff', t('差分')], ['after', t('変更後')]]) {
             const button = document.createElement('button'); button.dataset.diagramMode = mode; button.textContent = text; modes.append(button);
           } bar.append(modes);
         }
         const canvas = document.createElement('div'); canvas.className = 'diagram-canvas'; canvas.setAttribute('role', 'img');
         const fallback = document.createElement('details'); fallback.className = 'diagram-source';
-        const hint = document.createElement('summary'); hint.textContent = '図のソース';
+        const hint = document.createElement('summary'); hint.textContent = t('図のソース');
         const raw = document.createElement('pre'); raw.textContent = source; fallback.append(hint, raw);
         block.append(bar, canvas, fallback); preview.append(block); renderDiagrams(preview);
       };

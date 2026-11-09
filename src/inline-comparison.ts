@@ -1,6 +1,8 @@
 import type { Hunk } from './core';
 import { renderDiagrams } from './diagrams';
 import { enhanceTables } from './table-review';
+import { renderMathIn } from './rich-raw';
+import { t } from './i18n';
 
 const disposers = new WeakMap<HTMLElement, () => void>();
 /** Read-only host-rendered comparisons live beside their change, outside editable content. */
@@ -8,7 +10,7 @@ export function comparisonDetails(hunk: Hunk, html?: string): HTMLDetailsElement
   const details = document.createElement('details'); details.className = 'inline-before';
   details.dataset.kind = html?.includes('<table') ? 'table' : html?.includes('diagram-review') ? 'diagram' : 'text';
   const summary = document.createElement('summary');
-  summary.textContent = !hunk.after ? '削除内容を見る' : !hunk.before ? '追加内容を見る' : '変更前・差分を見る';
+  summary.textContent = !hunk.after ? t('削除内容を見る') : !hunk.before ? t('追加内容を見る') : t('変更前・差分を見る');
   details.append(summary);
   let painted = false;
   details.addEventListener('toggle', () => {
@@ -20,12 +22,12 @@ export function comparisonDetails(hunk: Hunk, html?: string): HTMLDetailsElement
       content.innerHTML = html;
       details.append(content);
       disposers.set(details, enhanceTables(content));
-      renderDiagrams(content);
+      renderDiagrams(content); renderMathIn(content);
       content.querySelectorAll<HTMLImageElement>('.markdown-image').forEach(img => img.addEventListener('error', () => {
         img.hidden = true; if (img.nextElementSibling instanceof HTMLElement) img.nextElementSibling.hidden = false;
       }));
       const raw = document.createElement('details'); raw.className = 'inline-original-source';
-      const label = document.createElement('summary'); label.textContent = hunk.before ? '変更前のMarkdown' : '追加したMarkdown';
+      const label = document.createElement('summary'); label.textContent = hunk.before ? t('変更前のMarkdown') : t('追加したMarkdown');
       const pre = document.createElement('pre'); pre.textContent = hunk.before || hunk.after;
       raw.append(label, pre); details.append(raw);
     } else {

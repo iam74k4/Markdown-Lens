@@ -1,0 +1,134 @@
+{
+  "version": "0.14.0",
+  "date": "2026-11-08",
+  "local": {
+    "environment": "Linux container, Node.js 22.23.4, Chromium 1243 (Playwright)",
+    "typecheck": "passed",
+    "unitTests": {
+      "passed": 160,
+      "failed": 0
+    },
+    "browser": [
+      "test:rich passed",
+      "test:tables passed",
+      "test:diagrams passed",
+      "test:webview passed: syntax rendering, review actions, Cmd/Ctrl+click links, broken links, menu commands, raw source editing, input rules, English UI",
+      "Japanese IME (Chromium Input.imeSetComposition) in the raw source form and next to math/footnotes",
+      "axe-core 4.10.3 WCAG 2 A/AA: document 23 rules, menu 26 rules, raw form 25 rules passed; no serious or critical violations"
+    ],
+    "notRun": [
+      "test:host and test:ui locally (VS Code download blocked by the container network; run in CI)",
+      "test:screen-reader (macOS only; run in CI)"
+    ]
+  },
+  "ci": {
+    "run": "https://github.com/iam74k4/Markdown-Lens/actions/runs/42514031919",
+    "commit": "d20f341e1779794de4cb4fcc3659f2d82a3d5f6d",
+    "jobs": {
+      "check": "success",
+      "host": "success",
+      "host-cursor": "success",
+      "host-remote-ssh": "success",
+      "host-dev-container": "success",
+      "host-wsl": "success",
+      "ui (vscode)": "success",
+      "screen-reader": "success",
+      "screen-reader-nvda": "success",
+      "platforms (windows-latest)": "success",
+      "platforms (macos-latest)": "success"
+    },
+    "host": [
+      {
+        "editor": "Visual Studio Code 1.145.2 (Linux, xvfb)",
+        "remote": null,
+        "passed": 43,
+        "skipped": []
+      },
+      {
+        "editor": "Cursor 1.128.0 (Linux AppImage, xvfb)",
+        "remote": null,
+        "passed": 43,
+        "skipped": []
+      },
+      {
+        "editor": "Visual Studio Code 1.145.2 with Remote - SSH to the same runner",
+        "remote": "ssh-remote",
+        "passed": 43,
+        "skipped": []
+      },
+      {
+        "editor": "Visual Studio Code 1.145.2 with Dev Containers (Docker, javascript-node:22, checkout mounted at the same path)",
+        "remote": "dev-container",
+        "passed": 43,
+        "skipped": []
+      },
+      {
+        "editor": "Visual Studio Code 1.145.2 on Windows with WSL (Ubuntu 24.04)",
+        "remote": "wsl",
+        "passed": 43,
+        "skipped": []
+      }
+    ],
+    "ui": "VS Code 1.145.2 real Webview UI suite (test:ui) passed on Linux under xvfb",
+    "newHostChecks": [
+      "Git HEAD comparison reads the committed file and never changes the confirmed baseline",
+      "resetting the baseline to Git HEAD or an empty document is applied and can be undone",
+      "initialBaseline = gitHead starts a new review from the last commit",
+      "files created after monitoring started are shown as added and unreviewed",
+      "renaming a file carries its baseline and keeps unreviewed changes",
+      "the reviewed baseline opens in VS Code's diff editor",
+      "the change summary lists unreviewed hunks as Markdown diffs",
+      "next-change navigation works in the text editor",
+      "missing link targets and anchors are reported as diagnostics",
+      "Markdown Lens opens as a custom editor via Open With",
+      "saving an edit writes exactly the edited Markdown"
+    ],
+    "fixesFoundDuringValidation": [
+      "Cursor exits with code 0 when the test runner throws; the runner now requires results/host.json from every editor.",
+      "A file deleted between the existence check and the read (seen over Remote - SSH) showed a raw ENOENT; it now shows the missing-file message.",
+      "Refreshing the pending list during a scan returned before the scan finished; it now waits for it.",
+      "Host checks that inject draft and view messages detach the mounted webview so its own messages cannot race them."
+    ],
+    "screenReaders": [
+      {
+        "tool": "VoiceOver on macOS 15, driven by @guidepup/guidepup 0.40.0 (English UI, Chrome for Testing)",
+        "announced": [
+          "Revert change 1 button",
+          "Mark change 1 as reviewed button",
+          "Mark all as reviewed button",
+          "More actions collapsed button",
+          "Edit Markdown directly edit text",
+          "Metadata title Design",
+          "Warning",
+          "Check the new settings.",
+          "𝑒, superscript 𝑖 𝜋, + 1 = 0 math"
+        ],
+        "note": "Inside the edit text, VoiceOver's table navigation does not find the front matter table; it is read as text."
+      },
+      {
+        "tool": "NVDA 2026.3 (Guidepup portable build) on Windows, driven by @guidepup/guidepup 0.40.0 (English UI, Chrome for Testing)",
+        "announced": [
+          "Revert change 1, button",
+          "Mark change 1 as reviewed, button",
+          "Mark all as reviewed, button",
+          "More actions, button, collapsed",
+          "Edit Markdown directly, edit, multi line",
+          "Metadata",
+          "table, with 1 row and 2 columns, row 1, column 1, title",
+          "column 2, Design",
+          "block quote, Warning, Check the new settings.",
+          "e raised to the i pi power plus 1 is equal to 0"
+        ]
+      }
+    ]
+  },
+  "notVerifiable": {
+    "cursorUiScreens": "A fresh Cursor profile stops at a mandatory sign-in screen, so the real UI suite needs a signed-in Cursor; Cursor's extension host is covered above.",
+    "jaws": "JAWS is commercial and is not covered; NVDA and VoiceOver are covered above.",
+    "vscodeForTheWeb": "Not supported: the extension runs on Node.js and has no web extension entry point (vscode.dev, github.dev)."
+  },
+  "requiresOwner": [
+    "Marketplace / Open VSX publication: run .github/workflows/publish.yml from main after setting up Trusted Publishing and the OVSX_PAT secret",
+    "Reviewing and merging the pull request"
+  ]
+}

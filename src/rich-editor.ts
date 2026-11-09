@@ -3,7 +3,7 @@ import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
 import { baseKeymap, chainCommands, exitCode, setBlockType, toggleMark, wrapIn, lift } from 'prosemirror-commands';
 import { history, redo, undo } from 'prosemirror-history';
 import { keymap } from 'prosemirror-keymap';
-import { inputRules, textblockTypeInputRule, wrappingInputRule } from 'prosemirror-inputrules';
+import { inputRules, textblockTypeInputRule, wrappingInputRule, InputRule } from 'prosemirror-inputrules';
 import { wrapInList, liftListItem, sinkListItem, splitListItem } from 'prosemirror-schema-list';
 import { tableEditing, deleteTable, goToNextCell } from 'prosemirror-tables';
 import { autoNumbering, numberingRules, restoreNumbering, type NumberingRule } from './table-numbering';
@@ -15,10 +15,24 @@ import type { Hunk } from './core';
 import { mediaNodeViews } from './rich-media';
 import { gapCursor } from 'prosemirror-gapcursor';
 import { ColorPalette } from './color-toolbar';
-import { parseRichMarkdown, serializeRichMarkdown, richSchema as schema, makeTable, RichDocument } from './rich-markdown';
+import { parseRichMarkdown, serializeRichMarkdown, parseInlineMarkdown, richSchema as schema, makeTable, RichDocument } from './rich-markdown';
+import { rawNodeViews } from './rich-raw';
+import { linkDecorations, linkAt, type LinkRequest } from './rich-links';
+import { t } from './i18n';
+import { headingSlug } from './markdown-syntax';
 import { searchPlugin, searchKey, findText, Match } from './search';
 import { closeHistory } from 'prosemirror-history';
-import type { Node as PMNode } from 'prosemirror-model';
+import { limits, byteLength } from './limits';
+import type { Node as PMNode, MarkType } from 'prosemirror-model';
+
+/** `**bold**`, `*em*`, `` `code` `` and `~~strike~~` typed in Preview become formatting. */
+function markRule(pattern: RegExp, type: MarkType): InputRule {
+  return new InputRule(pattern, (state, match, start, end) => {
+    const text = match[2]; if (!text || state.doc.resolve(start).parent.type.spec.code) return null;
+    const from = start + match[0].indexOf(match[1]);
+    return state.tr.replaceWith(from, end, schema.text(text, [...state.doc.resolve(start).marks(), type.create()])).removeStoredMark(type);
+  });
+}
 
 export class RichEditor {
   readonly view: EditorView;
@@ -38,6 +52,10 @@ export class RichEditor {
   private textCache?: { doc: PMNode; text: string };
   private sectionCache?: { doc: PMNode; sections: ReturnType<typeof headingSections> };
   private numberingCache?: { doc: PMNode; rules: NumberingRule[] };
+  private broken = new Map<string, string>();
+  private rawTarget = -1;
+  /** Called for ⌘/Ctrl+click on a link, bare URL or wiki link. */
+  onLink?: (link: LinkRequest) => void;
   constructor(element: HTMLElement, source: string, private onChange: () => void, private onFoldChange: () => void = () => {}) {
     this.model = parseRichMarkdown(source);
     const rules = inputRules({ rules: [
@@ -45,6 +63,16 @@ export class RichEditor {
       wrappingInputRule(/^\s*([-+*])\s$/, schema.nodes.bullet_list),
       wrappingInputRule(/^(\d+)\.\s$/, schema.nodes.ordered_list, m => ({ order: +m[1] })),
       wrappingInputRule(/^>\s$/, schema.nodes.blockquote),
+      textblockTypeInputRule(/^```([\w-]*)\s$/, schema.nodes.code_block, m => ({ params: m[1] })),
+      new InputRule(/^(?:---|\*\*\*|___)\s$/, (state, _m, start, end) => {
+        // Only a paragraph that holds nothing but the rule marker becomes a thematic break.
+        const $start = state.doc.resolve(start); if ($start.depth !== 1 || $start.parent.type !== schema.nodes.paragraph || $start.parent.content.size !== end - start) return null;
+        return state.tr.replaceRangeWith($start.before(), $start.after(), schema.nodes.horizontal_rule.create());
+      }),
+      markRule(/(?:^|[^*])(\*\*([^*\s](?:[^*]*[^*\s])?)\*\*)$/, schema.marks.strong),
+      markRule(/(?:^|[^*\w])(\*([^*\s](?:[^*]*[^*\s])?)\*)$/, schema.marks.em),
+      markRule(/(?:^|[^`])(`([^`]+)`)$/, schema.marks.code),
+      markRule(/(?:^|[^~])(~~([^~\s](?:[^~]*[^~\s])?)~~)$/, schema.marks.strike),
     ] });
     const plugins = [searchPlugin, inlineReviewPlugin, quickTableSelection, autoNumbering, history(), rules, keymap({
       'Mod-z': undo, 'Mod-Shift-z': redo, 'Mod-y': redo,
@@ -63,9 +91,9 @@ export class RichEditor {
     }), keymap(baseKeymap), gapCursor(), tableEditing()];
     this.view = new EditorView(element, {
       state: EditorState.create({ doc: this.model.doc, schema, plugins }),
-      attributes: { 'aria-label': 'Markdownを直接編集', role: 'textbox', 'aria-multiline': 'true', spellcheck: 'false' },
+      attributes: { 'aria-label': t('Markdownを直接編集'), role: 'textbox', 'aria-multiline': 'true', spellcheck: 'false' },
       editable: () => this.enabled,
-      nodeViews: { table: (node, view, getPos) => new QuickTableView(node, view, getPos), ...mediaNodeViews(() => this.images, () => this.diagramBefore) },
+      nodeViews: { table: (node, view, getPos) => new QuickTableView(node, view, getPos), ...mediaNodeViews(() => this.images, () => this.diagramBefore), ...rawNodeViews(pos => this.editRaw(pos)) },
       dispatchTransaction: transaction => {
         const result = this.view.state.applyTransaction(transaction);
         this.view.updateState(result.state);
@@ -97,8 +125,21 @@ export class RichEditor {
         }
         return false;
       }, click: (_view, event) => {
-        if ((event.target as Element).closest('a')) { event.preventDefault(); return true; } return false;
+        const target = event.target as Element, link = linkAt(target);
+        if (link && (event.metaKey || event.ctrlKey)) {
+          event.preventDefault();
+          if (link.footnote !== undefined) this.revealFootnote(link.footnote, !!target.closest('[data-md-raw-kind="footnoteDef"]'));
+          else this.onLink?.(link);
+          return true;
+        }
+        if (target.closest('a')) { event.preventDefault(); return true; } return false;
       } },
+      handleKeyDown: (view, event) => {
+        // Enter on a selected raw inline (math, HTML, footnote) edits its Markdown source.
+        const selection = view.state.selection;
+        if (event.key === 'Enter' && selection instanceof NodeSelection && selection.node.type === schema.nodes.raw_inline) { this.editRaw(selection.from); return true; }
+        return false;
+      },
     });
     document.querySelectorAll<HTMLElement>('[data-format]').forEach(button => {
       button.addEventListener('mousedown', e => e.preventDefault());
@@ -202,8 +243,72 @@ export class RichEditor {
     const doc = this.view.state.doc, sections = this.sections;
     const hidden = (pos: number) => sections.some(s => this.collapsed.has(s.key) && insideSection(s, pos, doc.content.size));
     const review = reviewDecorations(doc, this.plan, this.filtered, this.expanded, pos => { this.expanded.add(pos); this.decorate(); }, hidden, new Set(sections.map(s => s.from)), this.comparisons);
-    const decorations = DecorationSet.create(doc, [...review.find(), ...sectionDecorations(doc, sections, this.collapsed, this.plan, key => this.toggleFold(key))]);
+    const decorations = DecorationSet.create(doc, [...review.find(), ...sectionDecorations(doc, sections, this.collapsed, this.plan, key => this.toggleFold(key)), ...linkDecorations(doc, this.broken)]);
     this.view.dispatch(this.view.state.tr.setMeta(inlineReviewKey, decorations).setMeta('addToHistory', false));
+  }
+  /** Host-validated broken targets, keyed by the href written in the document. */
+  setBrokenLinks(links: Record<string, string>): void {
+    const next = new Map(Object.entries(links));
+    if (JSON.stringify([...next]) === JSON.stringify([...this.broken])) return;
+    this.broken = next; this.decorate();
+  }
+  editRaw(pos: number): void {
+    if (!this.enabled || this.composing) return;
+    const node = this.view.state.doc.nodeAt(pos); if (node?.type !== schema.nodes.raw_inline) return;
+    this.rawTarget = pos;
+    const form = document.querySelector<HTMLFormElement>('#raw-form'), field = document.querySelector<HTMLInputElement>('#raw-source');
+    if (!form || !field) return;
+    form.hidden = false; field.value = node.attrs.source; field.focus(); field.select();
+  }
+  /** Replace the edited raw inline with whatever its new Markdown parses to. */
+  applyRaw(source: string): boolean {
+    if (!this.enabled || this.composing) return false;
+    const pos = this.rawTarget, node = pos >= 0 ? this.view.state.doc.nodeAt(pos) : null;
+    if (node?.type !== schema.nodes.raw_inline) return false;
+    const tr = this.view.state.tr;
+    if (!source) tr.delete(pos, pos + node.nodeSize);
+    else {
+      const nodes = parseInlineMarkdown(source); if (!nodes) return false;
+      tr.replaceWith(pos, pos + node.nodeSize, nodes.map(n => n.mark([...node.marks, ...n.marks.filter(m => !m.isInSet(node.marks))])));
+    }
+    this.rawTarget = -1; this.view.dispatch(tr.scrollIntoView()); this.view.focus(); return true;
+  }
+  private insertFootnote(): void {
+    let last = 0;
+    this.view.state.doc.descendants(node => { if (node.type === schema.nodes.raw_inline && /^footnote/.test(node.attrs.kind)) last = Math.max(last, Number(/^\[\^(\d+)\]/.exec(node.attrs.source)?.[1] ?? 0)); });
+    const label = String(last + 1), raw = (kind: string, source: string) => schema.nodes.raw_inline.create({ kind, source });
+    const tr = this.view.state.tr.replaceSelectionWith(raw('footnote', `[^${label}]`), true);
+    const note = schema.nodes.paragraph.create(null, [raw('footnoteDef', `[^${label}]:`), schema.text(' ' + t('脚注の内容'))]);
+    tr.insert(tr.doc.content.size, note);
+    this.view.dispatch(tr.scrollIntoView());
+  }
+  private insertFrontMatter(): void {
+    const first = this.view.state.doc.firstChild;
+    if (first?.type === schema.nodes.raw_block && first.attrs.kind === 'frontmatter') { this.view.dispatch(this.view.state.tr.setSelection(TextSelection.create(this.view.state.doc, 1)).scrollIntoView()); return; }
+    const block = schema.nodes.raw_block.create({ kind: 'frontmatter', open: '---', close: '---' }, schema.text('title: '));
+    const tr = this.view.state.tr.insert(0, block);
+    this.view.dispatch(tr.setSelection(TextSelection.create(tr.doc, block.nodeSize - 1)).scrollIntoView());
+  }
+  /** Jump between a footnote reference and its definition. */
+  revealFootnote(label: string, fromDefinition: boolean): boolean {
+    let found = -1;
+    this.view.state.doc.descendants((node, pos) => {
+      if (found < 0 && node.type === schema.nodes.raw_inline && node.attrs.kind === (fromDefinition ? 'footnote' : 'footnoteDef') && node.attrs.source.startsWith(`[^${label}]`)) found = pos;
+      return found < 0;
+    });
+    if (found < 0) return false;
+    this.revealPosition(found, found + 1); return true;
+  }
+  /** GitHub-style heading anchors, with -1, -2 for repeated headings. */
+  revealAnchor(fragment: string): boolean {
+    const counts = new Map<string, number>(), wanted = fragment.trim().toLowerCase(), slug = headingSlug(fragment);
+    for (const section of headingSections(this.view.state.doc, true)) {
+      const base = headingSlug(section.title), count = counts.get(base) ?? 0;
+      counts.set(base, count + 1);
+      const anchor = count ? `${base}-${count}` : base;
+      if (anchor === fragment || anchor === wanted || anchor === slug || section.title.trim().toLowerCase() === wanted) { this.revealPosition(section.from); return true; }
+    }
+    return false;
   }
   get outline() {
     return headingSections(this.view.state.doc, true).map(section => ({ ...section, count: this.plan.filter(change => change.position >= section.from && change.position < section.end).length }));
@@ -235,7 +340,7 @@ export class RichEditor {
       else tr.delete(match.from, match.to);
     }
     const candidate = serializeRichMarkdown(this.model, tr.doc);
-    if (new TextEncoder().encode(candidate).length > 512 * 1024) throw new Error('置換後の文書が512KBを超えます。');
+    if (byteLength(candidate) > limits.maxBytes) throw new Error(t('置換後の文書が{0}を超えます。', limits.label));
     this.view.dispatch(tr); this.view.dispatch(closeHistory(this.view.state.tr)); return true;
   }
   bookmark(): { key: string; offset: number } | undefined {
@@ -280,8 +385,14 @@ export class RichEditor {
       markTask(); if (!found) { wrapInList(schema.nodes.bullet_list, { tight: true })(this.view.state, this.view.dispatch); markTask(); }
     } else if (name === 'rule') {
       this.view.dispatch(this.view.state.tr.replaceSelectionWith(schema.nodes.horizontal_rule.create()).scrollIntoView());
+    } else if (name === 'math') {
+      this.view.dispatch(this.view.state.tr.replaceSelectionWith(schema.nodes.raw_block.create({ kind: 'math' }, schema.text('E = mc^2'))).scrollIntoView());
+    } else if (name === 'footnote') {
+      this.insertFootnote();
+    } else if (name === 'frontmatter') {
+      this.insertFrontMatter();
     } else if (name === 'mermaid') {
-      this.view.dispatch(this.view.state.tr.replaceSelectionWith(schema.nodes.code_block.create({ params: 'mermaid' }, schema.text('flowchart LR\nA[開始] --> B[完了]'))).scrollIntoView());
+      this.view.dispatch(this.view.state.tr.replaceSelectionWith(schema.nodes.code_block.create({ params: 'mermaid' }, schema.text(`flowchart LR\nA[${t('開始')}] --> B[${t('完了')}]`))).scrollIntoView());
     } else if (name === 'image') {
       document.querySelector<HTMLFormElement>('#image-form')!.hidden = false;
       const selected = this.view.state.selection instanceof NodeSelection ? this.view.state.selection.node : undefined;

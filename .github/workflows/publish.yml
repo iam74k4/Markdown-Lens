@@ -1,0 +1,89 @@
+name: Publish
+# Started by the owner from the Actions tab once a release is reviewed and merged.
+# Nothing here runs on push. Before the first run:
+# - Visual Studio Marketplace: add a Trusted Publishing policy for publisher iam74k4,
+#   repository iam74k4/Markdown-Lens, workflow publish.yml and environment marketplace.
+# - Open VSX: add the OVSX_PAT secret to the openvsx environment.
+# Add required reviewers to both environments to approve each publication.
+on:
+  workflow_dispatch:
+    inputs:
+      marketplace:
+        description: Publish to the Visual Studio Marketplace (Trusted Publishing)
+        type: boolean
+        default: true
+      openvsx:
+        description: Publish to Open VSX (OVSX_PAT secret)
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: publish
+  cancel-in-progress: false
+jobs:
+  package:
+    # Only a reviewed release on main is published.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - name: Package the VSIX
+        run: |
+          version=$(node -p "require('./package.json').version")
+          npm run package -- --out "markdown-lens-$version.vsix"
+          sha256sum "markdown-lens-$version.vsix"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: markdown-lens-*.vsix
+          retention-days: 30
+  marketplace:
+    needs: package
+    if: inputs.marketplace
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: marketplace
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+      - run: npx vsce publish --oidc --packagePath markdown-lens-*.vsix
+  openvsx:
+    needs: package
+    if: inputs.openvsx
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: openvsx
+    steps:
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: vsix
+      - run: npx --yes ovsx@1.3.0 publish markdown-lens-*.vsix
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}

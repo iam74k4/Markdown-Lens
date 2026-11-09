@@ -372,3 +372,48 @@ footer { z-index: 10; }.toolbar { z-index: 12; }
   .contextual-ui .document { padding-inline: 24px; }
   .contextual-ui #source-pane { padding-inline: 12px; }
 }
+
+/* Syntax kept verbatim: HTML, comments, footnotes, math, wiki links, alerts, front matter. */
+.raw-inline { border-radius: 4px; }
+.raw-inline.raw-html, .raw-inline.raw-comment, code.raw-html, .raw-comment { padding: 0 4px; border: 1px solid var(--line); background: var(--vscode-textCodeBlock-background, #8881); color: var(--muted); font: 0.86em var(--vscode-editor-font-family, monospace); }
+.raw-inline.raw-comment, .raw-comment { font-style: italic; opacity: .8; }
+.raw-inline.raw-footnote, .footnote-ref { padding: 0 2px; color: var(--vscode-textLink-foreground, #72b4e8); font-size: .75em; cursor: default; }
+.raw-inline.raw-footnoteDef, .footnote-def { display: inline-block; min-width: 1.6em; margin-right: 4px; padding: 0 5px; border-radius: 9px; background: var(--vscode-badge-background, #4d5560); color: var(--vscode-badge-foreground, #fff); font-size: .8em; text-align: center; }
+.raw-inline.raw-entity, .raw-inline.raw-escape { text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
+.raw-inline.raw-math { padding: 0 2px; }
+.raw-inline.ProseMirror-selectednode, .raw-block-view.ProseMirror-selectednode { outline: 2px solid var(--focus); outline-offset: 1px; }
+.math-error { color: var(--red); font-family: var(--vscode-editor-font-family, monospace); }
+.math-source { font-family: var(--vscode-editor-font-family, monospace); }
+.math-block, .math-display { display: block; margin: 12px 0; overflow-x: auto; text-align: center; }
+.wiki-link { cursor: default; }
+.md-autolink { color: var(--vscode-textLink-foreground, #72b4e8); text-decoration: underline; text-underline-offset: 3px; }
+.ProseMirror a[data-href], .md-autolink, .wiki-link { cursor: text; }
+body.link-modifier .ProseMirror a[data-href], body.link-modifier .md-autolink, body.link-modifier .wiki-link, body.link-modifier .raw-footnote, body.link-modifier .inline-comparison .md-link { cursor: pointer; }
+.broken-link { text-decoration: underline wavy var(--vscode-editorWarning-foreground, #cca700) !important; text-underline-offset: 3px; }
+.rich-image.broken-link { outline: 2px dashed var(--vscode-editorWarning-foreground, #cca700); }
+.link-status { color: var(--vscode-editorWarning-foreground, #cca700); white-space: nowrap; }
+.md-softbreak { white-space: normal; }
+#raw-form small { flex-basis: 100%; color: var(--muted); font-size: 11px; }
+.raw-block-view { margin: 16px 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.raw-block-label { padding: 4px 12px; color: var(--muted); font: 11px/1.6 var(--vscode-font-family, system-ui); background: var(--vscode-textCodeBlock-background, #8881); }
+.raw-block-preview { padding: 8px 12px; overflow-x: auto; }
+.raw-block-preview table, .frontmatter table { margin: 0; border-collapse: collapse; font-size: 12px; }
+.raw-block-preview th, .raw-block-preview td, .frontmatter th, .frontmatter td { padding: 3px 10px; border: 1px solid var(--line); text-align: left; vertical-align: top; white-space: pre-wrap; }
+.raw-block-preview th, .frontmatter th { color: var(--muted); font-weight: 500; }
+.raw-block-source { padding: 0 12px; }
+.raw-block-source > summary { padding: 6px 0; color: var(--muted); font-size: 12px; cursor: pointer; }
+.raw-block-view pre { margin: 0; padding: 8px 0 12px; border: 0; border-radius: 0; background: transparent; white-space: pre-wrap; font: 12px/1.55 var(--vscode-editor-font-family, monospace); }
+.raw-block-view.raw-comment pre { color: var(--muted); font-style: italic; }
+.frontmatter { margin: 12px 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; }
+.frontmatter-label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 11px; }
+pre.raw-block { color: var(--muted); }
+/* GitHub alerts: the marker line becomes a label and the quote takes its color. */
+.markdown-alert, .ProseMirror blockquote:has(> p:first-child > [data-alert]) { --alert: var(--vscode-textLink-foreground, #4493f8); border-left: 3px solid var(--alert) !important; }
+.markdown-alert-tip, .ProseMirror blockquote:has(> p:first-child > [data-alert="tip"]) { --alert: #3fb950; }
+.markdown-alert-important, .ProseMirror blockquote:has(> p:first-child > [data-alert="important"]) { --alert: #ab7df8; }
+.markdown-alert-warning, .ProseMirror blockquote:has(> p:first-child > [data-alert="warning"]) { --alert: #d29922; }
+.markdown-alert-caution, .ProseMirror blockquote:has(> p:first-child > [data-alert="caution"]) { --alert: #f85149; }
+.alert-label, .raw-inline.raw-alert { display: inline-block; margin-right: 6px; color: var(--alert, var(--vscode-textLink-foreground)); font-weight: 600; font-size: .9em; }
+.raw-block-preview .math-block { margin: 2px 0; }
+.raw-block-preview table, .frontmatter table { width: auto; min-width: 40%; }
+.raw-block-preview th, .frontmatter th { width: 1%; white-space: nowrap; }

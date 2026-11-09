@@ -14,7 +14,7 @@ const before = '# 設定一覧\n\n| ID | 分類 | 値 | 説明 |\n| --- | --- | 
 const after = before.replace('| 10秒 |', '| 60秒 |').replace('| 12秒 |', '| 90秒 |');
 const review = buildReview(before, after);
 await writeFile(join(folder, 'index.html'), `<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="review.css"><body class="vscode-light"><main id="document" class="document">${review.html}</main><script src="tables.js"></script>`);
-const browser = await chromium.launch(process.env.CI ? { headless: true } : { headless: true, channel: 'chrome' });
+const browser = await chromium.launch(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ? { headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } : process.env.CI ? { headless: true } : { headless: true, channel: 'chrome' });
 try {
  const page = await browser.newPage({ viewport: { width: 1100, height: 950 } }); const errors = []; page.on('pageerror', e => errors.push(e.message));
  await page.goto(pathToFileURL(join(folder, 'index.html')).href);

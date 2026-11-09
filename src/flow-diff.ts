@@ -1,4 +1,5 @@
-/** Semantic flowchart comparison; unsupported shapes/styles fall back to exact previews. */
+
+import { t } from './i18n';/** Semantic flowchart comparison; unsupported shapes/styles fall back to exact previews. */
 export interface FlowNode { id: string; text?: string; type?: string; labelType?: string; styles?: string[]; classes?: string[]; props?: unknown; link?: string; img?: string; icon?: string }
 export interface FlowEdge { start: string; end: string; text?: string; type?: string; stroke?: string; style?: string[]; classes?: string[]; length?: number }
 export interface FlowGraph { direction: string; nodes: FlowNode[]; edges: FlowEdge[]; subgraphs: number; styled: boolean }
@@ -37,10 +38,10 @@ export function flowDifference(before: FlowGraph, after: FlowGraph): FlowDiff | 
     if (!aliases.has(e.start) || !aliases.has(e.end)) return;
     const status = !a ? 'added' : !b ? 'removed' : a.text !== b.text ? 'changed' : '';
     if (status === 'added') added++; if (status === 'removed') removed++; if (status === 'changed') changed++;
-    const label = status === 'changed' ? `${a?.text || 'ラベルなし'} → ${b?.text || 'ラベルなし'}` : e.text;
+    const label = status === 'changed' ? `${a?.text || t('ラベルなし')} → ${b?.text || t('ラベルなし')}` : e.text;
     const arrow = e.type === 'arrow_open' ? '---' : '-->';
     lines.push(`${aliases.get(e.start)} ${arrow}${label ? `|${quote(label)}|` : ''} ${aliases.get(e.end)}`);
     edges.push(status);
   }
-  return { source: lines.join('\n'), nodes: statuses, edges, summary: `追加 ${added} · 削除 ${removed} · 変更 ${changed}` };
+  return { source: lines.join('\n'), nodes: statuses, edges, summary: t('追加 {0} · 削除 {1} · 変更 {2}', added, removed, changed) };
 }

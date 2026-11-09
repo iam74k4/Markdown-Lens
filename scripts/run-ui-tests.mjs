@@ -1,6 +1,6 @@
 import { checkContextual } from './check-contextual.mjs';
 import { clickTool, revealTool } from './ui-tools.mjs';
-import { runTests } from '@vscode/test-electron';
+import { runTests, downloadAndUnzipVSCode } from '@vscode/test-electron';
 import { chromium, expect } from '@playwright/test';
 import { build } from 'esbuild';
 import { mkdir, writeFile, readFile, access } from 'node:fs/promises';
@@ -10,14 +10,20 @@ import { checkEditing } from './check-editing.mjs';
 const root = resolve('.');
 const output = process.env.MARKDOWN_REVIEW_OUTPUT ? resolve(process.env.MARKDOWN_REVIEW_OUTPUT) : join(root, 'test-results');
 await build({ entryPoints: ['test/ui-host.ts'], bundle: true, outfile: 'dist/test-ui.js', external: ['vscode'], platform: 'node', format: 'cjs', target: 'node20' });
-const targets = [
+// macOS uses the installed apps; on Linux (CI) VS Code is downloaded and Cursor comes from CURSOR_EXECUTABLE.
+const targets = process.platform === 'darwin' ? [
   ['vscode', '/Applications/Visual Studio Code.app/Contents/MacOS/Code', 9361],
   ['cursor', '/Applications/Cursor.app/Contents/MacOS/Cursor', 9362],
+] : [
+  ['vscode', undefined, 9361],
+  ['cursor', process.env.CURSOR_EXECUTABLE, 9362],
 ];
-for (const [name, executable, port] of targets) {
+for (const [name, configured, port] of targets) {
   // Cursor's fresh profiles can require interactive login. Default to VS Code;
   // the host suite covers both, and Cursor UI is also checked in a signed-in window.
   if ((process.env.MARKDOWN_REVIEW_TARGET ?? 'vscode') !== name) continue;
+  const executable = configured ?? (name === 'vscode' ? await downloadAndUnzipVSCode(process.env.VSCODE_TEST_VERSION ?? 'stable') : undefined);
+  if (!executable) throw new Error(`${name}: set CURSOR_EXECUTABLE to the Cursor executable`);
   const base = join(root, 'test-results', 'ui-' + name + '-' + Date.now());
   const workspace = join(base, 'workspace');
   const userData = resolve(root, '..', 'ui-' + name + '-' + Date.now().toString(36));
@@ -29,10 +35,11 @@ for (const [name, executable, port] of targets) {
     'update.mode': 'none', 'extensions.autoUpdate': false, 'files.hotExit': 'off',
     'workbench.colorTheme': 'Default Dark Modern', 'window.newWindowDimensions': 'maximized',
     'chat.disableAIFeatures': true, 'workbench.secondarySideBar.defaultVisibility': 'hidden',
+    'markdownLens.newFiles': 'reviewed',
   }));
   const running = runTests({ vscodeExecutablePath: executable, extensionDevelopmentPath: root, extensionTestsPath: join(root, 'dist', 'test-ui.js'),
-    extensionTestsEnv: { MARKDOWN_REVIEW_REFRESH_TEST: process.env.MARKDOWN_REVIEW_FOCUS === 'external-refresh' ? '1' : '' },
-    launchArgs: [workspace, '--user-data-dir=' + userData, '--extensions-dir=' + join(base, 'extensions'), '--disable-extensions', '--remote-debugging-port=' + port] });
+    extensionTestsEnv: { MARKDOWN_REVIEW_REFRESH_TEST: process.env.MARKDOWN_REVIEW_FOCUS === 'external-refresh' ? '1' : '', MARKDOWN_LENS_LOCALE: process.env.MARKDOWN_LENS_LOCALE ?? 'ja' },
+    launchArgs: [workspace, '--user-data-dir=' + userData, '--extensions-dir=' + join(base, 'extensions'), '--disable-extensions', '--remote-debugging-port=' + port, ...(process.platform === 'linux' ? ['--disable-gpu'] : [])] });
   // Attach a rejection handler immediately while waiting for the renderer.
   running.catch(() => {});
   let browser;
@@ -51,6 +58,21 @@ for (const [name, executable, port] of targets) {
     page.setDefaultTimeout(12000);
     if (name === 'cursor') {
       await page.screenshot({ caret: 'initial', path: join(base, 'cursor-start.png') });
+      // A fresh Cursor profile opens first-run screens over the whole window. Report what they
+      // say and leave them through their own skip/close buttons, never by editing Cursor's DOM.
+      for (let i = 0; i < 8; i++) {
+        const overlay = page.locator('div.flex.h-full.w-full.items-center.justify-center').filter({ visible: true }).first();
+        if (!await overlay.count()) break;
+        console.log('Cursor first-run screen:', (await overlay.innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 400));
+        // The sign-in screen has no way past it without a Cursor account.
+        if (await overlay.getByText(/require you to be logged in/i).count() && !await overlay.getByRole('button', { name: /skip|not now|later|continue without/i }).count())
+          throw new Error('Cursor shows its sign-in screen in this profile (no skip). Sign in once in this profile, or run test:ui against VS Code; the extension host checks (test:host) cover Cursor without signing in.');
+        const leave = overlay.getByRole('button', { name: /skip|continue|not now|later|close|dismiss|got it|start|no thanks/i }).first();
+        if (await leave.count()) { console.log('Cursor first-run: pressing', await leave.innerText().catch(() => '?')); await leave.click({ timeout: 3000 }).catch(() => {}); }
+        else await page.keyboard.press('Escape');
+        await page.waitForTimeout(1000);
+      }
+      await page.screenshot({ caret: 'initial', path: join(base, 'cursor-ready.png') });
     }
     // Optional README assets: capture real Webview pixels without changing document content or CSS.
     const screenshots = process.env.MARKDOWN_REVIEW_SCREENSHOTS ? resolve(process.env.MARKDOWN_REVIEW_SCREENSHOTS) : undefined;

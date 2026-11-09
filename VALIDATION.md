@@ -1,3 +1,21 @@
+# 0.14.0 記法の保持・Git連携・英語表示
+
+2026-11-08。Previewで編集しても折り返し・HTML・frontmatter・アラート・脚注・数式・Wikiリンク・各種記号を原文どおり保存。リンク操作とリンク切れ表示、Git比較・比較元リセット、新規ファイル・名前変更の扱い、テキストエディター表示、変更の要約、英語表示、設定・コマンド・カスタムエディターを追加。
+
+- 型チェック・ビルド、160単体テストに成功（記法の保持32件、レビュー補助・保存データ・リンク解析・翻訳の網羅など）。
+- ブラウザーテスト: RichEditor・表・Mermaidの既存スイートと、Webview全体の検証（記法の表示、確認操作、⌘/Ctrl+クリック、リンク切れ、⋯メニューのコマンド、数式の原文編集、入力ルール、英語表示）に成功。
+- 日本語入力: Chromiumの変換イベントで、原文編集フォームでの変換中に送信されないこと、数式・脚注・`<kbd>`の隣で変換しても原文が保たれることを確認。
+- アクセシビリティ: axe-core（WCAG 2 A/AA）で本文・その他の操作メニュー・原文編集フォームを監査し、重大（serious / critical）な違反なし。
+- スクリーンリーダー（Guidepupで操作、英語表示）: macOS 15の **VoiceOver** で、確認ボタン（「Revert change 1 button」「Mark change 1 as reviewed button」「Mark all as reviewed button」）、その他の操作（「More actions collapsed button」）、本文（「Edit Markdown directly edit text」）、メタデータ（「Metadata title Design」）、アラート（「Warning」「Check the new settings.」）、数式（「𝑒, superscript 𝑖 𝜋, + 1 = 0 math」）を確認。Windowsの **NVDA 2026.3** で、同じボタン（「Revert change 1, button」など、名前・役割・状態の順）、「More actions, button, collapsed」、「Edit Markdown directly, edit, multi line」、メタデータの表（「table, with 1 row and 2 columns, row 1, column 1, title」「column 2, Design」）、「block quote, Warning, Check the new settings.」、数式（「e raised to the i pi power plus 1 is equal to 0」）を確認。VoiceOverでは編集領域の中のメタデータの表が表として見つからず、文章として読み上げられます。
+- GitHub Actions（[実行結果](https://github.com/iam74k4/Markdown-Lens/actions/runs/42514031919)）: Linuxの **VS Code 1.145.2**、**Cursor 1.128.0**、リモート拡張ホストの **Remote - SSH**（同じランナーへSSH接続）・**Dev Containers**（Docker、リポジトリを同じパスにマウント）・**WSL**（WindowsからUbuntu 24.04）で、拡張ホスト各43項目に成功、省略なし（ネイティブUndo、実際のGitリポジトリでのHEAD比較・比較元リセット・`initialBaseline: gitHead` を含む）。リモートでは `remoteName` がそれぞれ `ssh-remote`・`dev-container`・`wsl` であることを確認。VS Codeの実Webview UIテスト（`test:ui`、Linux・xvfb）に成功。Windows・macOSの単体テストとビルドに成功。
+- 検証中に、Cursorはテストが失敗しても終了コード0を返すため失敗が隠れることを発見。テストランナーが各エディターの結果ファイルを必須にし、隠れていたテスト側の設定復元の不具合を修正しました。
+- 検証中に見つけて修正した不具合: 読み込みの直前にファイルが消えると（Remote - SSHで再現）生のENOENTを表示していた問題を「ファイルが見つかりません」の案内に統一。未確認一覧の走査中に再更新を求めると、走査の完了を待たずに戻っていた問題を修正。ホスト検証では、表示中のWebviewが自身の下書き・表示位置を送って検証側の送信と競合し、不安定になる問題をテスト側で解消しました。
+- 未検証・対象外の範囲: Cursorの実画面テスト（新規プロファイルはログイン必須の画面で止まるため、ログイン済みのCursorが必要。Cursorの拡張ホスト43項目は上記で確認）。JAWSは有償のため未検証（NVDA・VoiceOverは上記で確認）。拡張はNode.js上で動くため、ブラウザーだけで動くVS Code for the Web（vscode.dev・github.dev）は対象外です。Marketplace・Open VSXへの公開は、発行者の認証が必要なため未実施です。所有者が実行する公開用ワークフロー（`.github/workflows/publish.yml`）を用意しました。README・ガイドの0.14.0の画像は検証用ブラウザーで表示したWebviewです。
+
+結果: [evidence/features-0.14.0](evidence/features-0.14.0/summary.json)。以下は過去の検証記録です。
+
+---
+
 # 0.13.0 本文中心の操作画面
 
 2026-11-04。上部をPreview / MDとその他の操作に整理し、選択時の書式バー、表の操作、下部の確認バーを導入。本文とMDの切り替えで読んでいた位置を保持します。
