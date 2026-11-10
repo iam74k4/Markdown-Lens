@@ -60,12 +60,31 @@ VSIXにはビルド済みコード、PNGアイコン、README、画面例、MIT�
 
 `.github/workflows/publish.yml` は、所有者がGitHubの「Actions → Publish → Run workflow」から手動で実行する公開用ワークフローです。pushでは動かず、`main` 以外から実行した場合は何も公開しません。型チェック・単体テスト・ビルドの後にVSIXを作り（SHA-256をログに記録）、同じVSIXをMarketplaceとOpen VSXへ送ります。どちらか片方だけの公開も選べます。
 
-初回の実行前に、所有者が次を設定します。
+### 初回だけ必要な設定
 
-1. **Marketplace（Trusted Publishing）:** Marketplaceの発行者 `iam74k4` の管理画面で、リポジトリ `iam74k4/Markdown-Lens`、ワークフロー `publish.yml`、環境 `marketplace` の信頼ポリシーを作成します。PATは保存しません。公開ジョブだけが `id-token: write` を持ち、`npx vsce publish --oidc --packagePath <VSIX>` で送信します。
-2. **Open VSX:** Open VSXのアクセストークンを、リポジトリの環境 `openvsx` のシークレット `OVSX_PAT` に保存します。
-3. **承認:** 環境 `marketplace` と `openvsx` に必須レビュアー（所有者）を設定すると、公開のたびに承認が必要になります。
+**1. GitHubの環境（公開前の承認）**
 
-公開後は「公開後の確認」を実施し、記録を更新します。
+1. [Settings → Environments](https://github.com/iam74k4/Markdown-Lens/settings/environments) で **New environment** を選び、`marketplace` と `openvsx` を作ります。
+2. それぞれ **Required reviewers** に自分（`iam74k4`）を追加し、**Deployment branches and tags** を `main` に限定します。公開のたびに承認が必要になります。
+
+**2. Visual Studio Marketplace（Trusted Publishing、PATは不要）**
+
+1. [発行者の管理画面](https://marketplace.visualstudio.com/manage/publishers/iam74k4) で、Trusted Publishing（信頼された公開）のポリシーを追加します。
+2. 値は、GitHubの所有者 `iam74k4`、リポジトリ `Markdown-Lens`、ワークフロー `publish.yml`、環境 `marketplace` です（環境を指定する欄がある場合）。
+3. ワークフローは `npx vsce publish --oidc --packagePath <VSIX>` を実行します。GitHubのOIDCトークン（audience `marketplace.visualstudio.com`）を最長15分有効な公開用トークンに交換し、PATへの切り替えはしません。必要な権限 `id-token: write` は公開ジョブだけに付けています。
+
+**3. Open VSX（アクセストークン）**
+
+1. GitHubのユーザー名を入力して [Eclipseアカウント](https://accounts.eclipse.org/user/register) を作ります。open-vsx.orgへのログインと同じGitHubアカウントを使います。
+2. [open-vsx.org](https://open-vsx.org) にGitHubでログインし、[Settings → Profile](https://open-vsx.org/user-settings/profile) の **Log in with Eclipse** で連携します。**Show Publisher Agreement** を開き、最後まで読んで **Agree** を押します。
+3. [Access Tokens](https://open-vsx.org/user-settings/tokens) の **Generate New Token** でトークンを作ります（閉じると再表示されません）。
+4. GitHubの環境 `openvsx` の **Environment secrets** に、名前 `OVSX_PAT` で保存します。トークンをソースやチャットに書きません。
+5. 名前空間 `iam74k4` は、まだなければワークフローが初回の公開時に作ります。作っただけでは他の人も同じ名前空間に公開できるため、[所有権を申請](https://github.com/EclipseFdn/open-vsx.org/issues/new/choose)して検証済みにします。検証後は、Open VSXの [Trusted publishers](https://open-vsx.org/user-settings/trusted-publishers) に登録して `ovsx publish --trusted-publishing` に切り替えると、`OVSX_PAT` を削除できます。
+
+### 公開の実行
+
+1. [Actions → Publish](https://github.com/iam74k4/Markdown-Lens/actions/workflows/publish.yml) で **Run workflow** を選び、ブランチ `main` と公開先（Marketplace / Open VSX）を選んで実行します。
+2. 検証とVSIXの作成が終わると、環境ごとに承認を求められます。承認すると公開されます。
+3. 公開後は「公開後の確認」を実施し、記録を更新します。
 
 公式資料: [VS Code公開手順](https://code.visualstudio.com/api/working-with-extensions/publishing-extension)、[拡張マニフェスト](https://code.visualstudio.com/api/references/extension-manifest)、[Cursorの拡張配布](https://cursor.com/help/customization/extensions)。
