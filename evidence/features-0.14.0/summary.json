@@ -124,11 +124,13 @@
   },
   "notVerifiable": {
     "cursorUiScreens": "A fresh Cursor profile stops at a mandatory sign-in screen, so the real UI suite needs a signed-in Cursor; Cursor's extension host is covered above.",
-    "jaws": "JAWS is commercial and is not covered; NVDA and VoiceOver are covered above.",
     "vscodeForTheWeb": "Not supported: the extension runs on Node.js and has no web extension entry point (vscode.dev, github.dev)."
   },
   "requiresOwner": [
     "Marketplace / Open VSX publication: run .github/workflows/publish.yml from main after setting up Trusted Publishing and the OVSX_PAT secret",
     "Reviewing and merging the pull request"
-  ]
+  ],
+  "outOfScope": {
+    "jaws": "Out of scope by the owner's decision: JAWS is commercial with no automation, and NVDA (covered above) reads through the same Windows accessibility APIs."
+  }
 }
