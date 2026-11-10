@@ -84,6 +84,16 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: vsix
+      # Open VSX publishes only into an existing namespace: create it on the first publication.
+      - name: Create the Open VSX namespace if it does not exist
+        run: |
+          publisher=$(unzip -p markdown-lens-*.vsix extension/package.json | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(0, 'utf8')).publisher)")
+          status=$(curl -sS -o /dev/null -w '%{http_code}' "https://open-vsx.org/api/$publisher")
+          if [ "$status" = 404 ]; then npx --yes ovsx@1.3.0 create-namespace "$publisher"
+          elif [ "$status" != 200 ]; then echo "Open VSX answered $status for namespace $publisher" >&2; exit 1
+          else echo "Namespace $publisher exists"; fi
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
       - run: npx --yes ovsx@1.3.0 publish markdown-lens-*.vsix
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
