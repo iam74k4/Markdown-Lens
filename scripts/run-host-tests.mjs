@@ -78,17 +78,44 @@ for (const [name, configured] of targets) {
   }));
   console.log(`Testing ${name} in an isolated profile: ${base}`);
   const at = path => remote ? `vscode-remote://${authority}${encodeURI(remotePath(path))}` : path;
-  await runTests({
-    ...(executable ? { vscodeExecutablePath: executable } : { version: process.env.VSCODE_TEST_VERSION ?? 'stable' }), extensionDevelopmentPath: at(root),
-    extensionTestsPath: at(join(root, 'dist', 'test-host.js')),
-    launchArgs: [...(remote ? ['--folder-uri', at(workspace)] : [workspace, '--disable-extensions']), '--user-data-dir=' + userData, '--extensions-dir=' + extensions, '--disable-telemetry', ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu'] : [])],
-    extensionTestsEnv: { MARKDOWN_REVIEW_HOST: name, MARKDOWN_REVIEW_SKIP_FOCUS_TESTS: process.env.MARKDOWN_REVIEW_SKIP_FOCUS_TESTS ?? '', MARKDOWN_LENS_LOCALE: locale, MARKDOWN_REVIEW_GIT: git,
-      // wsl.exe passes only the variables listed here into the distribution.
-      ...(remoteKind === 'wsl' ? { WSLENV: [process.env.WSLENV, 'MARKDOWN_LENS_LOCALE/u', 'MARKDOWN_REVIEW_GIT/u', 'MARKDOWN_REVIEW_HOST/u', 'MARKDOWN_REVIEW_SKIP_FOCUS_TESTS/u'].filter(Boolean).join(':') } : {}) },
-  });
+  // VS Code occasionally hangs while exiting after every check has finished. Once the report is
+  // written, allow a minute for the exit, then stop that instance (found by its own profile path).
+  const reportPath = join(workspace, 'results', 'host.json');
+  let stoppedAfterReport = false, grace;
+  const watchdog = setInterval(async () => {
+    if (grace || !await access(reportPath).then(() => true, () => false)) return;
+    grace = setTimeout(() => {
+      stoppedAfterReport = true;
+      console.log(`${name}: the editor did not exit within 60 seconds after writing its report; stopping it`);
+      stopInstance(userData);
+    }, 60000);
+  }, 2000);
+  try {
+    await runTests({
+      ...(executable ? { vscodeExecutablePath: executable } : { version: process.env.VSCODE_TEST_VERSION ?? 'stable' }), extensionDevelopmentPath: at(root),
+      extensionTestsPath: at(join(root, 'dist', 'test-host.js')),
+      launchArgs: [...(remote ? ['--folder-uri', at(workspace)] : [workspace, '--disable-extensions']), '--user-data-dir=' + userData, '--extensions-dir=' + extensions, '--disable-telemetry', ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu'] : [])],
+      extensionTestsEnv: { MARKDOWN_REVIEW_HOST: name, MARKDOWN_REVIEW_SKIP_FOCUS_TESTS: process.env.MARKDOWN_REVIEW_SKIP_FOCUS_TESTS ?? '', MARKDOWN_LENS_LOCALE: locale, MARKDOWN_REVIEW_GIT: git,
+        // wsl.exe passes only the variables listed here into the distribution.
+        ...(remoteKind === 'wsl' ? { WSLENV: [process.env.WSLENV, 'MARKDOWN_LENS_LOCALE/u', 'MARKDOWN_REVIEW_GIT/u', 'MARKDOWN_REVIEW_HOST/u', 'MARKDOWN_REVIEW_SKIP_FOCUS_TESTS/u'].filter(Boolean).join(':') } : {}) },
+    });
+  } catch (error) {
+    if (!stoppedAfterReport) throw error;
+  } finally { clearInterval(watchdog); clearTimeout(grace); }
   // Some editors exit with code 0 even when the test runner throws. Only a written
   // report proves that every check ran to the end.
-  const report = JSON.parse(await readFile(join(workspace, 'results', 'host.json'), 'utf8').catch(() => { throw new Error(`${name}: the host checks did not finish (no results/host.json)`); }));
+  const report = JSON.parse(await readFile(reportPath, 'utf8').catch(() => { throw new Error(`${name}: the host checks did not finish (no results/host.json)`); }));
   console.log(`${name} ${report.version}: ${report.passed} host checks passed${report.skipped.length ? `, skipped: ${report.skipped.join('; ')}` : ''}`);
   if (remote && !report.remote) throw new Error(`${name}: the checks did not run in a remote extension host`);
+}
+
+/** Stop the editor processes started with this profile directory. */
+function stopInstance(profile) {
+  try {
+    if (process.platform === 'win32') {
+      execFileSync('powershell', ['-NoProfile', '-Command', `Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -like '*${profile.replace(/'/g, "''")}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`], { stdio: 'inherit' });
+    } else {
+      execFileSync('pkill', ['-f', '--', profile.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')], { stdio: 'inherit' });
+    }
+  } catch { /* nothing left to stop */ }
 }
