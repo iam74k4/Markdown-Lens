@@ -16,7 +16,7 @@
 
 掲載本文はREADME.md、更新履歴はCHANGELOG.mdを使用します。表示名は「Markdown Lens — WYSIWYG & Review」、パッケージ名は `markdown-lens-review` です。旧候補 `markdown-review` はMarketplaceで名前の重複により拒否されたため使用しません。MarketplaceとOpen VSXで同じIDを使用します。
 
-0.14.0には、編集時の記法保持（折り返し・HTML・frontmatter・アラート・脚注・数式など）、リンク操作とリンク切れの表示、Git連携、テキストエディターでの未確認表示、変更の要約、英語表示、設定とコマンドの追加を含みます。0.14.0はMarketplace・Open VSXとも未公開です。パッケージ生成、アップロード受理、一般公開、各エディターでのインストール確認は別々に記録します。
+0.14.0には、編集時の記法保持（折り返し・HTML・frontmatter・アラート・脚注・数式など）、リンク操作とリンク切れの表示、Git連携、テキストエディターでの未確認表示、変更の要約、英語表示、設定とコマンドの追加を含みます。0.14.0は2026-11-11（日本時間）にMarketplaceで公開しました（記録: [evidence/marketplace-0.14.0](../evidence/marketplace-0.14.0/status.json)）。Open VSXは未公開です。パッケージ生成、アップロード受理、一般公開、各エディターでのインストール確認は別々に記録します。
 
 ## 配布物の作成
 
@@ -66,12 +66,14 @@ VSIXにはビルド済みコード、PNGアイコン、README、画面例、MIT�
 
 1. [Settings → Environments](https://github.com/iam74k4/Markdown-Lens/settings/environments) で **New environment** を選び、`marketplace` と `openvsx` を作ります。
 2. それぞれ **Required reviewers** に自分（`iam74k4`）を追加し、**Deployment branches and tags** を `main` に限定します。公開のたびに承認が必要になります。
+   - 状況（2026-11-11）: 環境 `marketplace` は初回の公開実行で自動作成されました。承認者は未設定です。環境 `openvsx` はまだありません。
 
 **2. Visual Studio Marketplace（Trusted Publishing、PATは不要）**
 
 1. [発行者の管理画面](https://marketplace.visualstudio.com/manage/publishers/iam74k4) で、Trusted Publishing（信頼された公開）のポリシーを追加します。
 2. 値は、GitHubの所有者 `iam74k4`、リポジトリ `Markdown-Lens`、ワークフロー `publish.yml`、環境 `marketplace` です（環境を指定する欄がある場合）。
 3. ワークフローは `npx vsce publish --oidc --packagePath <VSIX>` を実行します。GitHubのOIDCトークン（audience `marketplace.visualstudio.com`）を最長15分有効な公開用トークンに交換し、PATへの切り替えはしません。必要な権限 `id-token: write` は公開ジョブだけに付けています。
+4. 状況（2026-11-11）: ポリシーは登録済みで、0.14.0の公開に使いました。ポリシー登録前の最初の実行は401（`The token could not be exchanged for the specified publisher`）で失敗し、何も公開されませんでした。
 
 **3. Open VSX（アクセストークン）**
 

@@ -49,13 +49,13 @@
 
 ### インストール
 
-0.14.0では、編集してもMarkdownの記法（折り返し・HTML・frontmatter・数式など）を変えないようにし、Git連携・リンク確認・英語表示を追加しました。Marketplaceの掲載バージョンが0.14.0未満の場合は、VSIXから更新できます。
+0.14.0では、編集してもMarkdownの記法（折り返し・HTML・frontmatter・数式など）を変えないようにし、Git連携・リンク確認・英語表示を追加しました。Marketplaceでは0.14.0を公開しています。
 
 **VS Code:** 拡張機能パネルで `@id:iam74k4.markdown-lens-review` を検索してインストールします。発行者は **iam74k4** です。
 
 **Cursor / VSIXでのインストール:** コマンドパレットで **Extensions: Install from VSIX...** を実行し、`markdown-lens-0.14.0.vsix` を選びます。更新後、古い画面が残る場合はウィンドウを再読み込みしてください。
 
-Cursor向けOpen VSXは公開準備中です。VS Codeで検索にまだ反映されていない場合も、VSIXからインストールできます。0.14.0のVSIXが手元にない場合は、以下の手順でこのリポジトリから作成できます。
+Cursor向けOpen VSXは公開準備中のため、CursorではVSIXからインストールしてください。0.14.0のVSIXが手元にない場合は、以下の手順でこのリポジトリから作成できます。
 
 <details>
 <summary>VSIXの作り方（Node.js 22.12以降）</summary>

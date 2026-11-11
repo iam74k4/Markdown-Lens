@@ -1,0 +1,58 @@
+{
+  "version": "0.14.0",
+  "publisher": "iam74k4",
+  "extension": "markdown-lens-review",
+  "implementation_commit": "d9500748e29a3e80796f3a0a2264c325d80f8fc9",
+  "workflow": {
+    "name": "Publish",
+    "run_id": 42967673267,
+    "url": "https://github.com/iam74k4/Markdown-Lens/actions/runs/42967673267",
+    "inputs": { "marketplace": true, "openvsx": false },
+    "first_attempt": {
+      "started_at": "2026-11-11T05:44:05Z",
+      "package_job": "success",
+      "marketplace_job": "failure",
+      "error": "Marketplace OIDC token exchange failed with 401 Unauthorized: The token could not be exchanged for the specified publisher (iam74k4)",
+      "cause": "No Trusted Publishing policy was registered for the publisher yet",
+      "published": false
+    },
+    "rerun": {
+      "scope": "failed marketplace job only (the VSIX from the first attempt was reused)",
+      "started_at": "2026-11-11T06:54:00Z",
+      "marketplace_job": "success",
+      "log": "Published iam74k4.markdown-lens-review v0.14.0."
+    }
+  },
+  "trusted_publishing": {
+    "registered_at": "2026-11-11",
+    "provider": "GitHub Actions",
+    "repository_owner": "iam74k4",
+    "repository": "Markdown-Lens",
+    "workflow_file": "publish.yml",
+    "environment": "marketplace",
+    "github_environment_required_reviewers": "none"
+  },
+  "vsix_sha256": "5e485f88115d8feb44f917c2364f8e8b3cbfc849b984613dd22dcf68d88c6cdf",
+  "upload_accepted": true,
+  "uploaded_at": "2026-11-11T06:54:11Z",
+  "published_at": "2026-11-11T07:03:05Z",
+  "public_version_last_seen": "0.14.0",
+  "status": "Published. The public listing shows Version 0.14.0 and the version history lists 0.14.0, 0.13.0, 0.12.2, 0.11.1 and 0.11.0. It appeared about nine minutes after the upload.",
+  "public_url": "https://marketplace.visualstudio.com/items?itemName=iam74k4.markdown-lens-review",
+  "install_check": {
+    "vscode": "Installed from the Marketplace listing with the VS Code CLI (iam74k4.markdown-lens-review 0.14.0)",
+    "cursor": "Installed from the same VSIX; Open VSX is not published",
+    "identical_to_published_vsix_sha256_prefix": {
+      "dist/extension.js": "973cddb5156f",
+      "media/webview.js": "40e31e3c0097",
+      "media/webview.css": "dcd3d3f7f481",
+      "media/review.css": "227d537e1c5d"
+    }
+  },
+  "open_vsx": "not published",
+  "latest_main_ci": {
+    "run_id": 42962268808,
+    "conclusion": "success",
+    "commit": "d9500748e29a3e80796f3a0a2264c325d80f8fc9"
+  }
+}
