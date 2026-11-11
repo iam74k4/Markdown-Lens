@@ -10,7 +10,7 @@
 
 ## インストール
 
-VS CodeまたはCursorでコマンドパレットを開き、`Extensions: Install from VSIX...`（VSIXからのインストール）を選んで `markdown-lens-0.14.0.vsix` を指定します。VS Codeでは拡張機能パネルから `@id:iam74k4.markdown-lens-review` を検索する方法もあります。Cursor向けOpen VSXは公開準備中です。
+VS CodeまたはCursorでコマンドパレットを開き、`Extensions: Install from VSIX...`（VSIXからのインストール）を選んで `markdown-lens-0.14.0.vsix` を指定します。VS Codeでは拡張機能パネルから `@id:iam74k4.markdown-lens-review` を検索してインストールできます（Marketplaceで公開済み）。Cursor向けOpen VSXは公開準備中のため、CursorではVSIXからインストールしてください。
 
 ## 使い方
 
