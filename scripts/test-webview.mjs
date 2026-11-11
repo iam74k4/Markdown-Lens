@@ -203,5 +203,21 @@ try {
     await shot.waitForTimeout(500);
     await shot.screenshot({ path: join(process.env.MARKDOWN_REVIEW_SCREENSHOTS, 'syntax-preview.png') });
   }
+  // Narrow windows: with every comparison (text, table, diagram) open and only the changes shown,
+  // the page never scrolls sideways.
+  const narrowBefore = '# 手順\n\n認証後、データを取得する。\n\n```mermaid\nflowchart LR\nA[認証] --> D[(DB)]\n```\n\n| 設定 | 値 |\n| --- | --- |\n| 保持期間 | 30秒 |\n| 再試行 | 3回 |\n';
+  const narrowAfter = narrowBefore.replace('認証後、', '認証後、キャッシュを経由して').replace('A[認証] --> D[(DB)]', 'A[認証] --> C[キャッシュ]\nC --> D[(DB)]').replace('30秒', '60秒');
+  const narrow = await browser.newPage({ viewport: { width: 1280, height: 960 } });
+  await narrow.goto(await page('ja'));
+  await expect.poll(() => posted(narrow).then(m => m.some(x => x.type === 'ready'))).toBe(true);
+  await send(narrow, { type: 'update', state: state(narrowBefore, narrowAfter) });
+  await expect(narrow.locator('.inline-before > summary').first()).toBeVisible();
+  for (const summary of await narrow.locator('.inline-before > summary').all()) { await summary.click(); await narrow.waitForTimeout(400); }
+  for (const width of [360, 320]) {
+    await narrow.setViewportSize({ width, height: 800 });
+    await narrow.waitForTimeout(500);
+    await expect.poll(() => narrow.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), { message: `no horizontal scroll at ${width}px` }).toBe(false);
+  }
+  await narrow.close();
   console.log('Webview browser checks passed');
 } finally { await browser.close(); }
