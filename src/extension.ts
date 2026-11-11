@@ -456,9 +456,13 @@ export class ReviewPanel implements vscode.Disposable {
     // the temporary clean tab. Never revert a dirty document or force-save it.
     if (doc.isDirty || this.disposed) return doc;
     const existing = new Set(vscode.window.tabGroups.all.flatMap(group => group.tabs));
+    const isThisFile = (tab: vscode.Tab) => tab.input instanceof vscode.TabInputText && tab.input.uri.toString() === this.uri.toString();
+    const hadTab = [...existing].some(isThisFile);
     const version = doc.version;
+    let opened = false;
     try {
       await vscode.window.showTextDocument(doc, { viewColumn: this.panel.viewColumn, preserveFocus: true, preview: false });
+      opened = true;
       // File editor opening can resolve before its asynchronous disk reload.
       const deadline = Date.now() + 2000;
       while (!doc.isClosed && !doc.isDirty && doc.version === version && doc.getText() !== this.current && Date.now() < deadline)
@@ -466,8 +470,12 @@ export class ReviewPanel implements vscode.Disposable {
       return await this.document();
     } finally {
       if (!this.disposed) this.panel.reveal(this.panel.viewColumn, true);
-      const temporary = vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab => !existing.has(tab) && !tab.isDirty
-        && tab.input instanceof vscode.TabInputText && tab.input.uri.toString() === this.uri.toString());
+      const find = () => vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab => !existing.has(tab) && !tab.isDirty && isThisFile(tab));
+      let temporary = find();
+      // The tab model can reach the extension host after showTextDocument resolves, notably in remote
+      // windows. Wait briefly for the tab we opened, but only when the file had no tab before.
+      for (const deadline = Date.now() + 1000; opened && !hadTab && !temporary.length && Date.now() < deadline; temporary = find())
+        await new Promise(resolve => setTimeout(resolve, 25));
       if (temporary.length) await vscode.window.tabGroups.close(temporary, true);
     }
   }
