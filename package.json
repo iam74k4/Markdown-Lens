@@ -2,7 +2,7 @@
   "name": "markdown-lens-review",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.14.0",
+  "version": "0.14.1",
   "publisher": "iam74k4",
   "license": "MIT",
   "engines": {
