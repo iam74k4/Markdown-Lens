@@ -10,7 +10,7 @@
 
 ## インストール
 
-VS CodeまたはCursorでコマンドパレットを開き、`Extensions: Install from VSIX...`（VSIXからのインストール）を選んで `markdown-lens-0.14.0.vsix` を指定します。VS Codeでは拡張機能パネルから `@id:iam74k4.markdown-lens-review` を検索してインストールできます（Marketplaceで公開済み）。Cursor向けOpen VSXは公開準備中のため、CursorではVSIXからインストールしてください。
+VS CodeまたはCursorでコマンドパレットを開き、`Extensions: Install from VSIX...`（VSIXからのインストール）を選んで `markdown-lens-0.14.1.vsix` を指定します。VS Codeでは拡張機能パネルから `@id:iam74k4.markdown-lens-review` を検索してインストールできます（Marketplaceで公開済み）。Cursor向けOpen VSXは公開準備中のため、CursorではVSIXからインストールしてください。
 
 ## 使い方
 
@@ -258,7 +258,7 @@ VS Code / Cursorでリポジトリのルートフォルダを開き、F5で拡�
 
 `npm run test:screen-reader` はmacOSのVoiceOver、WindowsのNVDAで、確認ボタン・メニュー・本文・メタデータ・アラートなどの読み上げを検証します（事前に `npx @guidepup/setup setup` と `npx @guidepup/setup install` で自動操作の許可と読み上げソフトの準備をします）。
 
-配布用VSIXは `npx vsce package --no-dependencies --out markdown-lens-0.14.0.vsix` で生成できます。公開時にはpublisherを登録し、VS Code Marketplace / Open VSX向けの配布情報を設定してください。
+配布用VSIXは `npx vsce package --no-dependencies --out markdown-lens-0.14.1.vsix` で生成できます。公開時にはpublisherを登録し、VS Code Marketplace / Open VSX向けの配布情報を設定してください。
 
 設計上はVS Codeの安定版APIのみを使い、最低APIバージョンは1.96です。各エディタ・各OSでの互換性は、実際にテストした範囲に限られます。
 
