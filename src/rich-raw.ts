@@ -1,6 +1,7 @@
 import katex from 'katex';
 import type { Node as PMNode } from 'prosemirror-model';
-import type { NodeViewConstructor } from 'prosemirror-view';
+import { Decoration, DecorationSet, type NodeViewConstructor } from 'prosemirror-view';
+import { Plugin, PluginKey } from 'prosemirror-state';
 import { frontMatterRows } from './markdown-syntax';
 import { t } from './i18n';
 
@@ -26,6 +27,48 @@ export function renderMathIn(container: HTMLElement): void {
     element.replaceWith(target);
   });
 }
+
+/** Formatting tags shown as what they do; the tags themselves fold away until the caret comes near. */
+const PREVIEW_TAGS = new Set(['kbd', 'sub', 'sup', 'small', 'u', 'b', 'i', 'em', 'strong', 'mark', 's', 'del', 'ins']);
+interface TagPair { tag: string; open: number; openEnd: number; close: number; closeEnd: number }
+interface LineBreak { from: number; to: number }
+/** Matching attribute-free formatting tags (and `<br>`) within each paragraph, nesting included. */
+export function inlineHtmlPairs(doc: PMNode): { pairs: TagPair[]; breaks: LineBreak[] } {
+  const pairs: TagPair[] = [], breaks: LineBreak[] = [];
+  doc.descendants((node, pos) => {
+    if (!node.isTextblock) return true;
+    const stack: { tag: string; open: number; openEnd: number }[] = [];
+    node.forEach((child, offset) => {
+      if (child.type.name !== 'raw_inline' || child.attrs.kind !== 'html') return;
+      const match = /^<(\/?)([a-z]+)\s*(\/?)>$/i.exec(child.attrs.source ?? ''); if (!match) return;
+      const tag = match[2].toLowerCase(), at = pos + 1 + offset, end = at + child.nodeSize;
+      if (tag === 'br' && !match[1]) { breaks.push({ from: at, to: end }); return; }
+      if (!PREVIEW_TAGS.has(tag) || match[3]) return;
+      if (!match[1]) { stack.push({ tag, open: at, openEnd: end }); return; }
+      const index = stack.map(entry => entry.tag).lastIndexOf(tag); if (index < 0) return;
+      const opened = stack[index]; stack.length = index;
+      if (at > opened.openEnd) pairs.push({ tag, open: opened.open, openEnd: opened.openEnd, close: at, closeEnd: end });
+    });
+    return false;
+  });
+  return { pairs, breaks };
+}
+const htmlPreviewKey = new PluginKey<ReturnType<typeof inlineHtmlPairs>>('inlineHtmlPreview');
+export const inlineHtmlPreview: Plugin = new Plugin<ReturnType<typeof inlineHtmlPairs>>({
+  key: htmlPreviewKey,
+  state: { init: (_, state) => inlineHtmlPairs(state.doc), apply: (tr, found, _old, state) => tr.docChanged ? inlineHtmlPairs(state.doc) : found },
+  props: { decorations(state): DecorationSet | null {
+    const found = htmlPreviewKey.getState(state); if (!found || (!found.pairs.length && !found.breaks.length)) return null;
+    const { from, to } = state.selection, near = (start: number, end: number) => to >= start && from <= end;
+    const decorations: Decoration[] = [];
+    for (const pair of found.pairs) {
+      decorations.push(Decoration.inline(pair.openEnd, pair.close, { class: `md-html md-html-${pair.tag}` }));
+      if (!near(pair.open, pair.closeEnd)) decorations.push(Decoration.node(pair.open, pair.openEnd, { class: 'raw-tag-folded' }), Decoration.node(pair.close, pair.closeEnd, { class: 'raw-tag-folded' }));
+    }
+    for (const line of found.breaks) if (!near(line.from, line.to)) decorations.push(Decoration.node(line.from, line.to, { class: 'raw-tag-folded raw-tag-break' }));
+    return DecorationSet.create(state.doc, decorations);
+  } },
+});
 
 export const rawLabel = (kind: string) => ({ frontmatter: t('メタデータ'), math: t('数式'), html: 'HTML', comment: t('HTMLコメント') } as Record<string, string>)[kind] ?? kind;
 

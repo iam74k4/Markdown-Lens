@@ -245,7 +245,7 @@ body.vscode-high-contrast ins, body.vscode-high-contrast del, body.vscode-high-c
 .review-workspace.with-source { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .85fr); gap: 0; }
 #source-pane { position: sticky; top: 70px; align-self: start; height: calc(100vh - 125px); border-left: 1px solid var(--line); padding: 14px; background: var(--vscode-sideBar-background, var(--bg)); min-width: 0; }
 .source-heading { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }.source-heading select { min-width: 0; flex: 1; font-size: 12px; }.source-heading button { width: 30px; padding: 4px; }
-#source-text { width: 100%; height: calc(100% - 85px); resize: none; border: 1px solid var(--line); border-radius: 5px; padding: 14px; background: var(--bg); color: var(--fg); font: 12px/1.9 var(--vscode-editor-font-family, ui-monospace, monospace); tab-size: 2; white-space: pre; overflow: auto; }
+#source-text { width: 100%; height: calc(100% - 85px); resize: none; border: 1px solid var(--line); border-radius: 5px; padding: 14px; background: var(--bg); color: var(--fg); font: 12.5px/1.7 var(--vscode-editor-font-family, ui-monospace, monospace); tab-size: 2; white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; }
 #source-text:focus { outline: 1px solid var(--focus); }#source-text[readonly] { color: var(--muted); }#source-hint { font-size: 11px; color: var(--muted); margin: 8px 0; }
 .rich-code { margin: 20px 0; min-width: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }.code-tools { display: flex; padding: 6px 12px; color: var(--muted); font: 11px/1.6 var(--vscode-font-family, system-ui); background: var(--vscode-textCodeBlock-background, #8881); }.code-tools input { font-size: 11px; width: 140px; border-color: transparent; padding: 2px 6px; }
 .rich-code-source { padding: 0 12px; }.rich-code-source > summary { font-size: 12px; color: var(--muted); cursor: pointer; padding: 6px 0; }.rich-code pre { margin: 0; border: 0; border-radius: 0; padding: 10px 0 14px; background: transparent; white-space: pre; }.rich-code .diagram-review { border: 0; margin: 0; }.rich-image { display: inline-block; max-width: 100%; }.rich-image .markdown-image { margin-bottom: 3px; }.image-caption { font-size: 11px; color: var(--muted); }
@@ -274,6 +274,12 @@ footer { z-index: 10; }.toolbar { z-index: 12; }
 .ProseMirror .quick-cell-target { box-shadow: inset 0 0 0 2px var(--focus); background: var(--vscode-list-hoverBackground, #8881); }
 .quick-table-delete { margin-left: 3px; border-left: 1px solid var(--line); border-radius: 0 4px 4px 0; }.quick-table-delete:hover:not(:disabled) { color: var(--red); background: var(--del-bg); }
 .quick-table-button[aria-pressed="true"] { background: var(--ins-bg); color: var(--ins-fg); border: 1px solid var(--green); }
+/* Long cells: show four lines unless the cell holds the caret or an unreviewed change, or the table is expanded. */
+.quick-table { position: relative; }
+.ProseMirror .quick-table:not(.cells-expanded) td:not(.quick-cell-target):not(.cell-unreviewed) > :first-child { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+.quick-table-more { position: absolute; inset: 0; pointer-events: none; }
+.quick-table-more-button { position: absolute; z-index: 2; pointer-events: auto; padding: 1px 8px; font: 11px/1.5 var(--vscode-font-family, system-ui); color: var(--vscode-textLink-foreground, var(--focus)); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; white-space: nowrap; }
+.quick-table-more-button:hover, .quick-table-more-button:focus-visible { border-color: var(--focus); }
 
 /* Section folding is view state: the Markdown and its review baseline stay intact. */
 .section-hidden { display: none !important; }
@@ -377,6 +383,14 @@ footer { z-index: 10; }.toolbar { z-index: 12; }
 .raw-inline { border-radius: 4px; }
 .raw-inline.raw-html, .raw-inline.raw-comment, code.raw-html, .raw-comment { padding: 0 4px; border: 1px solid var(--line); background: var(--vscode-textCodeBlock-background, #8881); color: var(--muted); font: 0.86em var(--vscode-editor-font-family, monospace); }
 .raw-inline.raw-comment, .raw-comment { font-style: italic; opacity: .8; }
+/* Formatting tags show their effect; the tags fold away until the caret comes near. */
+.raw-inline.raw-tag-folded { font-size: 0; padding: 0; margin: 0; border: 0; }
+.raw-inline.raw-tag-folded.raw-tag-break { display: block; height: 0; overflow: hidden; }
+.md-html-kbd { padding: 0 5px; margin: 0 1px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--vscode-textCodeBlock-background, #8881); font: .86em var(--vscode-editor-font-family, monospace); }
+.md-html-sub { vertical-align: sub; font-size: .78em; }.md-html-sup { vertical-align: super; font-size: .78em; }
+.md-html-small { font-size: .86em; }.md-html-u, .md-html-ins { text-decoration: underline; }.md-html-s, .md-html-del { text-decoration: line-through; }
+.md-html-b, .md-html-strong { font-weight: 700; }.md-html-i, .md-html-em { font-style: italic; }
+.md-html-mark { background: var(--vscode-editor-findMatchHighlightBackground, #f2cc6066); color: inherit; border-radius: 2px; padding: 0 1px; }
 .raw-inline.raw-footnote, .footnote-ref { padding: 0 2px; color: var(--vscode-textLink-foreground, #72b4e8); font-size: .75em; cursor: default; }
 .raw-inline.raw-footnoteDef, .footnote-def { display: inline-block; min-width: 1.6em; margin-right: 4px; padding: 0 5px; border-radius: 9px; background: var(--vscode-badge-background, #4d5560); color: var(--vscode-badge-foreground, #fff); font-size: .8em; text-align: center; }
 .raw-inline.raw-entity, .raw-inline.raw-escape { text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
@@ -417,3 +431,29 @@ pre.raw-block { color: var(--muted); }
 .raw-block-preview .math-block { margin: 2px 0; }
 .raw-block-preview table, .frontmatter table { width: auto; min-width: 40%; }
 .raw-block-preview th, .frontmatter th { width: 1%; white-space: nowrap; }
+
+/* Readability ------------------------------------------------------------- */
+/* Headings 4-6 stay at least body size; weight and color tell them apart. */
+.document h4 { font-size: 16px; font-weight: 650; }
+.document h5 { font-size: 15px; font-weight: 650; }
+.document h6 { font-size: 15px; font-weight: 600; color: var(--muted); }
+/* Lists: a little tighter than prose, and list markers clear of the change bar. */
+.document li { line-height: 1.8; }
+.document li > p { margin: 2px 0; }
+.document :is(ul, ol).inline-changed-block { padding-left: calc(2em + 12px); }
+/* Quotes and alerts read as body text; alerts get a tinted panel. */
+.document blockquote { color: color-mix(in srgb, var(--fg) 82%, var(--bg)); }
+.markdown-alert, .ProseMirror blockquote:has(> p:first-child > [data-alert]) { color: var(--fg); background: color-mix(in srgb, var(--alert) 9%, transparent); border-radius: 0 6px 6px 0; padding-top: 6px; padding-bottom: 6px; }
+.markdown-alert > p, .ProseMirror blockquote:has(> p:first-child > [data-alert]) > p { margin: 6px 0; }
+/* Code blocks: compact lines and horizontal scrolling instead of clipped lines. */
+.rich-code pre { overflow-x: auto; font-size: 12.5px; line-height: 1.6; }
+.rich-code pre code { font-size: 12.5px; line-height: 1.6; padding: 0; background: none; }
+/* Mermaid: one way to the source (the editable block below the diagram). */
+.rich-code .diagram-source { display: none; }
+/* Change cards: label, comparison toggle and actions on one line. */
+.contextual-ui .inline-review.change { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; }
+.contextual-ui .inline-review-row { display: contents; font-size: 11px; }
+.contextual-ui .inline-review > .inline-before { order: 1; margin: 0; font-size: 11px; }
+.contextual-ui .inline-review .change-actions { order: 2; margin-left: auto; }
+.contextual-ui .inline-review > .inline-before[open] { order: 3; flex-basis: 100%; }
+.ProseMirror li.task-item > div > p { margin: 2px 0; }

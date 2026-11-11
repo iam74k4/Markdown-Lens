@@ -34,10 +34,15 @@ export function mediaNodeViews(images: () => Map<string, string>, before: () => 
       const details = document.createElement('details'); details.className = 'rich-code-source';
       const summary = document.createElement('summary'); summary.contentEditable = 'false'; summary.textContent = t('Mermaidソースを編集');
       const pre = document.createElement('pre'), code = document.createElement('code'); pre.append(code); details.append(summary, pre); dom.append(tools, preview, details);
+      // Start in the final state: plain code open, the Mermaid preview and its source toggle only for Mermaid.
+      { const mermaid = (node.attrs.params || '').trim() === 'mermaid'; dom.classList.toggle('is-mermaid', mermaid); preview.hidden = !mermaid; summary.hidden = !mermaid; details.open = !mermaid; }
       const paint = () => {
         const mermaid = (current.attrs.params || '').trim() === 'mermaid';
-        dom.classList.toggle('is-mermaid', mermaid); preview.hidden = !mermaid; summary.hidden = !mermaid;
-        if (!mermaid) { details.open = true; return; }
+        // Write only real changes: these elements sit outside the editable code.
+        if (dom.classList.contains('is-mermaid') !== mermaid) dom.classList.toggle('is-mermaid', mermaid);
+        if (preview.hidden === mermaid) preview.hidden = !mermaid;
+        if (summary.hidden === mermaid) summary.hidden = !mermaid;
+        if (!mermaid) { if (!details.open) details.open = true; return; }
         const source = current.textContent, previous = before().get(source + '\n') ?? before().get(source) ?? '';
         const nextKey = `${previous}\0${source}`; if (nextKey === key) return; key = nextKey;
         // Replace only the non-editable diagram, never the contentDOM or selection.
@@ -68,7 +73,8 @@ export function mediaNodeViews(images: () => Map<string, string>, before: () => 
         update(next: PMNode) { if (next.type !== current.type) return false; const changed = next.textContent !== current.textContent || next.attrs.params !== current.attrs.params; current = next;
           if (document.activeElement !== language) language.value = next.attrs.params || ''; if (changed) schedule(); return true; },
         stopEvent: event => tools.contains(event.target as globalThis.Node) || preview.contains(event.target as globalThis.Node) || event.target === summary,
-        ignoreMutation: mutation => mutation.type !== 'selection' && (tools.contains(mutation.target) || preview.contains(mutation.target) || (mutation.type === 'attributes' && (mutation.target === details || mutation.target === dom))),
+        // Attribute changes outside the code (summary, details, toolbar, preview) are display state, not content.
+        ignoreMutation: mutation => mutation.type !== 'selection' && (tools.contains(mutation.target) || preview.contains(mutation.target) || (mutation.type === 'attributes' && !code.contains(mutation.target))),
         destroy() { clearTimeout(timer); view.dom.removeEventListener('media-refresh', schedule); },
       };
     },
