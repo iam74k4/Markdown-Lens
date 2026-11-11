@@ -34,6 +34,8 @@ export function mediaNodeViews(images: () => Map<string, string>, before: () => 
       const details = document.createElement('details'); details.className = 'rich-code-source';
       const summary = document.createElement('summary'); summary.contentEditable = 'false'; summary.textContent = t('Mermaidソースを編集');
       const pre = document.createElement('pre'), code = document.createElement('code'); pre.append(code); details.append(summary, pre); dom.append(tools, preview, details);
+      // Start in the final state: plain code open, the Mermaid preview and its source toggle only for Mermaid.
+      { const mermaid = (node.attrs.params || '').trim() === 'mermaid'; dom.classList.toggle('is-mermaid', mermaid); preview.hidden = !mermaid; summary.hidden = !mermaid; details.open = !mermaid; }
       const paint = () => {
         const mermaid = (current.attrs.params || '').trim() === 'mermaid';
         // Write only real changes: these elements sit outside the editable code.

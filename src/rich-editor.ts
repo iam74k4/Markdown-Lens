@@ -16,7 +16,7 @@ import { mediaNodeViews } from './rich-media';
 import { gapCursor } from 'prosemirror-gapcursor';
 import { ColorPalette } from './color-toolbar';
 import { parseRichMarkdown, serializeRichMarkdown, parseInlineMarkdown, richSchema as schema, makeTable, RichDocument } from './rich-markdown';
-import { rawNodeViews } from './rich-raw';
+import { rawNodeViews, inlineHtmlPreview } from './rich-raw';
 import { linkDecorations, linkAt, type LinkRequest } from './rich-links';
 import { t } from './i18n';
 import { headingSlug } from './markdown-syntax';
@@ -74,7 +74,7 @@ export class RichEditor {
       markRule(/(?:^|[^`])(`([^`]+)`)$/, schema.marks.code),
       markRule(/(?:^|[^~])(~~([^~\s](?:[^~]*[^~\s])?)~~)$/, schema.marks.strike),
     ] });
-    const plugins = [searchPlugin, inlineReviewPlugin, quickTableSelection, autoNumbering, history(), rules, keymap({
+    const plugins = [searchPlugin, inlineReviewPlugin, quickTableSelection, inlineHtmlPreview, autoNumbering, history(), rules, keymap({
       'Mod-z': undo, 'Mod-Shift-z': redo, 'Mod-y': redo,
       'Mod-b': toggleMark(schema.marks.strong), 'Mod-i': toggleMark(schema.marks.em),
       'Mod-`': toggleMark(schema.marks.code),
