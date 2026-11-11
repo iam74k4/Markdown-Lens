@@ -274,6 +274,12 @@ footer { z-index: 10; }.toolbar { z-index: 12; }
 .ProseMirror .quick-cell-target { box-shadow: inset 0 0 0 2px var(--focus); background: var(--vscode-list-hoverBackground, #8881); }
 .quick-table-delete { margin-left: 3px; border-left: 1px solid var(--line); border-radius: 0 4px 4px 0; }.quick-table-delete:hover:not(:disabled) { color: var(--red); background: var(--del-bg); }
 .quick-table-button[aria-pressed="true"] { background: var(--ins-bg); color: var(--ins-fg); border: 1px solid var(--green); }
+/* Long cells: show four lines unless the cell holds the caret or an unreviewed change, or the table is expanded. */
+.quick-table { position: relative; }
+.ProseMirror .quick-table:not(.cells-expanded) td:not(.quick-cell-target):not(.cell-unreviewed) > :first-child { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+.quick-table-more { position: absolute; inset: 0; pointer-events: none; }
+.quick-table-more-button { position: absolute; z-index: 2; pointer-events: auto; padding: 1px 8px; font: 11px/1.5 var(--vscode-font-family, system-ui); color: var(--vscode-textLink-foreground, var(--focus)); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; white-space: nowrap; }
+.quick-table-more-button:hover, .quick-table-more-button:focus-visible { border-color: var(--focus); }
 
 /* Section folding is view state: the Markdown and its review baseline stay intact. */
 .section-hidden { display: none !important; }

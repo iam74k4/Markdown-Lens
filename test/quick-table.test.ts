@@ -137,3 +137,15 @@ test('new rows with automatic numbering focus a data cell ready for typing', () 
  const typed=added.applyTransaction(added.tr.insertText('Beta')).state;
  assert.equal(typed.doc.nodeAt(pos)!.child(2).textContent,'2Beta');
 });
+
+test('column widths follow the longest text so prose columns get room and short columns stay narrow', async () => {
+ const { columnShares } = await import('../src/quick-table-view');
+ const prose = 'ユーザーがログインしたときに、セッションを作成し、有効期限を設定します。'.repeat(6);
+ const shares = columnShares([['項目', 'セッション', '再試行'], ['値', '30分', '3回'], ['説明', prose, '失敗したときに再試行します。']]);
+ assert.equal(shares.length, 3);
+ assert.ok(Math.abs(shares.reduce((sum, share) => sum + share, 0) - 100) < 0.5, 'shares add up to the table width');
+ assert.ok(shares[2] > shares[0] * 2 && shares[2] > shares[1] * 2, `the prose column is widest: ${shares}`);
+ assert.ok(Math.min(...shares) >= 10, `short columns keep a readable minimum: ${shares}`);
+ assert.deepEqual(columnShares([['A', 'x'], ['B', 'y']]), [50, 50], 'equal content keeps equal columns');
+ assert.deepEqual(columnShares([[], []]), [50, 50], 'empty columns split evenly');
+});
