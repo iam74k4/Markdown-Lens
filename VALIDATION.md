@@ -10,7 +10,7 @@
 - GitHub Actions（[実行結果](https://github.com/iam74k4/Markdown-Lens/actions/runs/42514031919)）: Linuxの **VS Code 1.145.2**、**Cursor 1.128.0**、リモート拡張ホストの **Remote - SSH**（同じランナーへSSH接続）・**Dev Containers**（Docker、リポジトリを同じパスにマウント）・**WSL**（WindowsからUbuntu 24.04）で、拡張ホスト各43項目に成功、省略なし（ネイティブUndo、実際のGitリポジトリでのHEAD比較・比較元リセット・`initialBaseline: gitHead` を含む）。リモートでは `remoteName` がそれぞれ `ssh-remote`・`dev-container`・`wsl` であることを確認。VS Codeの実Webview UIテスト（`test:ui`、Linux・xvfb）に成功。Windows・macOSの単体テストとビルドに成功。
 - 検証中に、Cursorはテストが失敗しても終了コード0を返すため失敗が隠れることを発見。テストランナーが各エディターの結果ファイルを必須にし、隠れていたテスト側の設定復元の不具合を修正しました。
 - 検証中に見つけて修正した不具合: 読み込みの直前にファイルが消えると（Remote - SSHで再現）生のENOENTを表示していた問題を「ファイルが見つかりません」の案内に統一。未確認一覧の走査中に再更新を求めると、走査の完了を待たずに戻っていた問題を修正。ホスト検証では、表示中のWebviewが自身の下書き・表示位置を送って検証側の送信と競合し、不安定になる問題をテスト側で解消しました。
-- 未検証・対象外の範囲: Cursorの実画面テスト（新規プロファイルはログイン必須の画面で止まるため、ログイン済みのCursorが必要。Cursorの拡張ホスト43項目は上記で確認）。JAWSは有償のため未検証（NVDA・VoiceOverは上記で確認）。拡張はNode.js上で動くため、ブラウザーだけで動くVS Code for the Web（vscode.dev・github.dev）は対象外です。Marketplace・Open VSXへの公開は、発行者の認証が必要なため未実施です。所有者が実行する公開用ワークフロー（`.github/workflows/publish.yml`）を用意しました。README・ガイドの0.14.0の画像は検証用ブラウザーで表示したWebviewです。
+- 未検証・対象外の範囲: Cursorの実画面テスト（新規プロファイルはログイン必須の画面で止まるため、ログイン済みのCursorが必要。Cursorの拡張ホスト43項目は上記で確認）。スクリーンリーダーはNVDA・VoiceOverで確認し、JAWSは対象外としました（有償で自動テストができず、NVDAと同じWindowsのアクセシビリティの仕組みで読み上げるため）。拡張はNode.js上で動くため、ブラウザーだけで動くVS Code for the Web（vscode.dev・github.dev）は対象外です。Marketplace・Open VSXへの公開は、発行者の認証が必要なため未実施です。所有者が実行する公開用ワークフロー（`.github/workflows/publish.yml`）を用意しました。README・ガイドの0.14.0の画像は検証用ブラウザーで表示したWebviewです。
 
 結果: [evidence/features-0.14.0](evidence/features-0.14.0/summary.json)。以下は過去の検証記録です。
 
