@@ -453,7 +453,8 @@ pre.raw-block { color: var(--muted); }
 /* Change cards: label, comparison toggle and actions on one line. */
 .contextual-ui .inline-review.change { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; }
 .contextual-ui .inline-review-row { display: contents; font-size: 11px; }
-.contextual-ui .inline-review > .inline-before { order: 1; margin: 0; font-size: 11px; }
+.contextual-ui .inline-review > .inline-before { order: 1; margin: 0; font-size: 11px; min-width: 0; max-width: 100%; }
 .contextual-ui .inline-review .change-actions { order: 2; margin-left: auto; }
-.contextual-ui .inline-review > .inline-before[open] { order: 3; flex-basis: 100%; }
+.contextual-ui .inline-review > .inline-before[open] { order: 3; flex: 1 1 100%; }
+.contextual-ui .inline-review { min-width: 0; }
 .ProseMirror li.task-item > div > p { margin: 2px 0; }
